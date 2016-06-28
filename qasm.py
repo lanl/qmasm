@@ -7,6 +7,7 @@
 
 from qasm.cmdline import parse_command_line
 from qasm.globals import *
+from qasm.utils import *
 from collections import defaultdict
 from dwave_sapi2.core import solve_ising
 from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
@@ -26,7 +27,6 @@ import sys
 cl_args = parse_command_line()
 
 # Define our internal representation.
-sym2num = {}    # Map from symbol to unique number
 weights = defaultdict(lambda: 0.0)    # Map from a spin to a point weight
 strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
 chains = {}     # Subset of strengths keys that represents chains
@@ -38,18 +38,6 @@ str2bool.update({s: False for s in ["0", "-1", "F", "FALSE"]})
 
 # Specify the minimum distinguishable difference between energy readings.
 min_energy_delta = 0.005
-
-# Define a function that maps from a symbol to a number, creating a
-# new association if necessary.
-next_sym_num = -1
-def symbol_to_number(sym):
-    try:
-        return sym2num[sym]
-    except KeyError:
-        global next_sym_num
-        next_sym_num += 1
-        sym2num[sym] = next_sym_num
-        return next_sym_num
 
 # Define a function that creates a new internal symbol.
 def new_internal_sym():
@@ -67,11 +55,6 @@ def is_float(str):
         return True
     except ValueError:
         return False
-
-# Define a function to abort the program on an error.
-def abend(str):
-    sys.stderr.write("%s: %s\n" % (progname, str))
-    sys.exit(1)
 
 # Define a function that aborts the program, reporting an invalid
 # input line as part of the error message.
