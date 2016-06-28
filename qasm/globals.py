@@ -3,13 +3,14 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
+import qasm
 import sys
 
 # Name of this program
-progname = sys.argv[0]
+qasm.progname = sys.argv[0]
 
 # Map from a symbol to a unique number
-sym2num = {}
+qasm.sym2num = {}
 
 # One less than the next symbol number to assign
-next_sym_num = -1
+qasm.next_sym_num = -1

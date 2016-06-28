@@ -5,9 +5,7 @@
 # By Scott Pakin <pakin@lanl.gov>                #
 ##################################################
 
-from qasm.cmdline import parse_command_line
-from qasm.globals import *
-from qasm.utils import *
+import qasm
 from collections import defaultdict
 from dwave_sapi2.core import solve_ising
 from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
@@ -24,7 +22,7 @@ import string
 import sys
 
 # Parse the command line.
-cl_args = parse_command_line()
+cl_args = qasm.parse_command_line()
 
 # Define our internal representation.
 weights = defaultdict(lambda: 0.0)    # Map from a spin to a point weight
@@ -45,7 +43,7 @@ def new_internal_sym():
         sym = "$"
         for i in range(5):
             sym += random.choice(string.lowercase)
-        if not sym2num.has_key(sym):
+        if not qasm.sym2num.has_key(sym):
             return sym
 
 # Define a function that says if a string can be treated as a float.
@@ -131,7 +129,7 @@ class Weight(Statement):
         self.weight = weight
 
     def update_qmi(self, prefix, weights, strengths, chains, pinned):
-        num = symbol_to_number(prefix + self.sym)
+        num = qasm.symbol_to_number(prefix + self.sym)
         weights[num] += self.weight
 
 class Chain(Statement):
@@ -142,8 +140,8 @@ class Chain(Statement):
         self.sym2 = sym2
 
     def update_qmi(self, prefix, weights, strengths, chains, pinned):
-        num1 = symbol_to_number(prefix + self.sym1)
-        num2 = symbol_to_number(prefix + self.sym2)
+        num1 = qasm.symbol_to_number(prefix + self.sym1)
+        num2 = qasm.symbol_to_number(prefix + self.sym2)
         if num1 == num2:
             self.error_in_line("A chain cannot connect a spin to itself")
         elif num1 > num2:
@@ -158,7 +156,7 @@ class Pin(Statement):
         self.goal = goal
 
     def update_qmi(self, prefix, weights, strengths, chains, pinned):
-        num = symbol_to_number(prefix + self.sym)
+        num = qasm.symbol_to_number(prefix + self.sym)
         pinned.append((num, self.goal))
 
 class Alias(Statement):
@@ -172,7 +170,7 @@ class Alias(Statement):
         sym1 = prefix + self.sym1
         sym2 = prefix + self.sym2
         try:
-            sym2num[sym1] = sym2num[sym2]
+            qasm.sym2num[sym1] = qasm.sym2num[sym2]
         except KeyError:
             self.error_in_line("Cannot make symbol %s an alias of undefined symbol %s" % (sym1, sym2))
         if sym1 == sym2:
@@ -187,8 +185,8 @@ class Strength(Statement):
         self.strength = strength
 
     def update_qmi(self, prefix, weights, strengths, chains, pinned):
-        num1 = symbol_to_number(prefix + self.sym1)
-        num2 = symbol_to_number(prefix + self.sym2)
+        num1 = qasm.symbol_to_number(prefix + self.sym1)
+        num2 = qasm.symbol_to_number(prefix + self.sym2)
         if num1 == num2:
             self.error_in_line("A coupler cannot connect a spin to itself")
         elif num1 > num2:
@@ -375,7 +373,7 @@ for stmt in program:
 
 # Store all tallies for later reportage.
 logical_stats = {
-    "vars":      next_sym_num + 1,
+    "vars":      qasm.next_sym_num + 1,
     "strengths": len(strengths),
     "eqs":       len(chains),
     "pins":      len(pinned)
@@ -432,7 +430,7 @@ if cl_args.verbose >= 1:
 # single point weight.  We recycle the coupler strength to set the pin
 # strength.
 for q_user, b in pinned:
-    q_helper = symbol_to_number(new_internal_sym())
+    q_helper = qasm.symbol_to_number(new_internal_sym())
     q1, q2 = q_helper, q_user
     if q1 > q2:
         q1, q2 = q2, q1
@@ -450,11 +448,11 @@ if cl_args.O:
     # Say what we're about to do
     if cl_args.verbose >= 2:
         sys.stderr.write("Replaced chains of equally weighted qubits with aliases:\n\n")
-        sys.stderr.write("  %6d logical qubits before optimization\n" % (next_sym_num + 1))
+        sys.stderr.write("  %6d logical qubits before optimization\n" % (qasm.next_sym_num + 1))
 
     # Identify all chains that can be converted to aliases.
-    num2allsyms = [[] for _ in range(len(sym2num))]
-    for s, n in sym2num.items():
+    num2allsyms = [[] for _ in range(len(qasm.sym2num))]
+    for s, n in qasm.sym2num.items():
         num2allsyms[n].append(s)
     make_aliases = []
     for q1, q2 in chains:
@@ -466,14 +464,14 @@ if cl_args.O:
     # of qubit number and shift all greater qubit numbers downward.
     for q1, q2 in make_aliases:
         # Map q2's symbolic names to q1's.  Shift everything above q2 downwards.
-        alias_sym2num = {}
-        for s, sq in sym2num.items():
+        alias_qasm.sym2num = {}
+        for s, sq in qasm.sym2num.items():
             if sq == q2:
                 sq = q1
             elif sq > q2:
                 sq -= 1
-            alias_sym2num[s] = sq
-        sym2num = alias_sym2num
+            alias_qasm.sym2num[s] = sq
+        qasm.sym2num = alias_qasm.sym2num
 
         # Elide q2 from the list of weights.
         alias_weights = defaultdict(lambda: 0.0)
@@ -531,14 +529,14 @@ if cl_args.O:
         pinned = alias_pinned
 
         # We now have one fewer symbol.
-        next_sym_num -= 1
+        qasm.next_sym_num -= 1
 
     # Summarize what we just did.
     if cl_args.verbose >= 2:
-        sys.stderr.write("  %6d logical qubits after optimization\n\n" % (next_sym_num + 1))
+        sys.stderr.write("  %6d logical qubits after optimization\n\n" % (qasm.next_sym_num + 1))
 
 # This is a good time to update our logical statistics.
-logical_stats["vars"] = next_sym_num + 1
+logical_stats["vars"] = qasm.next_sym_num + 1
 
 # Complain if we have no weights and no strengths.
 if len(weights) == 0 and len(strengths) == 0:
@@ -565,9 +563,9 @@ if cl_args.verbose >= 2:
     sys.stderr.write("\n")
 
     # Map each canonicalized name to one or more original symbols.
-    canon2syms = [[] for _ in range(len(sym2num))]
+    canon2syms = [[] for _ in range(len(qasm.sym2num))]
     max_sym_name_len = 8
-    for s, n in sym2num.items():
+    for s, n in qasm.sym2num.items():
         canon2syms[n].append(s)
         max_sym_name_len = max(max_sym_name_len, len(repr(canon2syms[n])) - 1)
 
@@ -655,7 +653,7 @@ if embedding == []:
     # We received an empty embedding.  I've seen this happen with the
     # ising-heuristic solver.  A workaround seems to be to fabricate a trivial
     # embedding in which logical qubit X maps to physical qubit X.
-    embedding = [[q] for q in range(next_sym_num + 1)]
+    embedding = [[q] for q in range(qasm.next_sym_num + 1)]
 
 # Embed the problem using the embedding we found.
 try:
@@ -664,7 +662,7 @@ try:
 except KeyError:
     h_range = [-1.0, 1.0]
     j_range = [-1.0, 1.0]
-weight_list = [weights[q] for q in range(next_sym_num + 1)]
+weight_list = [weights[q] for q in range(qasm.next_sym_num + 1)]
 smearable = any([s != 0.0 for s in strengths.values()])
 try:
     [new_weights, new_strengths, new_chains, new_embedding] = embed_problem(
@@ -682,7 +680,7 @@ if cl_args.O:
         # Determine the edges of a rectangle of cells we want to use.
         L, M, N = chimera_topology(solver)
         L2 = 2*L
-        ncells = (next_sym_num + 1) // L2
+        ncells = (qasm.next_sym_num + 1) // L2
         edgey = max(int(math.sqrt(ncells)), 1)
         edgex = max((ncells + edgey - 1) // edgey, 1)
 
@@ -746,9 +744,9 @@ if cl_args.verbose >= 2:
     sys.stderr.write("\n")
 
 # Map each logical qubit to one or more symbols.
-num2syms = [[] for _ in range(len(sym2num))]
+num2syms = [[] for _ in range(len(qasm.sym2num))]
 max_sym_name_len = 7
-for s, n in sym2num.items():
+for s, n in qasm.sym2num.items():
     if cl_args.verbose >= 2 or "$" not in s:
         num2syms[n].append(s)
     max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
