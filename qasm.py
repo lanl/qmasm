@@ -5,7 +5,8 @@
 # By Scott Pakin <pakin@lanl.gov>                #
 ##################################################
 
-from qasm.parse import parse_files
+from qasm.update import convert_to_ising, assign_chain_strength
+from qasm.parse import parse_files, parse_pin
 from qasm.cmdline import parse_command_line
 from qasm.globals import *
 from qasm.utils import *
@@ -14,7 +15,7 @@ from dwave_sapi2.core import solve_ising
 from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
 from dwave_sapi2.local import local_connection
 from dwave_sapi2.remote import RemoteConnection
-from dwave_sapi2.util import get_hardware_adjacency, qubo_to_ising, ising_to_qubo, linear_index_to_chimera
+from dwave_sapi2.util import get_hardware_adjacency, ising_to_qubo, linear_index_to_chimera
 import os
 import os.path
 import math
@@ -25,19 +26,6 @@ import sys
 
 # Parse the command line.
 cl_args = parse_command_line()
-
-# Define our internal representation.
-weights = defaultdict(lambda: 0.0)    # Map from a spin to a point weight
-strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
-chains = {}     # Subset of strengths keys that represents chains
-pinned = []     # Pairs of {unique number, Boolean} to pin
-
-# Define synonyms for "true" and "false".
-str2bool = {s: True for s in ["1", "+1", "T", "TRUE"]}
-str2bool.update({s: False for s in ["0", "-1", "F", "FALSE"]})
-
-# Specify the minimum distinguishable difference between energy readings.
-min_energy_delta = 0.005
 
 # Define a function that creates a new internal symbol.
 def new_internal_sym():
@@ -90,24 +78,7 @@ parse_files(cl_args.input)
 # the program.
 if cl_args.pin != None:
     for pstr in cl_args.pin:
-        lhs_rhs = pstr.split(":=")
-        if len(lhs_rhs) != 2:
-            abend('Failed to parse --pin="%s"' % pstr)
-        lhs = lhs_rhs[0].split()
-        rhs = []
-        for r in lhs_rhs[1].upper().split():
-            try:
-                rhs.append(str2bool[r])
-            except KeyError:
-                for subr in r:
-                    try:
-                        rhs.append(str2bool[subr])
-                    except KeyError:
-                        abend('Failed to parse --pin="%s"' % pstr)
-            if len(lhs) != len(rhs):
-                abend('Different number of left- and right-hand-side values in --pin="%s" (%d vs. %d)' % (pstr, len(lhs), len(rhs)))
-            for l, r in zip(lhs, rhs):
-                program.append(Pin(None, l, r))
+        parse_pin(pstr)
 
 # Walk the statements in the program, processing each in turn.
 for stmt in program:
@@ -123,32 +94,11 @@ logical_stats = {
 
 # Convert from QUBO to Ising in case the solver doesn't support QUBO problems.
 if cl_args.qubo:
-    qmatrix = {(q, q): w for q, w in weights.items()}
-    qmatrix.update(strengths)
-    hvals, strengths, _ = qubo_to_ising(qmatrix)
-    strengths = defaultdict(lambda: 0.0, strengths)
-    weights.update({i: hvals[i] for i in range(len(hvals))})
+    convert_to_ising()
 
 # Define a strength for each user-specified chain, and assign strengths
 # to those chains.
-chain_strength = cl_args.chain_strength
-if chain_strength == None:
-    # Chain strength defaults to the maximum strength in the data.
-    try:
-        chain_strength = -max([abs(w) for w in strengths.values()])
-    except ValueError:
-        # No strengths -- use weights instead.
-        try:
-            chain_strength = -max([abs(w) for w in weights.values()])
-        except ValueError:
-            # No weights or strengths -- arbitrarily choose -1.
-            chain_strength = -1.0
-elif cl_args.qubo:
-    # With QUBO input we need to divide the chain strength by 4 for consistency
-    # with the other coupler strengths.
-    chain_strength /= 4.0
-for c in chains.keys():
-    strengths[c] += chain_strength
+assign_chain_strength(cl_args.chain_strength, cl_args.qubo)
 
 # Define a strength for each user-specified pinned variable.
 pin_strength = cl_args.pin_strength

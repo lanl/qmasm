@@ -17,6 +17,10 @@ def error_in_line(str):
     sys.stderr.write('%s:%d: error: %s\n' % (filename, lineno, str))
     sys.exit(1)
 
+# Define synonyms for "true" and "false".
+str2bool = {s: True for s in ["1", "+1", "T", "TRUE"]}
+str2bool.update({s: False for s in ["0", "-1", "F", "FALSE"]})
+
 # Define a function that says if a string can be treated as a float.
 def is_float(str):
     try:
@@ -271,3 +275,24 @@ def parse_files(file_list):
             if current_macro[0] != None:
                 error_in_line("Unterminated definition of macro %s" % current_macro[0])
             infile.close()
+
+def parse_pin(pstr):
+    "Parse a pin statement specified on the command line."
+    lhs_rhs = pstr.split(":=")
+    if len(lhs_rhs) != 2:
+        abend('Failed to parse --pin="%s"' % pstr)
+    lhs = lhs_rhs[0].split()
+    rhs = []
+    for r in lhs_rhs[1].upper().split():
+        try:
+            rhs.append(str2bool[r])
+        except KeyError:
+            for subr in r:
+                try:
+                    rhs.append(str2bool[subr])
+                except KeyError:
+                    abend('Failed to parse --pin="%s"' % pstr)
+        if len(lhs) != len(rhs):
+            abend('Different number of left- and right-hand-side values in --pin="%s" (%d vs. %d)' % (pstr, len(lhs), len(rhs)))
+        for l, r in zip(lhs, rhs):
+            program.append(Pin(None, l, r))
