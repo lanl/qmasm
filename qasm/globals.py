@@ -13,3 +13,6 @@ sym2num = {}
 
 # One less than the next symbol number to assign
 next_sym_num = -1
+
+# List of Statement objects
+program = []
