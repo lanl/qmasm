@@ -14,3 +14,6 @@ qasm.sym2num = {}
 
 # One less than the next symbol number to assign
 qasm.next_sym_num = -1
+
+# List of Statement objects
+qasm.program = []
