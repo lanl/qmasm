@@ -23,12 +23,6 @@ import sys
 # Parse the command line.
 cl_args = qasm.parse_command_line()
 
-# Define our internal representation.
-weights = defaultdict(lambda: 0.0)    # Map from a spin to a point weight
-strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
-chains = {}     # Subset of strengths keys that represents chains
-pinned = []     # Pairs of {unique number, Boolean} to pin
-
 # Specify the minimum distinguishable difference between energy readings.
 min_energy_delta = 0.005
 
@@ -86,79 +80,51 @@ if cl_args.pin != None:
 
 # Walk the statements in the program, processing each in turn.
 for stmt in qasm.program:
-    stmt.update_qmi("", weights, strengths, chains, pinned)
+    stmt.update_qmi("", qasm.weights, qasm.strengths, qasm.chains, qasm.pinned)
 
 # Store all tallies for later reportage.
 logical_stats = {
     "vars":      qasm.next_sym_num + 1,
-    "strengths": len(strengths),
-    "eqs":       len(chains),
-    "pins":      len(pinned)
+    "strengths": len(qasm.strengths),
+    "eqs":       len(qasm.chains),
+    "pins":      len(qasm.pinned)
 }
 
 # Convert from QUBO to Ising in case the solver doesn't support QUBO problems.
 if cl_args.qubo:
-    qmatrix = {(q, q): w for q, w in weights.items()}
-    qmatrix.update(strengths)
-    hvals, strengths, _ = qubo_to_ising(qmatrix)
-    strengths = defaultdict(lambda: 0.0, strengths)
-    weights.update({i: hvals[i] for i in range(len(hvals))})
+    qasm.convert_to_ising()
 
 # Define a strength for each user-specified chain, and assign strengths
 # to those chains.
-chain_strength = cl_args.chain_strength
-if chain_strength == None:
-    # Chain strength defaults to the maximum strength in the data.
-    try:
-        chain_strength = -max([abs(w) for w in strengths.values()])
-    except ValueError:
-        # No strengths -- use weights instead.
-        try:
-            chain_strength = -max([abs(w) for w in weights.values()])
-        except ValueError:
-            # No weights or strengths -- arbitrarily choose -1.
-            chain_strength = -1.0
-elif cl_args.qubo:
-    # With QUBO input we need to divide the chain strength by 4 for consistency
-    # with the other coupler strengths.
-    chain_strength /= 4.0
-for c in chains.keys():
-    strengths[c] += chain_strength
+qasm.assign_chain_strength(cl_args.chain_strength, cl_args.qubo)
 
 # Define a strength for each user-specified pinned variable.
-pin_strength = cl_args.pin_strength
-if pin_strength == None:
-    # Pin strength defaults to half the chain strength.
-    pin_strength = chain_strength/2.0
-elif cl_args.qubo:
-    # With QUBO input we need to divide the chain strength by 4 for consistency
-    # with the other coupler strengths.
-    pin_strength /= 4.0
+qasm.assign_pin_strength(cl_args.pin_strength, cl_args.qubo)
 
 # Output the chain and pin strengths.
 if cl_args.verbose >= 1:
     sys.stderr.write("Computed the following strengths:\n\n")
-    sys.stderr.write("    chain: %7.4f\n" % chain_strength)
-    sys.stderr.write("    pin:   %7.4f\n" % pin_strength)
+    sys.stderr.write("    chain: %7.4f\n" % qasm.chain_strength)
+    sys.stderr.write("    pin:   %7.4f\n" % qasm.pin_strength)
     sys.stderr.write("\n")
 
 # Use a helper bit to help pin values to true or false.  A helper bit isn't
 # strictly necessary, but I'm thinking it'll emphasize the pin more than a
 # single point weight.  We recycle the coupler strength to set the pin
 # strength.
-for q_user, b in pinned:
+for q_user, b in qasm.pinned:
     q_helper = qasm.symbol_to_number(new_internal_sym())
     q1, q2 = q_helper, q_user
     if q1 > q2:
         q1, q2 = q2, q1
     if b:
-        weights[q_helper] += pin_strength/2.0
-        weights[q_user] += pin_strength
-        strengths[(q1, q2)] += -pin_strength/2.0
+        qasm.weights[q_helper] += qasm.pin_strength/2.0
+        qasm.weights[q_user] += qasm.pin_strength
+        qasm.strengths[(q1, q2)] += -qasm.pin_strength/2.0
     else:
-        weights[q_helper] += pin_strength/2.0
-        weights[q_user] += -pin_strength
-        strengths[(q1, q2)] += pin_strength/2.0
+        qasm.weights[q_helper] += qasm.pin_strength/2.0
+        qasm.weights[q_user] += -qasm.pin_strength
+        qasm.strengths[(q1, q2)] += qasm.pin_strength/2.0
 
 # Convert chains to aliases where possible.
 if cl_args.O:
@@ -172,8 +138,8 @@ if cl_args.O:
     for s, n in qasm.sym2num.items():
         num2allsyms[n].append(s)
     make_aliases = []
-    for q1, q2 in chains:
-        if weights[q1] == weights[q2]:
+    for q1, q2 in qasm.chains:
+        if qasm.weights[q1] == qasm.weights[q2]:
             make_aliases.append((q1, q2))
     make_aliases.sort(reverse=True, key=lambda qs: (qs[1], qs[0]))
 
@@ -192,20 +158,20 @@ if cl_args.O:
 
         # Elide q2 from the list of weights.
         alias_weights = defaultdict(lambda: 0.0)
-        for wq, wt in weights.items():
+        for wq, wt in qasm.weights.items():
             if wq == q2:
                 continue
             if wq > q2:
                 wq -= 1
             if wt != 0.0:
                 alias_weights[wq] = wt
-        alias_weights[q1] += weights[q2]   # Conserve overall energy.
-        weights = alias_weights
+        alias_weights[q1] += qasm.weights[q2]   # Conserve overall energy.
+        qasm.weights = alias_weights
 
         # Replace q2 with q1 in all strengths.  Shift everything above q2
         # downwards.
         alias_strengths = defaultdict(lambda: 0.0)
-        for (sq1, sq2), wt in strengths.items():
+        for (sq1, sq2), wt in qasm.strengths.items():
             if sq1 == q2:
                 sq1 = q1
             if sq1 > q2:
@@ -216,12 +182,12 @@ if cl_args.O:
                 sq2 -= 1
             if sq1 != sq2:
                 alias_strengths[(sq1, sq2)] = wt
-        strengths = alias_strengths
+        qasm.strengths = alias_strengths
 
         # Replace q2 with q1 in all strengths.  Shift everything above q2
         # downwards.
         alias_chains = {}
-        for cq1, cq2 in chains.keys():
+        for cq1, cq2 in qasm.chains.keys():
             if cq1 == q2:
                 cq1 = q1
             if cq1 > q2:
@@ -232,18 +198,18 @@ if cl_args.O:
                 cq2 -= 1
             if cq1 != cq2:
                 alias_chains[(cq1, cq2)] = None
-        chains = alias_chains
+        qasm.chains = alias_chains
 
         # Replace q2 with q1 in all pinned qubits.  Shift everything above q2
         # downwards.
         alias_pinned = []
-        for pq, b in pinned:
+        for pq, b in qasm.pinned:
             if pq == q2:
                 pq = q1
             if pq > q2:
                 pq -= 1
             alias_pinned.append((pq, b))
-        pinned = alias_pinned
+        qasm.pinned = alias_pinned
 
         # We now have one fewer symbol.
         qasm.next_sym_num -= 1
@@ -256,27 +222,27 @@ if cl_args.O:
 logical_stats["vars"] = qasm.next_sym_num + 1
 
 # Complain if we have no weights and no strengths.
-if len(weights) == 0 and len(strengths) == 0:
+if len(qasm.weights) == 0 and len(qasm.strengths) == 0:
     abend("Nothing to do (no weights or strengths specified)")
 
 # Output a normalized input file.
 if cl_args.verbose >= 2:
     # Weights
     sys.stderr.write("Canonicalized the input file:\n\n")
-    for q in sorted(weights.keys()):
-        sys.stderr.write("    q%d %.20g\n" % (q + 1, weights[q]))
+    for q in sorted(qasm.weights.keys()):
+        sys.stderr.write("    q%d %.20g\n" % (q + 1, qasm.weights[q]))
     sys.stderr.write("\n")
 
     # Chains
-    if len(chains) > 0:
-        for qs in sorted(chains.keys()):
+    if len(qasm.chains) > 0:
+        for qs in sorted(qasm.chains.keys()):
             sys.stderr.write("    q%d = q%d\n" % (qs[0], qs[1]))
         sys.stderr.write("\n")
 
     # Strengths (those that are not chains)
-    for qs in sorted(strengths.keys()):
-        if not chains.has_key(qs):
-            sys.stderr.write("    q%d q%d %.20g\n" % (qs[0] + 1, qs[1] + 1, strengths[qs]))
+    for qs in sorted(qasm.strengths.keys()):
+        if not qasm.chains.has_key(qs):
+            sys.stderr.write("    q%d q%d %.20g\n" % (qs[0] + 1, qs[1] + 1, qasm.strengths[qs]))
     sys.stderr.write("\n")
 
     # Map each canonicalized name to one or more original symbols.
@@ -348,7 +314,7 @@ if cl_args.verbose >= 1:
     sys.stderr.write("\n")
 
 # Find an embedding of the problem.
-edges = strengths.keys()
+edges = qasm.strengths.keys()
 edges.sort()
 try:
     hw_adj = get_hardware_adjacency(solver)
@@ -379,11 +345,11 @@ try:
 except KeyError:
     h_range = [-1.0, 1.0]
     j_range = [-1.0, 1.0]
-weight_list = [weights[q] for q in range(qasm.next_sym_num + 1)]
-smearable = any([s != 0.0 for s in strengths.values()])
+weight_list = [qasm.weights[q] for q in range(qasm.next_sym_num + 1)]
+smearable = any([s != 0.0 for s in qasm.strengths.values()])
 try:
     [new_weights, new_strengths, new_chains, new_embedding] = embed_problem(
-        weight_list, strengths, embedding, hw_adj, True, smearable, h_range, j_range)
+        weight_list, qasm.strengths, embedding, hw_adj, True, smearable, h_range, j_range)
 except ValueError as e:
     abend("Failed to embed the problem in the solver (%s)" % e)
 
@@ -425,7 +391,7 @@ if cl_args.O:
                     sys.stderr.write("  Trying a %dx%d unit-cell embedding ... " % (edgex, edgey))
                 alt_embedding = find_embedding(edges, alt_hw_adj, verbose=0)
                 [new_weights, new_strengths, new_chains, new_embedding] = embed_problem(
-                    weight_list, strengths, alt_embedding, alt_hw_adj, True, True, h_range, j_range)
+                    weight_list, qasm.strengths, alt_embedding, alt_hw_adj, True, True, h_range, j_range)
                 if cl_args.verbose >= 2:
                     sys.stderr.write("succeeded\n")
                 break  # Success!
@@ -445,7 +411,7 @@ if cl_args.O:
 
 # Set all chains to the user-specified strength then combine
 # user-specified chains with embedder-created chains.
-new_chains = {c: chain_strength for c in new_chains.keys()}
+new_chains = {c: qasm.chain_strength for c in new_chains.keys()}
 combined_strengths = new_strengths.copy()
 combined_strengths.update(new_chains)
 if cl_args.verbose >= 2:
@@ -666,12 +632,12 @@ class ValidSolution:
 def answer_is_intact(answer):
     # Reject broken pins.
     bool2spin = [-1, +1]
-    for pnum, pin in pinned:
+    for pnum, pin in qasm.pinned:
         if answer[pnum] != bool2spin[pin]:
             return False
 
     # Reject broken chains.
-    for q1, q2 in chains.keys():
+    for q1, q2 in qasm.chains.keys():
         if answer[q1] != answer[q2]:
             return False
 
