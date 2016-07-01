@@ -3,11 +3,10 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
-from qasm.globals import *
-from qasm.utils import *
+import os
+import qasm
 import shlex
 import string
-import os
 
 # Define a function that aborts the program, reporting an invalid
 # input line as part of the error message.
@@ -21,14 +20,6 @@ def error_in_line(str):
 str2bool = {s: True for s in ["1", "+1", "T", "TRUE"]}
 str2bool.update({s: False for s in ["0", "-1", "F", "FALSE"]})
 
-# Define a function that says if a string can be treated as a float.
-def is_float(str):
-    try:
-        float(str)
-        return True
-    except ValueError:
-        return False
-
 # Define a function that searches a list of directories for a file.
 def find_file_in_path(pathnames, filename):
     for pname in pathnames:
@@ -39,6 +30,14 @@ def find_file_in_path(pathnames, filename):
         if os.path.exists(fname_qasm):
             return fname_qasm
     return None
+
+# Define a function that says if a string can be treated as a float.
+def is_float(str):
+    try:
+        float(str)
+        return True
+    except ValueError:
+        return False
 
 class Statement(object):
     "One statement in a QASM source file."
@@ -61,7 +60,7 @@ class Weight(Statement):
         self.weight = weight
 
     def update_qmi(self, prefix, weights, strengths, chains, pinned):
-        num = symbol_to_number(prefix + self.sym)
+        num = qasm.symbol_to_number(prefix + self.sym)
         weights[num] += self.weight
 
 class Chain(Statement):
@@ -72,8 +71,8 @@ class Chain(Statement):
         self.sym2 = sym2
 
     def update_qmi(self, prefix, weights, strengths, chains, pinned):
-        num1 = symbol_to_number(prefix + self.sym1)
-        num2 = symbol_to_number(prefix + self.sym2)
+        num1 = qasm.symbol_to_number(prefix + self.sym1)
+        num2 = qasm.symbol_to_number(prefix + self.sym2)
         if num1 == num2:
             self.error_in_line("A chain cannot connect a spin to itself")
         elif num1 > num2:
@@ -88,7 +87,7 @@ class Pin(Statement):
         self.goal = goal
 
     def update_qmi(self, prefix, weights, strengths, chains, pinned):
-        num = symbol_to_number(prefix + self.sym)
+        num = qasm.symbol_to_number(prefix + self.sym)
         pinned.append((num, self.goal))
 
 class Alias(Statement):
@@ -102,7 +101,7 @@ class Alias(Statement):
         sym1 = prefix + self.sym1
         sym2 = prefix + self.sym2
         try:
-            sym2num[sym1] = sym2num[sym2]
+            qasm.sym2num[sym1] = qasm.sym2num[sym2]
         except KeyError:
             self.error_in_line("Cannot make symbol %s an alias of undefined symbol %s" % (sym1, sym2))
         if sym1 == sym2:
@@ -117,8 +116,8 @@ class Strength(Statement):
         self.strength = strength
 
     def update_qmi(self, prefix, weights, strengths, chains, pinned):
-        num1 = symbol_to_number(prefix + self.sym1)
-        num2 = symbol_to_number(prefix + self.sym2)
+        num1 = qasm.symbol_to_number(prefix + self.sym1)
+        num2 = qasm.symbol_to_number(prefix + self.sym2)
         if num1 == num2:
             self.error_in_line("A coupler cannot connect a spin to itself")
         elif num1 > num2:
@@ -142,9 +141,9 @@ class MacroUse(Statement):
 macros = {}        # Map from a macro name to a list of Statement objects
 current_macro = (None, [])   # Macro currently being defined (name and statements)
 aliases = {}       # Map from a symbol to its textual expansion
-target = program   # Reference to either the program or the current macro
+target = qasm.program   # Reference to either the program or the current macro
 def parse_file(infilename, infile):
-    global program, macros, current_macro, aliases, target, filename, lineno
+    global macros, current_macro, aliases, target, filename, lineno
     filename = infilename
     for line in infile:
         # Split the line into fields and apply text aliases.
@@ -205,7 +204,7 @@ def parse_file(infilename, infile):
                 if current_macro[0] != name:
                     error_in_line("Ended macro %s after beginning macro %s" % (name, current_macro[0]))
                 macros[name] = current_macro[1]
-                target = program
+                target = qasm.program
                 current_macro = (None, [])
             else:
                 # <symbol> <weight> -- increment a symbol's point weight.
@@ -258,7 +257,7 @@ def parse_file(infilename, infile):
             error_in_line('Cannot parse "%s"' % line)
 
 def parse_files(file_list):
-    "Parse the original input file(s) into an internal representation."
+    "Parse a list of file(s) into an internal representation."
     if file_list == []:
         # No files were specified: Read from standard input.
         parse_file("<stdin>", sys.stdin)
@@ -276,23 +275,24 @@ def parse_files(file_list):
                 error_in_line("Unterminated definition of macro %s" % current_macro[0])
             infile.close()
 
-def parse_pin(pstr):
-    "Parse a pin statement specified on the command line."
-    lhs_rhs = pstr.split(":=")
-    if len(lhs_rhs) != 2:
-        abend('Failed to parse --pin="%s"' % pstr)
-    lhs = lhs_rhs[0].split()
-    rhs = []
-    for r in lhs_rhs[1].upper().split():
-        try:
-            rhs.append(str2bool[r])
-        except KeyError:
-            for subr in r:
-                try:
-                    rhs.append(str2bool[subr])
-                except KeyError:
-                    abend('Failed to parse --pin="%s"' % pstr)
-        if len(lhs) != len(rhs):
-            abend('Different number of left- and right-hand-side values in --pin="%s" (%d vs. %d)' % (pstr, len(lhs), len(rhs)))
-        for l, r in zip(lhs, rhs):
-            program.append(Pin(None, l, r))
+def parse_pin(pin):
+    "Parse a pin statement passed on the command line."
+    for pstr in pin:
+        lhs_rhs = pstr.split(":=")
+        if len(lhs_rhs) != 2:
+            abend('Failed to parse --pin="%s"' % pstr)
+        lhs = lhs_rhs[0].split()
+        rhs = []
+        for r in lhs_rhs[1].upper().split():
+            try:
+                rhs.append(str2bool[r])
+            except KeyError:
+                for subr in r:
+                    try:
+                        rhs.append(str2bool[subr])
+                    except KeyError:
+                        abend('Failed to parse --pin="%s"' % pstr)
+            if len(lhs) != len(rhs):
+                abend('Different number of left- and right-hand-side values in --pin="%s" (%d vs. %d)' % (pstr, len(lhs), len(rhs)))
+            for l, r in zip(lhs, rhs):
+                qasm.program.append(Pin(None, l, r))

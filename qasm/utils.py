@@ -3,18 +3,18 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
-from qasm.globals import *
+import qasm
 
 # Define a function that maps from a symbol to a number, creating a
 # new association if necessary.
 def symbol_to_number(sym):
     global sym2num, next_sym_num
     try:
-        return sym2num[sym]
+        return qasm.sym2num[sym]
     except KeyError:
-        next_sym_num += 1
-        sym2num[sym] = next_sym_num
-        return next_sym_num
+        qasm.next_sym_num += 1
+        qasm.sym2num[sym] = qasm.next_sym_num
+        return qasm.next_sym_num
 
 # Define a function to abort the program on an error.
 def abend(str):
