@@ -15,7 +15,6 @@ from dwave_sapi2.util import get_hardware_adjacency, ising_to_qubo, linear_index
 import os
 import os.path
 import math
-import random
 import re
 import string
 import sys
@@ -25,15 +24,6 @@ cl_args = qasm.parse_command_line()
 
 # Specify the minimum distinguishable difference between energy readings.
 min_energy_delta = 0.005
-
-# Define a function that creates a new internal symbol.
-def new_internal_sym():
-    while True:
-        sym = "$"
-        for i in range(5):
-            sym += random.choice(string.lowercase)
-        if not qasm.sym2num.has_key(sym):
-            return sym
 
 # Define a function that returns the topology of the chimera graph associated
 # with a given solver.
@@ -108,23 +98,8 @@ if cl_args.verbose >= 1:
     sys.stderr.write("    pin:   %7.4f\n" % qasm.pin_strength)
     sys.stderr.write("\n")
 
-# Use a helper bit to help pin values to true or false.  A helper bit isn't
-# strictly necessary, but I'm thinking it'll emphasize the pin more than a
-# single point weight.  We recycle the coupler strength to set the pin
-# strength.
-for q_user, b in qasm.pinned:
-    q_helper = qasm.symbol_to_number(new_internal_sym())
-    q1, q2 = q_helper, q_user
-    if q1 > q2:
-        q1, q2 = q2, q1
-    if b:
-        qasm.weights[q_helper] += qasm.pin_strength/2.0
-        qasm.weights[q_user] += qasm.pin_strength
-        qasm.strengths[(q1, q2)] += -qasm.pin_strength/2.0
-    else:
-        qasm.weights[q_helper] += qasm.pin_strength/2.0
-        qasm.weights[q_user] += -qasm.pin_strength
-        qasm.strengths[(q1, q2)] += qasm.pin_strength/2.0
+# Use a helper bit to help pin values to true or false.
+qasm.pin_qubits()
 
 # Convert chains to aliases where possible.
 if cl_args.O:
@@ -133,86 +108,8 @@ if cl_args.O:
         sys.stderr.write("Replaced chains of equally weighted qubits with aliases:\n\n")
         sys.stderr.write("  %6d logical qubits before optimization\n" % (qasm.next_sym_num + 1))
 
-    # Identify all chains that can be converted to aliases.
-    num2allsyms = [[] for _ in range(len(qasm.sym2num))]
-    for s, n in qasm.sym2num.items():
-        num2allsyms[n].append(s)
-    make_aliases = []
-    for q1, q2 in qasm.chains:
-        if qasm.weights[q1] == qasm.weights[q2]:
-            make_aliases.append((q1, q2))
-    make_aliases.sort(reverse=True, key=lambda qs: (qs[1], qs[0]))
-
-    # Replace each chain in make_aliases with an alias.  Work in reverse order
-    # of qubit number and shift all greater qubit numbers downward.
-    for q1, q2 in make_aliases:
-        # Map q2's symbolic names to q1's.  Shift everything above q2 downwards.
-        alias_qasm.sym2num = {}
-        for s, sq in qasm.sym2num.items():
-            if sq == q2:
-                sq = q1
-            elif sq > q2:
-                sq -= 1
-            alias_qasm.sym2num[s] = sq
-        qasm.sym2num = alias_qasm.sym2num
-
-        # Elide q2 from the list of weights.
-        alias_weights = defaultdict(lambda: 0.0)
-        for wq, wt in qasm.weights.items():
-            if wq == q2:
-                continue
-            if wq > q2:
-                wq -= 1
-            if wt != 0.0:
-                alias_weights[wq] = wt
-        alias_weights[q1] += qasm.weights[q2]   # Conserve overall energy.
-        qasm.weights = alias_weights
-
-        # Replace q2 with q1 in all strengths.  Shift everything above q2
-        # downwards.
-        alias_strengths = defaultdict(lambda: 0.0)
-        for (sq1, sq2), wt in qasm.strengths.items():
-            if sq1 == q2:
-                sq1 = q1
-            if sq1 > q2:
-                sq1 -= 1
-            if sq2 == q2:
-                sq2 = q1
-            if sq2 > q2:
-                sq2 -= 1
-            if sq1 != sq2:
-                alias_strengths[(sq1, sq2)] = wt
-        qasm.strengths = alias_strengths
-
-        # Replace q2 with q1 in all strengths.  Shift everything above q2
-        # downwards.
-        alias_chains = {}
-        for cq1, cq2 in qasm.chains.keys():
-            if cq1 == q2:
-                cq1 = q1
-            if cq1 > q2:
-                cq1 -= 1
-            if cq2 == q2:
-                cq2 = q1
-            if cq2 > q2:
-                cq2 -= 1
-            if cq1 != cq2:
-                alias_chains[(cq1, cq2)] = None
-        qasm.chains = alias_chains
-
-        # Replace q2 with q1 in all pinned qubits.  Shift everything above q2
-        # downwards.
-        alias_pinned = []
-        for pq, b in qasm.pinned:
-            if pq == q2:
-                pq = q1
-            if pq > q2:
-                pq -= 1
-            alias_pinned.append((pq, b))
-        qasm.pinned = alias_pinned
-
-        # We now have one fewer symbol.
-        qasm.next_sym_num -= 1
+    # Replace chains with aliases wherever we can.
+    qasm.convert_chains_to_aliases()
 
     # Summarize what we just did.
     if cl_args.verbose >= 2:
