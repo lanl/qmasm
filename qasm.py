@@ -7,11 +7,7 @@
 
 import qasm
 from collections import defaultdict
-from dwave_sapi2.core import solve_ising
-from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
-from dwave_sapi2.local import local_connection
-from dwave_sapi2.remote import RemoteConnection
-from dwave_sapi2.util import get_hardware_adjacency, ising_to_qubo, linear_index_to_chimera
+from dwave_sapi2.util import ising_to_qubo, linear_index_to_chimera
 import os
 import os.path
 import math
@@ -162,25 +158,7 @@ if cl_args.verbose >= 2:
 
 # Establish a connection to the D-Wave, and use this to talk to a solver.  We
 # rely on the qOp infrastructure to set the environment variables properly.
-try:
-    url = os.environ["DW_INTERNAL__HTTPLINK"]
-    token = os.environ["DW_INTERNAL__TOKEN"]
-    conn = RemoteConnection(url, token)
-except KeyError:
-    url = "<local>"
-    token = "<N/A>"
-    conn = local_connection
-except IOError as e:
-    abend("Failed to establish a remote connection (%s)" % e)
-try:
-    solver_name = os.environ["DW_INTERNAL__SOLVER"]
-except:
-    # Solver was not specified: Use the first available solver.
-    solver_name = conn.solver_names()[0]
-try:
-    solver = conn.get_solver(solver_name)
-except KeyError:
-    abend("Failed to find solver %s on connection %s" % (solver_name, url))
+qasm.connect_to_dwave()
 
 # Output most or all solver properties.
 if cl_args.verbose >= 1:
@@ -188,11 +166,11 @@ if cl_args.verbose >= 1:
     max_key_len = len("Parameter")
     ext_solver_properties = {}
     try:
-        L, M, N = chimera_topology(solver)
+        L, M, N = chimera_topology(qasm.solver)
         ext_solver_properties["chimera_toplogy_M_N_L"] = [M, N, L]
     except KeyError:
         pass
-    ext_solver_properties.update(solver.properties)
+    ext_solver_properties.update(qasm.solver.properties)
     solver_props = ext_solver_properties.keys()
     solver_props.sort()
     for k in solver_props:
@@ -210,107 +188,16 @@ if cl_args.verbose >= 1:
             sys.stderr.write("    %-*s  %s\n" % (max_key_len, k, val_str))
     sys.stderr.write("\n")
 
-# Find an embedding of the problem.
-edges = qasm.strengths.keys()
-edges.sort()
-try:
-    hw_adj = get_hardware_adjacency(solver)
-except KeyError:
-    # The Ising heuristic solver is an example of a solver that lacks a fixed
-    # hardware representation.  We therefore assert that the hardware exactly
-    # matches the problem'input graph.
-    hw_adj = edges
-if cl_args.verbose >= 2:
-    sys.stderr.write("Embedding the logical adjacency within the physical topology.\n\n")
-    stdout_fd = os.dup(sys.stdout.fileno())
-    os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
-    embedding = find_embedding(edges, hw_adj, verbose=1)
-    os.dup2(stdout_fd, sys.stdout.fileno())
-    sys.stderr.write("\n")
-else:
-    embedding = find_embedding(edges, hw_adj, verbose=0)
-if embedding == []:
-    # We received an empty embedding.  I've seen this happen with the
-    # ising-heuristic solver.  A workaround seems to be to fabricate a trivial
-    # embedding in which logical qubit X maps to physical qubit X.
-    embedding = [[q] for q in range(qasm.next_sym_num + 1)]
-
-# Embed the problem using the embedding we found.
-try:
-    h_range = solver.properties["h_range"]
-    j_range = solver.properties["j_range"]
-except KeyError:
-    h_range = [-1.0, 1.0]
-    j_range = [-1.0, 1.0]
-weight_list = [qasm.weights[q] for q in range(qasm.next_sym_num + 1)]
-smearable = any([s != 0.0 for s in qasm.strengths.values()])
-try:
-    [new_weights, new_strengths, new_chains, new_embedding] = embed_problem(
-        weight_list, qasm.strengths, embedding, hw_adj, True, smearable, h_range, j_range)
-except ValueError as e:
-    abend("Failed to embed the problem in the solver (%s)" % e)
+# Embed the problem onto the D-Wave.
+qasm.embed_problem_on_dwave(cl_args.verbose)
 
 # If told to optimize the layout, iteratively search for a better embedding.
 if cl_args.O:
-    try:
-        # Say what we're about to do
-        if cl_args.verbose >= 2:
-            sys.stderr.write("Optimizing the embedding.\n\n")
-
-        # Determine the edges of a rectangle of cells we want to use.
-        L, M, N = chimera_topology(solver)
-        L2 = 2*L
-        ncells = (qasm.next_sym_num + 1) // L2
-        edgey = max(int(math.sqrt(ncells)), 1)
-        edgex = max((ncells + edgey - 1) // edgey, 1)
-
-        # Repeatedly expand edgex and edgey until the embedding works.
-        while edgex < M and edgey < N:
-            # Retain adjacencies only within the rectangle.
-            alt_hw_adj = []
-            for q1, q2 in hw_adj:
-                c1 = q1//L2
-                if c1 % M >= edgex:
-                    continue
-                if c1 // M >= edgey:
-                    continue
-                c2 = q2//L2
-                if c2 % M >= edgex:
-                    continue
-                if c2 // M >= edgey:
-                    continue
-                alt_hw_adj.append((q1, q2))
-            alt_hw_adj = set(alt_hw_adj)
-
-            # Embed again.
-            try:
-                if cl_args.verbose >= 2:
-                    sys.stderr.write("  Trying a %dx%d unit-cell embedding ... " % (edgex, edgey))
-                alt_embedding = find_embedding(edges, alt_hw_adj, verbose=0)
-                [new_weights, new_strengths, new_chains, new_embedding] = embed_problem(
-                    weight_list, qasm.strengths, alt_embedding, alt_hw_adj, True, True, h_range, j_range)
-                if cl_args.verbose >= 2:
-                    sys.stderr.write("succeeded\n")
-                break  # Success!
-            except ValueError as e:
-                # Failure -- increase edgex or edgey and try again.
-                if cl_args.verbose >= 2:
-                    sys.stderr.write("failed\n")
-                if edgex < edgey:
-                    edgex += 1
-                else:
-                    edgey += 1
-    except KeyError:
-        if cl_args.verbose >= 2:
-            sys.stderr.write("  - Failed to query the machine topology for embedding parameters\n")
-    if cl_args.verbose >= 2:
-        sys.stderr.write("\n")
+    qasm.optimize_dwave_layout(cl_args.verbose)
 
 # Set all chains to the user-specified strength then combine
 # user-specified chains with embedder-created chains.
-new_chains = {c: qasm.chain_strength for c in new_chains.keys()}
-combined_strengths = new_strengths.copy()
-combined_strengths.update(new_chains)
+qasm.update_strengths_from_chains()
 if cl_args.verbose >= 2:
     sys.stderr.write("Introduced the following new chains:\n\n")
     if len(new_chains) == 0:
@@ -332,6 +219,7 @@ for s, n in qasm.sym2num.items():
     max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
 
 # Output the embedding.
+new_embedding = qasm.get_embedding()
 if cl_args.verbose >= 1:
     sys.stderr.write("Established a mapping from logical to physical qubits:\n\n")
     sys.stderr.write("    Logical  %-*s  Physical\n" % (max_sym_name_len, "Name(s)"))
@@ -356,6 +244,7 @@ else:
     sys.stderr.write("\n".join(log2phys_comments) + "\n")
 
 # Output some statistics about the embedding.
+combined_strengths = qasm.get_strengths()
 if cl_args.verbose >= 1:
     # Output a table.
     phys_wts = [elt for lst in new_embedding for elt in lst]
@@ -380,15 +269,7 @@ if cl_args.verbose >= 1:
     sys.stderr.write("    Maximum chain length = %d (occurrences = %d)\n\n" % (max_chain_len, num_max_chains))
 
 # Manually scale the weights and strengths so Qubist doesn't complain.
-old_cap = max([abs(w) for w in new_weights + combined_strengths.values()])
-new_cap = min(-h_range[0], h_range[1], -j_range[0], j_range[1])
-if old_cap == 0.0:
-    # Handle the obscure case of a zero old_cap.
-    old_cap = new_cap
-new_weights = [w*new_cap/old_cap for w in new_weights]
-combined_strengths = {js: w*new_cap/old_cap for js, w in combined_strengths.items()}
-if cl_args.verbose >= 1 and old_cap != new_cap:
-    sys.stderr.write("Scaling weights and strengths from [%.10g, %.10g] to [%.10g, %.10g].\n\n" % (-old_cap, old_cap, -new_cap, new_cap))
+qasm.scale_weights_strengths(cl_args.verbose)
 
 # Output a file in any of a variety of formats.
 if cl_args.output != "<stdout>" or not cl_args.run:
@@ -427,7 +308,7 @@ if cl_args.output != "<stdout>" or not cl_args.run:
 
         # Output the header and data in Qubist format.
         try:
-            num_qubits = solver.properties["num_qubits"]
+            num_qubits = qasm.solver.properties["num_qubits"]
         except KeyError:
             # The Ising heuristic solver is an example of a solver that lacks a
             # fixed hardware representation.  We therefore assert that the number
@@ -439,7 +320,7 @@ if cl_args.output != "<stdout>" or not cl_args.run:
     elif cl_args.format == "dw":
         # Output weights and strengths in dw format.
         try:
-            L, M, N = chimera_topology(solver)
+            L, M, N = chimera_topology(qasm.solver)
         except KeyError:
             abend("Failed to query the chimera topology")
         wdata = []
@@ -476,23 +357,7 @@ if not cl_args.run:
 # Submit the problem to the D-Wave.
 if cl_args.verbose >= 1:
     sys.stderr.write("Submitting the problem to the %s solver.\n\n" % solver_name)
-solver_params = dict(chains=new_embedding, num_reads=cl_args.samples, annealing_time=cl_args.anneal_time)
-while True:
-    # Repeatedly remove parameters the particular solver doesn't like until it
-    # actually works -- or fails for a different reason.
-    try:
-        answer = solve_ising(solver, new_weights, combined_strengths, **solver_params)
-        break
-    except ValueError as e:
-        # Is there a better way to extract the failing symbol than a regular
-        # expression match?
-        bad_name = re.match(r'"(.*?)"', str(e))
-        if bad_name == None:
-            raise e
-        del solver_params[bad_name.group(1)]
-    except RuntimeError as e:
-        abend(e)
-final_answer = unembed_answer(answer["solutions"], new_embedding, broken_chains="discard")
+answer, final_answer = qasm.submit_dwave_problem(cl_args.samples, cl_args.anneal_time)
 
 # Output solver timing information.
 if cl_args.verbose >= 1:
