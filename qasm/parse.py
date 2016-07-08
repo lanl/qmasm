@@ -48,7 +48,7 @@ class Statement(object):
 
     def error_in_line(self, msg):
         if self.lineno == None:
-            abend(msg)
+            qasm.abend(msg)
         else:
             sys.stderr.write('%s:%d: error: %s\n' % (cl_args.input, self.lineno, msg))
         sys.exit(1)
@@ -184,7 +184,7 @@ def parse_file(infilename, infile):
             try:
                 incfile = open(incname)
             except IOError:
-                abend('Failed to open %s for input' % incname)
+                qasm.abend('Failed to open %s for input' % incname)
             parse_file(incname, incfile)
             incfile.close()
         elif len(fields) == 2:
@@ -270,7 +270,7 @@ def parse_files(file_list):
             try:
                 infile = open(infilename)
             except IOError:
-                abend('Failed to open %s for input' % infilename)
+                qasm.abend('Failed to open %s for input' % infilename)
             parse_file(infilename, infile)
             if current_macro[0] != None:
                 error_in_line("Unterminated definition of macro %s" % current_macro[0])
@@ -281,7 +281,7 @@ def parse_pin(pin):
     for pstr in pin:
         lhs_rhs = pstr.split(":=")
         if len(lhs_rhs) != 2:
-            abend('Failed to parse --pin="%s"' % pstr)
+            qasm.abend('Failed to parse --pin="%s"' % pstr)
         lhs = lhs_rhs[0].split()
         rhs = []
         for r in lhs_rhs[1].upper().split():
@@ -292,8 +292,8 @@ def parse_pin(pin):
                     try:
                         rhs.append(str2bool[subr])
                     except KeyError:
-                        abend('Failed to parse --pin="%s"' % pstr)
+                        qasm.abend('Failed to parse --pin="%s"' % pstr)
             if len(lhs) != len(rhs):
-                abend('Different number of left- and right-hand-side values in --pin="%s" (%d vs. %d)' % (pstr, len(lhs), len(rhs)))
+                qasm.abend('Different number of left- and right-hand-side values in --pin="%s" (%d vs. %d)' % (pstr, len(lhs), len(rhs)))
             for l, r in zip(lhs, rhs):
                 qasm.program.append(Pin(None, l, r))

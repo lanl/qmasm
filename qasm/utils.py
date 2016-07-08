@@ -4,6 +4,7 @@
 ###################################
 
 import qasm
+import sys
 
 # Define a function that maps from a symbol to a number, creating a
 # new association if necessary.
@@ -18,8 +19,7 @@ def symbol_to_number(sym):
 
 # Define a function to abort the program on an error.
 def abend(str):
-    global progname
-    sys.stderr.write("%s: %s\n" % (progname, str))
+    sys.stderr.write("%s: %s\n" % (qasm.progname, str))
     sys.exit(1)
 
 # Define a function that returns the topology of the chimera graph associated

@@ -28,7 +28,7 @@ def connect_to_dwave():
         token = "<N/A>"
         conn = local_connection
     except IOError as e:
-        abend("Failed to establish a remote connection (%s)" % e)
+        qasm.abend("Failed to establish a remote connection (%s)" % e)
     try:
         qasm.solver_name = os.environ["DW_INTERNAL__SOLVER"]
     except:
@@ -37,7 +37,7 @@ def connect_to_dwave():
     try:
         qasm.solver = conn.get_solver(qasm.solver_name)
     except KeyError:
-        abend("Failed to find solver %s on connection %s" % (qasm.solver_name, url))
+        qasm.abend("Failed to find solver %s on connection %s" % (qasm.solver_name, url))
 
 def find_dwave_embedding(verbosity):
     "Find an embedding of a problem in the D-Wave's physical topology."
@@ -84,7 +84,7 @@ def embed_problem_on_dwave(verbosity):
         [new_weights, new_strengths, new_chains, new_embedding] = embed_problem(
             weight_list, qasm.strengths, embedding, hw_adj, True, smearable, h_range, j_range)
     except ValueError as e:
-        abend("Failed to embed the problem in the solver (%s)" % e)
+        qasm.abend("Failed to embed the problem in the solver (%s)" % e)
 
 def optimize_dwave_layout(verbosity):
     "Iteratively search for a better embedding."
@@ -204,6 +204,6 @@ def submit_dwave_problem(samples, anneal_time):
                 raise e
             del solver_params[bad_name.group(1)]
         except RuntimeError as e:
-            abend(e)
+            qasm.abend(e)
     final_answer = unembed_answer(answer["solutions"], new_embedding, broken_chains="discard")
     return answer, final_answer
