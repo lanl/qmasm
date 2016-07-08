@@ -21,16 +21,14 @@ def assign_chain_strength(ch_str, qubo):
     """Define a strength for each user-specified and automatically generated
     chain, and assign strengths to those chains."""
     qasm.chain_strength = ch_str
-    fudge_factor = 1.1
     if qasm.chain_strength == None:
-        # Chain strength defaults to the maximum strength in the data times a
-        # fudge factor.
+        # Chain strength defaults to the maximum strength in the data.
         try:
-            qasm.chain_strength = -max([abs(w) for w in qasm.strengths.values()]) * fudge_factor
+            qasm.chain_strength = -max([abs(w) for w in qasm.strengths.values()])
         except ValueError:
             # No strengths -- use weights instead.
             try:
-                qasm.chain_strength = -max([abs(w) for w in qasm.weights.values()]) * fudge_factor
+                qasm.chain_strength = -max([abs(w) for w in qasm.weights.values()])
             except ValueError:
                 # No weights or strengths -- arbitrarily choose -1.
                 qasm.chain_strength = -1.0
