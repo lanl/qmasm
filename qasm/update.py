@@ -3,15 +3,16 @@
 # By Scott Pakin <pakin@lanl.gov>   #
 #####################################
 
+from collections import defaultdict
+from dwave_sapi2.util import qubo_to_ising
 import qasm
 import random
 import string
-from dwave_sapi2.util import qubo_to_ising
 
 def convert_to_ising():
     "Canonicalize a QUBO problem into an Ising problem."
-    qmatrix = {(q, q): w for q, w in weights.items()}
-    qmatrix.update(strengths)
+    qmatrix = {(q, q): w for q, w in qasm.weights.items()}
+    qmatrix.update(qasm.strengths)
     hvals, qasm.strengths, _ = qubo_to_ising(qmatrix)
     qasm.strengths = defaultdict(lambda: 0.0, qasm.strengths)
     qasm.weights.update({i: hvals[i] for i in range(len(hvals))})

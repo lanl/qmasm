@@ -7,6 +7,7 @@ import os
 import qasm
 import shlex
 import string
+import sys
 
 # Define a function that aborts the program, reporting an invalid
 # input line as part of the error message.

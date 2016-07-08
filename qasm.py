@@ -6,12 +6,8 @@
 ##################################################
 
 import qasm
-from collections import defaultdict
-from dwave_sapi2.util import ising_to_qubo, linear_index_to_chimera
 import os
 import os.path
-import math
-import re
 import string
 import sys
 
@@ -20,41 +16,6 @@ cl_args = qasm.parse_command_line()
 
 # Specify the minimum distinguishable difference between energy readings.
 min_energy_delta = 0.005
-
-# Define a function that returns the topology of the chimera graph associated
-# with a given solver.
-def chimera_topology(solver):
-    nominal_qubits = solver.properties["num_qubits"]
-    couplers = solver.properties["couplers"]
-    deltas = [abs(c1 - c2) for c1, c2 in couplers]
-    delta_tallies = {d: 0 for d in deltas}
-    for d in deltas:
-        delta_tallies[d] += 1
-        sorted_tallies = sorted(delta_tallies.items(), key=lambda dt: dt[1], reverse=True)
-    L = sorted_tallies[0][0]
-    M = sorted_tallies[1][0] // (2*L)
-    N = (nominal_qubits + 2*L*M - 1) // (2*L*M)
-    return L, M, N
-
-# Define a function that maps a pair of qubits to a coupler number a la the dw
-# command.
-def coupler_number(M, N, L, q1, q2):
-    qmin = min(q1, q2)
-    qmax = max(q1, q2)
-    [[imin, jmin, umin, kmin], [imax, jmax, umax, kmax]] = linear_index_to_chimera([qmin, qmax], M, N, L)
-    cell_links = L*L
-    if imin == imax and jmin == jmax and umin != umax:
-        # Same unit cell
-        return cell_links*(imin*M + jmin) + kmin*L + kmax
-    total_intra = cell_links*M*N
-    if imin == imax and jmin + 1 == jmax and umin == umax and kmin == kmax:
-        # Horizontal (same cell row)
-        return total_intra + L*(imin*(M - 1) + jmin) + kmin
-    total_horiz = (M - 1)*N*L
-    if imin + 1 == imax and jmin == jmax and umin == umax and kmin == kmax:
-        # Vertical (same cell column)
-        return total_intra + total_horiz + L*(imin*M + jmin) + kmin
-    raise IndexError("No coupler exists between Q%04d and Q%04d" % (q1, q2))
 
 # Parse the original input file(s) into an internal representation.
 qasm.parse_files(cl_args.input)
@@ -166,7 +127,7 @@ if cl_args.verbose >= 1:
     max_key_len = len("Parameter")
     ext_solver_properties = {}
     try:
-        L, M, N = chimera_topology(qasm.solver)
+        L, M, N = qasm.chimera_topology(qasm.solver)
         ext_solver_properties["chimera_toplogy_M_N_L"] = [M, N, L]
     except KeyError:
         pass
@@ -200,6 +161,7 @@ if cl_args.O:
 qasm.update_strengths_from_chains()
 if cl_args.verbose >= 2:
     sys.stderr.write("Introduced the following new chains:\n\n")
+    new_chains = qasm.get_chains()
     if len(new_chains) == 0:
         sys.stderr.write("    [none]\n")
     else:
@@ -248,6 +210,7 @@ combined_strengths = qasm.get_strengths()
 if cl_args.verbose >= 1:
     # Output a table.
     phys_wts = [elt for lst in new_embedding for elt in lst]
+    new_chains = qasm.get_chains()
     sys.stderr.write("Computed the following statistics of the logical-to-physical mapping:\n\n")
     sys.stderr.write("    Type      Metric          Value\n")
     sys.stderr.write("    --------  --------------  -----\n")
@@ -273,82 +236,7 @@ qasm.scale_weights_strengths(cl_args.verbose)
 
 # Output a file in any of a variety of formats.
 if cl_args.output != "<stdout>" or not cl_args.run:
-    # Open the output file.
-    if cl_args.output == "<stdout>":
-        outfile = sys.stdout
-    else:
-        try:
-            outfile = open(cl_args.output, "w")
-        except IOError:
-            abend('Failed to open %s for output' % cl_args.output)
-
-    # Convert from Ising back to QUBO if --qubo was specified or if we're
-    # outputting in dw format, which expects QUBO coefficients.
-    if cl_args.qubo or cl_args.format == "dw":
-        qmatrix, _ = ising_to_qubo(new_weights, combined_strengths)
-        output_weights = [0] * len(new_weights)
-        for (q1, q2), wt in qmatrix.items():
-            if q1 == q2:
-                output_weights[q1] = wt
-        output_strengths = {(q1, q2): wt for (q1, q2), wt in qmatrix.items() if q1 != q2}
-    else:
-        output_weights = new_weights
-        output_strengths = combined_strengths
-
-    # Output the weights and strengths in the specified format.
-    if cl_args.format == "qubist":
-        # Output the data in Qubist format.
-        data = []
-        for q in range(len(new_weights)):
-            if output_weights[q] != 0.0:
-                data.append("%d %d %.10g" % (q, q, output_weights[q]))
-        for sp, str in output_strengths.items():
-            if str != 0.0:
-                data.append("%d %d %.10g" % (sp[0], sp[1], str))
-
-        # Output the header and data in Qubist format.
-        try:
-            num_qubits = qasm.solver.properties["num_qubits"]
-        except KeyError:
-            # The Ising heuristic solver is an example of a solver that lacks a
-            # fixed hardware representation.  We therefore assert that the number
-            # of qubits is exactly the number of qubits we require.
-            num_qubits = len(new_weights)
-        outfile.write("%d %d\n" % (num_qubits, len(data)))
-        for d in data:
-            outfile.write("%s\n" % d)
-    elif cl_args.format == "dw":
-        # Output weights and strengths in dw format.
-        try:
-            L, M, N = chimera_topology(qasm.solver)
-        except KeyError:
-            abend("Failed to query the chimera topology")
-        wdata = []
-        for q in range(len(new_weights)):
-            if output_weights[q] != 0.0:
-                wdata.append("Q%0d <== %.25g" % (q, output_weights[q]))
-        wdata.sort()
-        sdata = []
-        for sp, str in output_strengths.items():
-            if str != 0.0:
-                coupler = coupler_number(M, N, L, sp[0], sp[1])
-                sdata.append("C%04d <== %.25g" % (coupler, str))
-        sdata.sort()
-        outfile.write("\n".join(wdata + sdata) + "\n")
-    elif cl_args.format == "qbsolv":
-        # Output weights and strengths in qbsolv format.
-        nonzero_strengths = [s for s in output_strengths.values() if s != 0.0]
-        outfile.write("p qubo 0 %d %d %d\n" % (len(output_weights), len(output_weights), len(nonzero_strengths)))
-        for q in range(len(output_weights)):
-            outfile.write("%d %d %.10g\n" % (q, q, output_weights[q]))
-        for qs in sorted(output_strengths.keys()):
-            s = output_strengths[qs]
-            if s != 0.0:
-                outfile.write("%d %d %.10g\n" % (qs[0], qs[1], s))
-
-    # Close the output file.
-    if cl_args.output != "<stdout>":
-        outfile.close()
+    qasm.write_output(cl_args.output, cl_args.format, cl_args.qubo)
 
 # If we weren't told to run anything we can exit now.
 if not cl_args.run:
@@ -356,7 +244,7 @@ if not cl_args.run:
 
 # Submit the problem to the D-Wave.
 if cl_args.verbose >= 1:
-    sys.stderr.write("Submitting the problem to the %s solver.\n\n" % solver_name)
+    sys.stderr.write("Submitting the problem to the %s solver.\n\n" % qasm.solver_name)
 answer, final_answer = qasm.submit_dwave_problem(cl_args.samples, cl_args.anneal_time)
 
 # Output solver timing information.

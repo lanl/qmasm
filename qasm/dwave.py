@@ -8,8 +8,11 @@ from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
 from dwave_sapi2.local import local_connection
 from dwave_sapi2.remote import RemoteConnection
 from dwave_sapi2.util import get_hardware_adjacency
+import math
 import os
 import qasm
+import re
+import sys
 
 def connect_to_dwave():
     """
@@ -27,17 +30,18 @@ def connect_to_dwave():
     except IOError as e:
         abend("Failed to establish a remote connection (%s)" % e)
     try:
-        solver_name = os.environ["DW_INTERNAL__SOLVER"]
+        qasm.solver_name = os.environ["DW_INTERNAL__SOLVER"]
     except:
         # Solver was not specified: Use the first available solver.
-        solver_name = conn.solver_names()[0]
+        qasm.solver_name = conn.solver_names()[0]
     try:
-        qasm.solver = conn.get_solver(solver_name)
+        qasm.solver = conn.get_solver(qasm.solver_name)
     except KeyError:
-        abend("Failed to find solver %s on connection %s" % (solver_name, url))
+        abend("Failed to find solver %s on connection %s" % (qasm.solver_name, url))
 
 def find_dwave_embedding(verbosity):
     "Find an embedding of a problem in the D-Wave's physical topology."
+    global edges
     edges = qasm.strengths.keys()
     edges.sort()
     try:
@@ -66,7 +70,7 @@ def find_dwave_embedding(verbosity):
 def embed_problem_on_dwave(verbosity):
     "Embed a logical problem in the D-Wave's physical topology."
     global new_weights, new_strengths, new_chains, new_embedding
-    global h_range, j_range
+    global h_range, j_range, weight_list, hw_adj
     embedding, hw_adj = find_dwave_embedding(verbosity)
     try:
         h_range = qasm.solver.properties["h_range"]
@@ -85,13 +89,14 @@ def embed_problem_on_dwave(verbosity):
 def optimize_dwave_layout(verbosity):
     "Iteratively search for a better embedding."
     global new_weights, new_strengths, new_chains, new_embedding
+    global hw_adj, edges, weight_list
     try:
         # Say what we're about to do
         if verbosity >= 2:
             sys.stderr.write("Optimizing the embedding.\n\n")
 
         # Determine the edges of a rectangle of cells we want to use.
-        L, M, N = chimera_topology(qasm.solver)
+        L, M, N = qasm.chimera_topology(qasm.solver)
         L2 = 2*L
         ncells = (qasm.next_sym_num + 1) // L2
         edgey = max(int(math.sqrt(ncells)), 1)
@@ -175,6 +180,11 @@ def get_strengths():
     "Return the current coupler strengths."
     global combined_strengths
     return combined_strengths
+
+def get_chains():
+    "Return the current chains."
+    global new_chains
+    return new_chains
 
 def submit_dwave_problem(samples, anneal_time):
     "Submit a QMI to the D-Wave."

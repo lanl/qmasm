@@ -3,8 +3,9 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
-import qasm
 import argparse
+import qasm
+import sys
 
 def parse_command_line():
     "Parse the QASM command line.  Return an argparse.Namespace."
