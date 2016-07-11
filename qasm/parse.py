@@ -14,6 +14,7 @@ import sys
 filename = "<stdin>"
 lineno = 0
 def error_in_line(str):
+    global filename, lineno
     sys.stderr.write('%s:%d: error: %s\n' % (filename, lineno, str))
     sys.exit(1)
 
@@ -43,20 +44,21 @@ def is_float(str):
 class Statement(object):
     "One statement in a QASM source file."
 
-    def __init__(self, lineno):
+    def __init__(self, filename, lineno):
+        self.filename = filename
         self.lineno = lineno
 
     def error_in_line(self, msg):
         if self.lineno == None:
             qasm.abend(msg)
         else:
-            sys.stderr.write('%s:%d: error: %s\n' % (cl_args.input, self.lineno, msg))
+            sys.stderr.write('%s:%d: error: %s\n' % (self.filename, self.lineno, msg))
         sys.exit(1)
 
 class Weight(Statement):
     "Represent a point weight on a qubit."
-    def __init__(self, lineno, sym, weight):
-        super(Weight, self).__init__(lineno)
+    def __init__(self, filename, lineno, sym, weight):
+        super(Weight, self).__init__(filename, lineno)
         self.sym = sym
         self.weight = weight
 
@@ -66,8 +68,8 @@ class Weight(Statement):
 
 class Chain(Statement):
     "Chain between qubits."
-    def __init__(self, lineno, sym1, sym2):
-        super(Chain, self).__init__(lineno)
+    def __init__(self, filename, lineno, sym1, sym2):
+        super(Chain, self).__init__(filename, lineno)
         self.sym1 = sym1
         self.sym2 = sym2
 
@@ -82,8 +84,8 @@ class Chain(Statement):
 
 class Pin(Statement):
     "Pinning of a qubit to true or false."
-    def __init__(self, lineno, sym, goal):
-        super(Pin, self).__init__(lineno)
+    def __init__(self, filename, lineno, sym, goal):
+        super(Pin, self).__init__(filename, lineno)
         self.sym = sym
         self.goal = goal
 
@@ -93,8 +95,8 @@ class Pin(Statement):
 
 class Alias(Statement):
     "Alias of one symbol to another."
-    def __init__(self, lineno, sym1, sym2):
-        super(Alias, self).__init__(lineno)
+    def __init__(self, filename, lineno, sym1, sym2):
+        super(Alias, self).__init__(filename, lineno)
         self.sym1 = sym1
         self.sym2 = sym2
 
@@ -110,8 +112,8 @@ class Alias(Statement):
 
 class Strength(Statement):
     "Coupler strength between two qubits."
-    def __init__(self, lineno, sym1, sym2, strength):
-        super(Strength, self).__init__(lineno)
+    def __init__(self, filename, lineno, sym1, sym2, strength):
+        super(Strength, self).__init__(filename, lineno)
         self.sym1 = sym1
         self.sym2 = sym2
         self.strength = strength
@@ -127,8 +129,8 @@ class Strength(Statement):
 
 class MacroUse(Statement):
     "Instantiation of a macro definition."
-    def __init__(self, lineno, name, body, prefix):
-        super(MacroUse, self).__init__(lineno)
+    def __init__(self, filename, lineno, name, body, prefix):
+        super(MacroUse, self).__init__(filename, lineno)
         self.name = name
         self.body = body
         self.prefix = prefix
@@ -213,12 +215,12 @@ def parse_file(infilename, infile):
                     val = float(fields[1])
                 except ValueError:
                     error_in_line('Failed to parse "%s %s" as a symbol followed by a numerical weight' % (fields[0], fields[1]))
-                target.append(Weight(lineno, fields[0], val))
+                target.append(Weight(filename, lineno, fields[0], val))
         elif len(fields) == 3:
             if fields[1] == "=":
                 # <symbol_1> = <symbol_2> -- create a chain between <symbol_1> and
                 # <symbol_2>.
-                target.append(Chain(lineno, fields[0], fields[2]))
+                target.append(Chain(filename, lineno, fields[0], fields[2]))
             elif fields[1] == ":=":
                 # <symbol> := <value> -- force symbol <symbol> to have value
                 # <value>.
@@ -226,17 +228,17 @@ def parse_file(infilename, infile):
                     goal = str2bool[fields[2].upper()]
                 except KeyError:
                     error_in_line('Right-hand side ("%s") must be a Boolean value' % fields[2])
-                target.append(Pin(lineno, fields[0], goal))
+                target.append(Pin(filename, lineno, fields[0], goal))
             elif fields[1] == "<->":
                 # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of
                 # <symbol_2>.
-                target.append(Alias(lineno, fields[0], fields[2]))
+                target.append(Alias(filename, lineno, fields[0], fields[2]))
             elif fields[0] == "!use_macro":
                 # "!use_macro" <macro_name> <instance_name> -- instantiate
                 # a macro using <instance_name> as each variable's prefix.
                 name = fields[1]
                 try:
-                    target.append(MacroUse(lineno, name, macros[name], fields[2] + "."))
+                    target.append(MacroUse(filename, lineno, name, macros[name], fields[2] + "."))
                 except KeyError:
                     error_in_line("Unknown macro %s" % name)
             elif fields[0] == "!alias":
@@ -249,7 +251,7 @@ def parse_file(infilename, infile):
                     strength = float(fields[2])
                 except ValueError:
                     error_in_line('Failed to parse "%s" as a number' % fields[2])
-                target.append(Strength(lineno, fields[0], fields[1], strength))
+                target.append(Strength(filename, lineno, fields[0], fields[1], strength))
             else:
                 # Three fields but none of the above cases
                 error_in_line('Cannot parse "%s"' % line)
@@ -296,4 +298,4 @@ def parse_pin(pin):
             if len(lhs) != len(rhs):
                 qasm.abend('Different number of left- and right-hand-side values in --pin="%s" (%d vs. %d)' % (pstr, len(lhs), len(rhs)))
             for l, r in zip(lhs, rhs):
-                qasm.program.append(Pin(None, l, r))
+                qasm.program.append(Pin("[command line]", 1, l, r))
