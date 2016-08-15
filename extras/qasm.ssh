@@ -1,0 +1,24 @@
+# a2ps style sheet for QASM
+
+style "QASM" is
+written by "Scott Pakin <pakin@lanl.gov>"
+version is 1.0
+requires a2ps 4.12a
+
+alphabets are
+   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&*+-./<=>?@_"
+
+sequences are
+    "#" Comment
+end sequences
+
+keywords in Keyword_strong are
+    !begin_macro, !end_macro, !use_macro, !alias, !include
+end keywords
+
+optional operators are
+    := \equiv,
+    <-> \leftrightarrow
+end operators
+
+end style
