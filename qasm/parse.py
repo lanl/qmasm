@@ -62,9 +62,9 @@ class Weight(Statement):
         self.sym = sym
         self.weight = weight
 
-    def update_qmi(self, prefix, weights, strengths, chains, pinned):
+    def update_qmi(self, prefix, problem):
         num = qasm.symbol_to_number(prefix + self.sym)
-        weights[num] += self.weight
+        problem.weights[num] += self.weight
 
 class Chain(Statement):
     "Chain between qubits."
@@ -73,14 +73,14 @@ class Chain(Statement):
         self.sym1 = sym1
         self.sym2 = sym2
 
-    def update_qmi(self, prefix, weights, strengths, chains, pinned):
+    def update_qmi(self, prefix, problem):
         num1 = qasm.symbol_to_number(prefix + self.sym1)
         num2 = qasm.symbol_to_number(prefix + self.sym2)
         if num1 == num2:
             self.error_in_line("A chain cannot connect a spin to itself")
         elif num1 > num2:
             num1, num2 = num2, num1
-        chains[(num1, num2)] = None   # Value is a don't-care.
+        problem.chains[(num1, num2)] = None   # Value is a don't-care.
 
 class Pin(Statement):
     "Pinning of a qubit to true or false."
@@ -89,9 +89,9 @@ class Pin(Statement):
         self.sym = sym
         self.goal = goal
 
-    def update_qmi(self, prefix, weights, strengths, chains, pinned):
+    def update_qmi(self, prefix, problem):
         num = qasm.symbol_to_number(prefix + self.sym)
-        pinned.append((num, self.goal))
+        problem.pinned.append((num, self.goal))
 
 class Alias(Statement):
     "Alias of one symbol to another."
@@ -100,7 +100,7 @@ class Alias(Statement):
         self.sym1 = sym1
         self.sym2 = sym2
 
-    def update_qmi(self, prefix, weights, strengths, chains, pinned):
+    def update_qmi(self, prefix, problem):
         sym1 = prefix + self.sym1
         sym2 = prefix + self.sym2
         try:
@@ -118,14 +118,14 @@ class Strength(Statement):
         self.sym2 = sym2
         self.strength = strength
 
-    def update_qmi(self, prefix, weights, strengths, chains, pinned):
+    def update_qmi(self, prefix, problem):
         num1 = qasm.symbol_to_number(prefix + self.sym1)
         num2 = qasm.symbol_to_number(prefix + self.sym2)
         if num1 == num2:
             self.error_in_line("A coupler cannot connect a spin to itself")
         elif num1 > num2:
             num1, num2 = num2, num1
-        strengths[(num1, num2)] += self.strength
+        problem.strengths[(num1, num2)] += self.strength
 
 class MacroUse(Statement):
     "Instantiation of a macro definition."
@@ -135,9 +135,9 @@ class MacroUse(Statement):
         self.body = body
         self.prefix = prefix
 
-    def update_qmi(self, prefix, weights, strengths, chains, pinned):
+    def update_qmi(self, prefix, problem):
         for stmt in self.body:
-            stmt.update_qmi(prefix + self.prefix, weights, strengths, chains, pinned)
+            stmt.update_qmi(prefix + self.prefix, problem)
 
 # Define a function that parses an input file into an internal representation.
 # This function can be called recursively (due to !include directives).

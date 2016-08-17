@@ -26,27 +26,30 @@ if cl_args.pin != None:
     qasm.parse_pin(cl_args.pin)
 
 # Walk the statements in the program, processing each in turn.
+logical_either = qasm.Problem(cl_args.qubo)
 for stmt in qasm.program:
-    stmt.update_qmi("", qasm.weights, qasm.strengths, qasm.chains, qasm.pinned)
+    stmt.update_qmi("", logical_either)
 
 # Store all tallies for later reportage.
 logical_stats = {
     "vars":      qasm.next_sym_num + 1,
-    "strengths": len(qasm.strengths),
-    "eqs":       len(qasm.chains),
-    "pins":      len(qasm.pinned)
+    "strengths": len(logical_either.strengths),
+    "eqs":       len(logical_either.chains),
+    "pins":      len(logical_either.pinned)
 }
 
 # Convert from QUBO to Ising in case the solver doesn't support QUBO problems.
 if cl_args.qubo:
-    qasm.convert_to_ising()
+    logical_ising = logical_either.convert_to_ising()
+else:
+    logical_ising = logical_either
 
 # Define a strength for each user-specified chain, and assign strengths
 # to those chains.
-qasm.assign_chain_strength(cl_args.chain_strength, cl_args.qubo)
+qasm.chain_strength = logical_ising.assign_chain_strength(cl_args.chain_strength)
 
 # Define a strength for each user-specified pinned variable.
-qasm.assign_pin_strength(cl_args.pin_strength, cl_args.qubo)
+qasm.pin_strength = logical_ising.assign_pin_strength(cl_args.pin_strength, qasm.chain_strength)
 
 # Output the chain and pin strengths.
 if cl_args.verbose >= 1:
@@ -56,7 +59,7 @@ if cl_args.verbose >= 1:
     sys.stderr.write("\n")
 
 # Use a helper bit to help pin values to true or false.
-qasm.pin_qubits()
+logical_ising.pin_qubits(qasm.pin_strength)
 
 # Convert chains to aliases where possible.
 if cl_args.O:
@@ -66,7 +69,7 @@ if cl_args.O:
         sys.stderr.write("  %6d logical qubits before optimization\n" % (qasm.next_sym_num + 1))
 
     # Replace chains with aliases wherever we can.
-    qasm.convert_chains_to_aliases()
+    logical_ising.convert_chains_to_aliases()
 
     # Summarize what we just did.
     if cl_args.verbose >= 2:
@@ -76,27 +79,27 @@ if cl_args.O:
 logical_stats["vars"] = qasm.next_sym_num + 1
 
 # Complain if we have no weights and no strengths.
-if len(qasm.weights) == 0 and len(qasm.strengths) == 0:
+if len(logical_ising.weights) == 0 and len(logical_ising.strengths) == 0:
     abend("Nothing to do (no weights or strengths specified)")
 
 # Output a normalized input file.
 if cl_args.verbose >= 2:
     # Weights
     sys.stderr.write("Canonicalized the input file:\n\n")
-    for q in sorted(qasm.weights.keys()):
-        sys.stderr.write("    q%d %.20g\n" % (q + 1, qasm.weights[q]))
+    for q in sorted(logical_ising.weights.keys()):
+        sys.stderr.write("    q%d %.20g\n" % (q + 1, logical_ising.weights[q]))
     sys.stderr.write("\n")
 
     # Chains
-    if len(qasm.chains) > 0:
-        for qs in sorted(qasm.chains.keys()):
+    if len(logical_ising.chains) > 0:
+        for qs in sorted(logical_ising.chains.keys()):
             sys.stderr.write("    q%d = q%d\n" % (qs[0], qs[1]))
         sys.stderr.write("\n")
 
     # Strengths (those that are not chains)
-    for qs in sorted(qasm.strengths.keys()):
-        if not qasm.chains.has_key(qs):
-            sys.stderr.write("    q%d q%d %.20g\n" % (qs[0] + 1, qs[1] + 1, qasm.strengths[qs]))
+    for qs in sorted(logical_ising.strengths.keys()):
+        if not logical_ising.chains.has_key(qs):
+            sys.stderr.write("    q%d q%d %.20g\n" % (qs[0] + 1, qs[1] + 1, logical_ising.strengths[qs]))
     sys.stderr.write("\n")
 
     # Map each canonicalized name to one or more original symbols.
@@ -150,15 +153,15 @@ if cl_args.verbose >= 1:
     sys.stderr.write("\n")
 
 # Embed the problem onto the D-Wave.
-qasm.embed_problem_on_dwave(cl_args.verbose)
+physical = qasm.embed_problem_on_dwave(logical_ising, cl_args.verbose)
 
 # If told to optimize the layout, iteratively search for a better embedding.
 if cl_args.O:
-    qasm.optimize_dwave_layout(cl_args.verbose)
+    physical = qasm.optimize_dwave_layout(logical_ising, physical, cl_args.verbose)
 
-# Set all chains to the user-specified strength then combine
-# user-specified chains with embedder-created chains.
-qasm.update_strengths_from_chains()
+# Set all chains to the user-specified strength then combine user-specified
+# chains with embedder-created chains.
+physical = qasm.update_strengths_from_chains(physical)
 if cl_args.verbose >= 2:
     sys.stderr.write("Introduced the following new chains:\n\n")
     new_chains = qasm.get_chains()
@@ -181,35 +184,33 @@ for s, n in qasm.sym2num.items():
     max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
 
 # Output the embedding.
-new_embedding = qasm.get_embedding()
 if cl_args.verbose >= 1:
     sys.stderr.write("Established a mapping from logical to physical qubits:\n\n")
     sys.stderr.write("    Logical  %-*s  Physical\n" % (max_sym_name_len, "Name(s)"))
     sys.stderr.write("    -------  %s  --------\n" % ("-" * max_sym_name_len))
-    for i in range(len(new_embedding)):
+    for i in range(len(physical.embedding)):
         if num2syms[i] == []:
             continue
         name_list = string.join(sorted(num2syms[i]))
-        phys_list = string.join(["%4d" % e for e in sorted(new_embedding[i])])
+        phys_list = string.join(["%4d" % e for e in sorted(physical.embedding[i])])
         sys.stderr.write("    %7d  %-*s  %s\n" % (i, max_sym_name_len, name_list, phys_list))
     sys.stderr.write("\n")
 else:
     # Even at zero verbosity, we still note the logical-to-physical mapping.
     log2phys_comments = []
-    for i in range(len(new_embedding)):
+    for i in range(len(physical.embedding)):
         if num2syms[i] == []:
             continue
         name_list = string.join(num2syms[i])
-        phys_list = string.join(["%d" % e for e in sorted(new_embedding[i])])
+        phys_list = string.join(["%d" % e for e in sorted(physical.embedding[i])])
         log2phys_comments.append("# %s --> %s" % (name_list, phys_list))
     log2phys_comments.sort()
     sys.stderr.write("\n".join(log2phys_comments) + "\n")
 
 # Output some statistics about the embedding.
-combined_strengths = qasm.get_strengths()
 if cl_args.verbose >= 1:
     # Output a table.
-    phys_wts = [elt for lst in new_embedding for elt in lst]
+    phys_wts = [elt for lst in physical.embedding for elt in lst]
     new_chains = qasm.get_chains()
     sys.stderr.write("Computed the following statistics of the logical-to-physical mapping:\n\n")
     sys.stderr.write("    Type      Metric          Value\n")
@@ -219,12 +220,12 @@ if cl_args.verbose >= 1:
     sys.stderr.write("    Logical     Equivalences  %5d\n" % logical_stats["eqs"])
     sys.stderr.write("    Logical     Pins          %5d\n" % logical_stats["pins"])
     sys.stderr.write("    Physical  Qubits          %5d\n" % len(phys_wts))
-    sys.stderr.write("    Physical  Couplers        %5d\n" % len(combined_strengths))
+    sys.stderr.write("    Physical  Couplers        %5d\n" % len(physical.strengths))
     sys.stderr.write("    Physical    Chains        %5d\n" % len(new_chains))
     sys.stderr.write("\n")
 
     # Output some additional chain statistics.
-    chain_lens = [len(c) for c in new_embedding]
+    chain_lens = [len(c) for c in physical.embedding]
     max_chain_len = 0
     if chain_lens != []:
         max_chain_len = max(chain_lens)
@@ -232,11 +233,11 @@ if cl_args.verbose >= 1:
     sys.stderr.write("    Maximum chain length = %d (occurrences = %d)\n\n" % (max_chain_len, num_max_chains))
 
 # Manually scale the weights and strengths so Qubist doesn't complain.
-qasm.scale_weights_strengths(cl_args.verbose)
+physical = qasm.scale_weights_strengths(physical, cl_args.verbose)
 
 # Output a file in any of a variety of formats.
 if cl_args.output != "<stdout>" or not cl_args.run:
-    qasm.write_output(cl_args.output, cl_args.format, cl_args.qubo)
+    qasm.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo)
 
 # If we weren't told to run anything we can exit now.
 if not cl_args.run:

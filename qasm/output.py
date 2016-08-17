@@ -106,7 +106,7 @@ def output_qbsolv(outfile, new_weights, combined_strengths):
         if s != 0.0:
             outfile.write("%d %d %.10g\n" % (qs[0], qs[1], s))
 
-def write_output(oname, oformat, as_qubo):
+def write_output(problem, oname, oformat, as_qubo):
     "Write an output file in one of a variety of formats."
 
     # Open the output file.
@@ -114,21 +114,19 @@ def write_output(oname, oformat, as_qubo):
 
     # Convert from Ising back to QUBO if --qubo was specified or if we're
     # outputting in dw format, which expects QUBO coefficients.
-    new_weights = qasm.get_weights()
-    combined_strengths = qasm.get_strengths()
     if as_qubo or oformat == "dw":
-        output_weights, output_strengths = convert_ising_to_qubo(new_weights, combined_strengths)
+        output_weights, output_strengths = convert_ising_to_qubo(problem.weights, problem.strengths)
     else:
-        output_weights = new_weights
-        output_strengths = combined_strengths
+        output_weights = problem.weights
+        output_strengths = problem.strengths
 
     # Output the weights and strengths in the specified format.
     if oformat == "qubist":
-        output_qubist(outfile, as_qubo, new_weights, combined_strengths)
+        output_qubist(outfile, as_qubo, problem.weights, problem.strengths)
     elif oformat == "dw":
-        output_dw(outfile, new_weights, combined_strengths)
+        output_dw(outfile, problem.weights, problem.strengths)
     elif oformat == "qbsolv":
-        output_qbsolv(outfile, new_weights, combined_strengths)
+        output_qbsolv(outfile, problem.weights, problem.strengths)
 
     # Close the output file.
     if oname != "<stdout>":
