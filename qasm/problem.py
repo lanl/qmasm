@@ -44,7 +44,7 @@ class Problem(object):
                 except ValueError:
                     # No weights or strengths -- arbitrarily choose -1.
                     chain_strength = -1.0
-        elif qubo:
+        elif self.qubo:
             # With QUBO input we need to divide the chain strength by 4 for
             # consistency with the other coupler strengths.
             chain_strength /= 4.0
