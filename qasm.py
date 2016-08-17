@@ -164,11 +164,10 @@ if cl_args.O:
 physical = qasm.update_strengths_from_chains(physical)
 if cl_args.verbose >= 2:
     sys.stderr.write("Introduced the following new chains:\n\n")
-    new_chains = qasm.get_chains()
-    if len(new_chains) == 0:
+    if len(physical.chains) == 0:
         sys.stderr.write("    [none]\n")
     else:
-        for c in new_chains:
+        for c in physical.chains:
             num1, num2 = c
             if num1 > num2:
                 num1, num2 = num2, num1
@@ -211,7 +210,6 @@ else:
 if cl_args.verbose >= 1:
     # Output a table.
     phys_wts = [elt for lst in physical.embedding for elt in lst]
-    new_chains = qasm.get_chains()
     sys.stderr.write("Computed the following statistics of the logical-to-physical mapping:\n\n")
     sys.stderr.write("    Type      Metric          Value\n")
     sys.stderr.write("    --------  --------------  -----\n")
@@ -221,7 +219,7 @@ if cl_args.verbose >= 1:
     sys.stderr.write("    Logical     Pins          %5d\n" % logical_stats["pins"])
     sys.stderr.write("    Physical  Qubits          %5d\n" % len(phys_wts))
     sys.stderr.write("    Physical  Couplers        %5d\n" % len(physical.strengths))
-    sys.stderr.write("    Physical    Chains        %5d\n" % len(new_chains))
+    sys.stderr.write("    Physical    Chains        %5d\n" % len(physical.chains))
     sys.stderr.write("\n")
 
     # Output some additional chain statistics.
