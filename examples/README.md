@@ -3,6 +3,68 @@ QASM examples
 
 This directory contains examples of QASM code.
 
+One of five
+-----------
+
+* Main file: [`1of5.qasm`](1of5.qasm)
+
+* Command line: `qasm --run --chain=-8 1of5.qasm`
+
+This is a trivial demonstration of QASM.  The program defines variables *A*, *B*, *C*, *D*, and *E* and outputs all (Boolean) values of those in which exactly one variable is *true*.  What makes this program interesting is that the default chain strength—in this case, computed to be -4—is insufficiently strong to produce all five solutions with equal probability.  We therefore need to double the chain strength on the command line to get the desired result:
+```
+Solution #1 (energy = -18.12):
+
+    Name(s)  Spin  Boolean
+    -------  ----  -------
+    A          -1  False
+    B          -1  False
+    C          -1  False
+    D          -1  False
+    E          +1  True
+
+Solution #2 (energy = -18.12):
+
+    Name(s)  Spin  Boolean
+    -------  ----  -------
+    A          -1  False
+    B          -1  False
+    C          -1  False
+    D          +1  True
+    E          -1  False
+
+Solution #3 (energy = -18.12):
+
+    Name(s)  Spin  Boolean
+    -------  ----  -------
+    A          -1  False
+    B          -1  False
+    C          +1  True
+    D          -1  False
+    E          -1  False
+
+Solution #4 (energy = -18.12):
+
+    Name(s)  Spin  Boolean
+    -------  ----  -------
+    A          -1  False
+    B          +1  True
+    C          -1  False
+    D          -1  False
+    E          -1  False
+
+Solution #5 (energy = -18.12):
+
+    Name(s)  Spin  Boolean
+    -------  ----  -------
+    A          +1  True
+    B          -1  False
+    C          -1  False
+    D          -1  False
+    E          -1  False
+```
+
+Try experimenting with the `--pin` option.  If a variable is pinned to *true*, QASM will output the single solution that honors that constraint.  If a variable is pinned to *false*, QASM will output the four solutions.  If *two* variables are pinned to *true*, a situation `1of5.qasm` does not include in its ground state, QASM may return no solutions or it may return one or more *incorrect* solutions—whatever exhibits the lowest total energy and doesn't break any chains or pins.
+
 Circuit satisfiability
 ----------------------
 
