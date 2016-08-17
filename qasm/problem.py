@@ -6,6 +6,8 @@
 from collections import defaultdict
 import copy
 import qasm
+import random
+import string
 
 def new_internal_sym():
     "Create a new internal symbol."

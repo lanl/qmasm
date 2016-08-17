@@ -192,15 +192,32 @@ def scale_weights_strengths(physical, verbosity):
     new_physical.strengths = new_strengths
     return new_physical
 
-def submit_dwave_problem(samples, anneal_time):
+# Define a function that says whether a solution contains no broken pins and no
+# broken (user-specified) chains.
+def solution_is_intact(physical, soln):
+    # Reject broken pins.
+    bool2spin = [-1, +1]
+    for pnum, pin in physical.pinned:
+        if soln[pnum] != bool2spin[pin]:
+            return False
+
+    # Reject broken chains.
+    for q1, q2 in physical.chains.keys():
+        if soln[q1] != soln[q2]:
+            return False
+
+    # The solution looks good!
+    return True
+
+def submit_dwave_problem(physical, samples, anneal_time):
     "Submit a QMI to the D-Wave."
-    global new_embedding, new_weights, combined_strengths
-    solver_params = dict(chains=new_embedding, num_reads=samples, annealing_time=anneal_time)
+    # Submit a QMI to the D-Wave and get back a list of solution vectors.
+    solver_params = dict(chains=physical.embedding, num_reads=samples, annealing_time=anneal_time)
     while True:
         # Repeatedly remove parameters the particular solver doesn't like until
         # it actually works -- or fails for a different reason.
         try:
-            answer = solve_ising(qasm.solver, new_weights, combined_strengths, **solver_params)
+            answer = solve_ising(qasm.solver, physical.weights, physical.strengths, **solver_params)
             break
         except ValueError as e:
             # Is there a better way to extract the failing symbol than a regular
@@ -211,5 +228,12 @@ def submit_dwave_problem(samples, anneal_time):
             del solver_params[bad_name.group(1)]
         except RuntimeError as e:
             qasm.abend(e)
-    final_answer = unembed_answer(answer["solutions"], new_embedding, broken_chains="discard")
+
+    # Discard solutions with broken pins or broken chains.
+    solutions = answer["solutions"]
+    valid_solns = [s for s in solutions if solution_is_intact(physical, s)]
+    if len(valid_solns) == 0:
+        print "No valid solutions found,"
+        sys.exit(0)
+    final_answer = unembed_answer(valid_solns, physical.embedding, broken_chains="discard")
     return answer, final_answer

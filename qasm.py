@@ -244,7 +244,7 @@ if not cl_args.run:
 # Submit the problem to the D-Wave.
 if cl_args.verbose >= 1:
     sys.stderr.write("Submitting the problem to the %s solver.\n\n" % qasm.solver_name)
-answer, final_answer = qasm.submit_dwave_problem(cl_args.samples, cl_args.anneal_time)
+answer, final_answer = qasm.submit_dwave_problem(physical, cl_args.samples, cl_args.anneal_time)
 
 # Output solver timing information.
 if cl_args.verbose >= 1:
@@ -276,28 +276,7 @@ class ValidSolution:
             self.spins.append(soln[q])
             self.id = self.id*2 + soln[q]
 
-# Define a function that says whether an answer contains no broken pins and no
-# broken (user-specified) chains.
-def answer_is_intact(answer):
-    # Reject broken pins.
-    bool2spin = [-1, +1]
-    for pnum, pin in qasm.pinned:
-        if answer[pnum] != bool2spin[pin]:
-            return False
-
-    # Reject broken chains.
-    for q1, q2 in qasm.chains.keys():
-        if answer[q1] != answer[q2]:
-            return False
-
-    # The answer looks good!
-    return True
-
 # Determine the set of solutions to output.
-final_answer = [a for a in final_answer if answer_is_intact(a)]
-if len(final_answer) == 0:
-    print "No valid solutions found,"
-    sys.exit(0)
 energies = answer["energies"]
 n_low_energies = len([e for e in energies if abs(e - energies[0]) < min_energy_delta])
 if cl_args.verbose >= 2:
