@@ -40,6 +40,6 @@ def parse_command_line():
     if cl_args.pin_strength >= 0.0:
         sys.stderr.write("%s: Warning: A non-negative pin strength (%.20g) was specified\n" % (qasm.progname, cl_args.pin_strength))
     if cl_args.format == "qbsolv" and not cl_args.qubo:
-        sys.stderr.write("%s: Warning: Turning on --qubo to support --format=qubist\n" % qasm.progname)
+        sys.stderr.write("%s: Warning: Turning on --qubo to support --format=qbsolv\n" % qasm.progname)
         cl_args.qubo = True
     return cl_args
