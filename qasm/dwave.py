@@ -73,6 +73,7 @@ def find_dwave_embedding(logical, verbosity):
 def embed_problem_on_dwave(logical, verbosity):
     """Embed a logical problem in the D-Wave's physical topology.  Return a
     physical Problem object."""
+    # Embed the problem.  Abort on failure.
     find_dwave_embedding(logical, verbosity)
     try:
         h_range = qasm.solver.properties["h_range"]
@@ -88,16 +89,19 @@ def embed_problem_on_dwave(logical, verbosity):
             True, smearable, h_range, j_range)
     except ValueError as e:
         qasm.abend("Failed to embed the problem in the solver (%s)" % e)
-    physical = qasm.Problem(logical.qubo)
+
+    # Construct a physical Problem object.
+    physical = copy.deepcopy(logical)
     physical.chains = new_chains
-    physical.edges = logical.edges
     physical.embedding = new_embedding
     physical.h_range = h_range
-    physical.hw_adj = logical.hw_adj
     physical.j_range = j_range
     physical.strengths = new_strengths
     physical.weight_list = weight_list
     physical.weights = new_weights
+    physical.pinned = []
+    for l, v in logical.pinned:
+        physical.pinned.extend([(p, v) for p in physical.embedding[l]])
     return physical
 
 def optimize_dwave_layout(logical, physical, verbosity):
