@@ -335,3 +335,6 @@ for snum in range(len(sorted_solns)):
         output_lines.append("    %-*s  %+4d  %-7s" % (max_sym_name_len, names, spin, bool_str[spin]))
     output_lines.sort()
     print "\n".join(output_lines), "\n"
+if len(sorted_solns) == 0:
+    print "No valid solutions found,"
+    sys.exit(0)

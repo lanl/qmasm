@@ -236,8 +236,5 @@ def submit_dwave_problem(physical, samples, anneal_time):
     # Discard solutions with broken pins or broken chains.
     solutions = answer["solutions"]
     valid_solns = [s for s in solutions if solution_is_intact(physical, s)]
-    if len(valid_solns) == 0:
-        print "No valid solutions found,"
-        sys.exit(0)
     final_answer = unembed_answer(valid_solns, physical.embedding, broken_chains="discard")
     return answer, final_answer
