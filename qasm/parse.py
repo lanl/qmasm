@@ -284,9 +284,9 @@ def parse_pin(pin):
         lhs_rhs = pstr.split(":=")
         if len(lhs_rhs) != 2:
             qasm.abend('Failed to parse --pin="%s"' % pstr)
-        lhs = lhs_rhs[0].split()
+        lhs = lhs_rhs[0].strip().split()
         rhs = []
-        for r in lhs_rhs[1].upper().split():
+        for r in lhs_rhs[1].strip().upper().split():
             try:
                 rhs.append(str2bool[r])
             except KeyError:
@@ -295,7 +295,7 @@ def parse_pin(pin):
                         rhs.append(str2bool[subr])
                     except KeyError:
                         qasm.abend('Failed to parse --pin="%s"' % pstr)
-            if len(lhs) != len(rhs):
-                qasm.abend('Different number of left- and right-hand-side values in --pin="%s" (%d vs. %d)' % (pstr, len(lhs), len(rhs)))
-            for l, r in zip(lhs, rhs):
-                qasm.program.append(Pin("[command line]", 1, l, r))
+        if len(lhs) != len(rhs):
+            qasm.abend('Different number of left- and right-hand-side values in --pin="%s" (%d vs. %d)' % (pstr, len(lhs), len(rhs)))
+        for l, r in zip(lhs, rhs):
+            qasm.program.append(Pin("[command line]", 1, l, r))
