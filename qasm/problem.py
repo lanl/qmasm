@@ -4,7 +4,7 @@
 ###################################
 
 from collections import defaultdict
-from dwave_sapi2.util import qubo_to_ising
+from dwave_sapi2.util import ising_to_qubo, qubo_to_ising
 import copy
 import qasm
 import random
@@ -83,7 +83,7 @@ class Problem(object):
                 self.strengths[(q1, q2)] += pin_str/2.0
 
     def convert_to_ising(self):
-        """Canonicalize a QUBO problem into an Ising problem.  Return the new
+        """Transform a QUBO problem into an Ising problem.  Return the new
         Ising problem."""
         if not self.qubo:
             raise TypeError("Can convert only QUBO problems to Ising problems")
@@ -93,6 +93,21 @@ class Problem(object):
         hvals, new_obj.strengths, _ = qubo_to_ising(qmatrix)
         new_obj.strengths = defaultdict(lambda: 0.0, new_obj.strengths)
         new_obj.weights.update({i: hvals[i] for i in range(len(hvals))})
+        new_obj.qubo = False
+        return new_obj
+
+    def convert_to_qubo(self):
+        """Transform an Ising problem into a QUBO problem.  Return the new
+        QUBO problem."""
+        if self.qubo:
+            raise TypeError("Can convert only Ising problems to QUBO problems")
+        new_obj = copy.deepcopy(self)
+        qmatrix, _ = ising_to_qubo(self.weights, self.strengths)
+        new_obj.weights = [0] * len(self.weights)
+        for (q1, q2), wt in qmatrix.items():
+            if q1 == q2:
+                new_obj.weights[q1] = wt
+        new_obj.strengths = {(q1, q2): wt for (q1, q2), wt in qmatrix.items() if q1 != q2}
         return new_obj
 
     def convert_chains_to_aliases(self):

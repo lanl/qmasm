@@ -18,16 +18,6 @@ def open_output_file(oname):
             abend('Failed to open %s for output' % oname)
     return outfile
 
-def convert_ising_to_qubo(new_weights, combined_strengths):
-    "Convert weights and strengths from Ising to QUBO mode."
-    qmatrix, _ = ising_to_qubo(new_weights, combined_strengths)
-    output_weights = [0] * len(new_weights)
-    for (q1, q2), wt in qmatrix.items():
-        if q1 == q2:
-            output_weights[q1] = wt
-    output_strengths = {(q1, q2): wt for (q1, q2), wt in qmatrix.items() if q1 != q2}
-    return output_weights, output_strengths
-
 def coupler_number(M, N, L, q1, q2):
     "Map a pair of qubits to a coupler number a la the dw command."
     qmin = min(q1, q2)
@@ -47,15 +37,19 @@ def coupler_number(M, N, L, q1, q2):
         return total_intra + total_horiz + L*(imin*M + jmin) + kmin
     raise IndexError("No coupler exists between Q%04d and Q%04d" % (q1, q2))
 
-def output_qubist(outfile, as_qubo, new_weights, combined_strengths):
-    "Output weights and strengths in Qubist format."
-    if as_qubo:
-        output_weights, output_strengths = convert_ising_to_qubo(new_weights, combined_strengths)
+def output_qubist(outfile, as_qubo, problem):
+    "Output weights and strengths in Qubist format, either Ising or QUBO."
+    if as_qubo and not problem.qubo:
+        qprob = problem.convert_to_qubo()
+        output_weights, output_strengths = qprob.weights, qprob.strengths
+    elif not as_qubo and problem.qubo:
+        iprob = problem.convert_to_ising()
+        output_weights, output_strengths = iprob.weights, iprob.strengths
     else:
-        output_weights = new_weights
-        output_strengths = combined_strengths
+        output_weights = problem.weights
+        output_strengths = problem.strengths
     data = []
-    for q in range(len(new_weights)):
+    for q in range(len(output_weights)):
         if output_weights[q] != 0.0:
             data.append("%d %d %.10g" % (q, q, output_weights[q]))
     for sp, str in output_strengths.items():
@@ -74,15 +68,20 @@ def output_qubist(outfile, as_qubo, new_weights, combined_strengths):
     for d in data:
         outfile.write("%s\n" % d)
 
-def output_dw(outfile, new_weights, combined_strengths):
+def output_dw(outfile, problem):
     # Output weights and strengths in dw format.
+    if not problem.qubo:
+        qprob = problem.convert_to_qubo()
+        output_weights, output_strengths = qprob.weights, qprob.strengths
+    else:
+        output_weights = problem.weights
+        output_strengths = problem.strengths
     try:
         L, M, N = qasm.chimera_topology(qasm.solver)
     except KeyError:
         abend("Failed to query the chimera topology")
-    output_weights, output_strengths = convert_ising_to_qubo(new_weights, combined_strengths)
     wdata = []
-    for q in range(len(new_weights)):
+    for q in range(len(output_weights)):
         if output_weights[q] != 0.0:
             wdata.append("Q%0d <== %.25g" % (q, output_weights[q]))
     wdata.sort()
@@ -94,9 +93,14 @@ def output_dw(outfile, new_weights, combined_strengths):
     sdata.sort()
     outfile.write("\n".join(wdata + sdata) + "\n")
 
-def output_qbsolv(outfile, new_weights, combined_strengths):
+def output_qbsolv(outfile, problem):
     # Output weights and strengths in qbsolv format.
-    output_weights, output_strengths = convert_ising_to_qubo(new_weights, combined_strengths)
+    if not problem.qubo:
+        qprob = problem.convert_to_qubo()
+        output_weights, output_strengths = qprob.weights, qprob.strengths
+    else:
+        output_weights = problem.weights
+        output_strengths = problem.strengths
     nonzero_strengths = [s for s in output_strengths.values() if s != 0.0]
     outfile.write("p qubo 0 %d %d %d\n" % (len(output_weights), len(output_weights), len(nonzero_strengths)))
     for q in range(len(output_weights)):
@@ -112,21 +116,13 @@ def write_output(problem, oname, oformat, as_qubo):
     # Open the output file.
     outfile = open_output_file(oname)
 
-    # Convert from Ising back to QUBO if --qubo was specified or if we're
-    # outputting in dw format, which expects QUBO coefficients.
-    if as_qubo or oformat == "dw":
-        output_weights, output_strengths = convert_ising_to_qubo(problem.weights, problem.strengths)
-    else:
-        output_weights = problem.weights
-        output_strengths = problem.strengths
-
     # Output the weights and strengths in the specified format.
     if oformat == "qubist":
-        output_qubist(outfile, as_qubo, problem.weights, problem.strengths)
+        output_qubist(outfile, as_qubo, problem)
     elif oformat == "dw":
-        output_dw(outfile, problem.weights, problem.strengths)
+        output_dw(outfile, problem)
     elif oformat == "qbsolv":
-        output_qbsolv(outfile, problem.weights, problem.strengths)
+        output_qbsolv(outfile, problem)
 
     # Close the output file.
     if oname != "<stdout>":
