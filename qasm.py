@@ -235,7 +235,13 @@ physical = qasm.scale_weights_strengths(physical, cl_args.verbose)
 
 # Output a file in any of a variety of formats.
 if cl_args.output != "<stdout>" or not cl_args.run:
-    qasm.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo)
+    # As a special case, qbsolv works on the pre-embedded (logical) problem
+    # because it has the ability to partition and embed problems itself.
+    if cl_args.format == "qbsolv":
+        problem = logical_ising
+    else:
+        problem = physical
+    qasm.write_output(problem, cl_args.output, cl_args.format, cl_args.qubo)
 
 # If we weren't told to run anything we can exit now.
 if not cl_args.run:
