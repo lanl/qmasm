@@ -112,7 +112,7 @@ Solution #1 (energy = -85.50):
     o3         +1  True
     o4         +1  True
 ```
-Because there is no clear distinction between inputs and outputs, one can also specify the outputs and receive a list of inputs that would sort to those outputs.  For example, `--pin="o1 o2 o3 o4 := 0 0 1 1"` leads to the following 4-choose-2 = 6 solutions:
+Because there is no clear distinction between inputs and outputs, one can also specify the outputs and receive a list of inputs that would sort to those outputs.  For example, `--pin="o1 o2 o3 o4 := 0 0 1 1"` produces the following 6 solutions:
 ```
 Solution #1 (energy = -74.50):
 
