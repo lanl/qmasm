@@ -153,11 +153,7 @@ if cl_args.verbose >= 1:
     sys.stderr.write("\n")
 
 # Embed the problem onto the D-Wave.
-physical = qasm.embed_problem_on_dwave(logical_ising, cl_args.verbose)
-
-# If told to optimize the layout, iteratively search for a better embedding.
-if cl_args.O:
-    physical = qasm.optimize_dwave_layout(logical_ising, physical, cl_args.verbose)
+physical = qasm.embed_problem_on_dwave(logical_ising, cl_args.O, cl_args.verbose)
 
 # Set all chains to the user-specified strength then combine user-specified
 # chains with embedder-created chains.

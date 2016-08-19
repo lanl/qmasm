@@ -14,6 +14,7 @@ import os
 import qasm
 import re
 import sys
+import tempfile
 
 def connect_to_dwave():
     """
@@ -40,7 +41,7 @@ def connect_to_dwave():
     except KeyError:
         qasm.abend("Failed to find solver %s on connection %s" % (qasm.solver_name, url))
 
-def find_dwave_embedding(logical, verbosity):
+def find_dwave_embedding(logical, optimize, verbosity):
     """Find an embedding of a logical problem in the D-Wave's physical topology.
     Store the embedding within the Problem object."""
     edges = logical.strengths.keys()
@@ -48,33 +49,87 @@ def find_dwave_embedding(logical, verbosity):
     try:
         hw_adj = get_hardware_adjacency(qasm.solver)
     except KeyError:
-        # The Ising heuristic solver is an example of a solver that lacks a fixed
-        # hardware representation.  We therefore assert that the hardware exactly
-        # matches the problem'input graph.
+        # The Ising heuristic solver is an example of a solver that lacks a
+        # fixed hardware representation.  We therefore assert that the hardware
+        # exactly matches the problem'input graph.
         hw_adj = edges
+
+    # Determine the edges of a rectangle of cells we want to use.
+    L, M, N = qasm.chimera_topology(qasm.solver)
+    L2 = 2*L
+    ncells = (qasm.next_sym_num + 1) // L2
+    if optimize:
+        edgey = max(int(math.sqrt(ncells)), 1)
+        edgex = max((ncells + edgey - 1) // edgey, 1)
+    else:
+        edgey = N
+        edgex = M
+
+    # Announce what we're about to do.
     if verbosity >= 2:
         sys.stderr.write("Embedding the logical adjacency within the physical topology.\n\n")
-        stdout_fd = os.dup(sys.stdout.fileno())
-        os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
-        embedding = find_embedding(edges, hw_adj, verbose=1)
-        os.dup2(stdout_fd, sys.stdout.fileno())
-        sys.stderr.write("\n")
-    else:
-        embedding = find_embedding(edges, hw_adj, verbose=0)
-    if embedding == []:
-        # We received an empty embedding.  I've seen this happen with the
-        # ising-heuristic solver.  A workaround seems to be to fabricate a
-        # trivial embedding in which logical qubit X maps to physical qubit X.
-        embedding = [[q] for q in range(qasm.next_sym_num + 1)]
+
+    # Repeatedly expand edgex and edgey until the embedding works.
+    while edgex <= M and edgey <= N:
+        # Retain adjacencies only within the rectangle.
+        alt_hw_adj = []
+        for q1, q2 in hw_adj:
+            c1 = q1//L2
+            if c1 % M >= edgex:
+                continue
+            if c1 // M >= edgey:
+                continue
+            c2 = q2//L2
+            if c2 % M >= edgex:
+                continue
+            if c2 // M >= edgey:
+                continue
+            alt_hw_adj.append((q1, q2))
+        alt_hw_adj = set(alt_hw_adj)
+
+        # Try to find an embedding.
+        if verbosity >= 2:
+            sys.stderr.write("  Trying a %dx%d unit-cell embedding ... " % (edgex, edgey))
+            status_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+            stdout_fd = os.dup(sys.stdout.fileno())
+            os.dup2(status_file.fileno(), sys.stdout.fileno())
+            embedding = find_embedding(edges, alt_hw_adj, verbose=1)
+            sys.stdout.flush()
+            os.dup2(stdout_fd, sys.stdout.fileno())
+            status_file.close()
+            if len(embedding) > 0:
+                sys.stderr.write("succeeded\n\n")
+            else:
+                sys.stderr.write("failed\n\n")
+            with open(status_file.name, "r") as status:
+                for line in status:
+                    sys.stderr.write("    %s" % line)
+            sys.stderr.write("\n")
+            os.remove(status_file.name)
+        else:
+            embedding = find_embedding(edges, alt_hw_adj, verbose=0)
+        if len(embedding) > 0:
+            # Success!
+            break
+
+        # Failure -- increase edgex or edgey and try again.
+        if edgex < edgey:
+            edgex += 1
+        else:
+            edgey += 1
+    if not(edgex <= M and edgey <= N):
+        qasm.abend("Failed to embed the problem")
+
+    # Store in the logical problem additional information about the embedding.
     logical.embedding = embedding
-    logical.hw_adj = hw_adj
+    logical.hw_adj = alt_hw_adj
     logical.edges = edges
 
-def embed_problem_on_dwave(logical, verbosity):
+def embed_problem_on_dwave(logical, optimize, verbosity):
     """Embed a logical problem in the D-Wave's physical topology.  Return a
     physical Problem object."""
     # Embed the problem.  Abort on failure.
-    find_dwave_embedding(logical, verbosity)
+    find_dwave_embedding(logical, optimize, verbosity)
     try:
         h_range = qasm.solver.properties["h_range"]
         j_range = qasm.solver.properties["j_range"]
@@ -103,71 +158,6 @@ def embed_problem_on_dwave(logical, verbosity):
     for l, v in logical.pinned:
         physical.pinned.extend([(p, v) for p in physical.embedding[l]])
     return physical
-
-def optimize_dwave_layout(logical, physical, verbosity):
-    "Iteratively search for a better embedding.  Return a new physical Problem."
-    try:
-        # Say what we're about to do
-        if verbosity >= 2:
-            sys.stderr.write("Optimizing the embedding.\n\n")
-
-        # Determine the edges of a rectangle of cells we want to use.
-        L, M, N = qasm.chimera_topology(qasm.solver)
-        L2 = 2*L
-        ncells = (qasm.next_sym_num + 1) // L2
-        edgey = max(int(math.sqrt(ncells)), 1)
-        edgex = max((ncells + edgey - 1) // edgey, 1)
-
-        # Repeatedly expand edgex and edgey until the embedding works.
-        while edgex <= M and edgey <= N:
-            # Retain adjacencies only within the rectangle.
-            alt_hw_adj = []
-            for q1, q2 in physical.hw_adj:
-                c1 = q1//L2
-                if c1 % M >= edgex:
-                    continue
-                if c1 // M >= edgey:
-                    continue
-                c2 = q2//L2
-                if c2 % M >= edgex:
-                    continue
-                if c2 // M >= edgey:
-                    continue
-                alt_hw_adj.append((q1, q2))
-            alt_hw_adj = set(alt_hw_adj)
-
-            # Embed again.
-            try:
-                if verbosity >= 2:
-                    sys.stderr.write("  Trying a %dx%d unit-cell embedding ... " % (edgex, edgey))
-                alt_embedding = find_embedding(physical.edges, alt_hw_adj, verbose=0)
-                [new_weights, new_strengths, new_chains, new_embedding] = embed_problem(
-                    physical.weight_list, logical.strengths, alt_embedding,
-                    alt_hw_adj, True, True, physical.h_range, physical.j_range)
-                if verbosity >= 2:
-                    sys.stderr.write("succeeded\n")
-                break  # Success!
-            except ValueError as e:
-                # Failure -- increase edgex or edgey and try again.
-                if verbosity >= 2:
-                    sys.stderr.write("failed\n")
-                if edgex < edgey:
-                    edgex += 1
-                else:
-                    edgey += 1
-        if not(edgex <= M and edgey <= N):
-            qasm.abend("Failed to optimize the embedding")
-    except KeyError:
-        if verbosity >= 2:
-            sys.stderr.write("  - Failed to query the machine topology for embedding parameters\n")
-    if verbosity >= 2:
-        sys.stderr.write("\n")
-    new_physical = copy.deepcopy(physical)
-    new_physical.weights = new_weights
-    new_physical.strengths = new_strengths
-    new_physical.chains = new_chains
-    new_physical.embedding = new_embedding
-    return new_physical
 
 def update_strengths_from_chains(physical):
     """Update strengths using the chains introduced by embedding.  Return a new
