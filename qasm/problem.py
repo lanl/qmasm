@@ -35,13 +35,13 @@ class Problem(object):
         chain strength."""
         chain_strength = ch_str
         if chain_strength == None:
-            # Chain strength defaults to the maximum strength in the data.
+            # Chain strength defaults to twice the maximum strength in the data.
             try:
-                chain_strength = -max([abs(w) for w in self.strengths.values()])
+                chain_strength = -2*max([abs(w) for w in self.strengths.values()])
             except ValueError:
                 # No strengths -- use weights instead.
                 try:
-                    chain_strength = -max([abs(w) for w in self.weights.values()])
+                    chain_strength = -2*max([abs(w) for w in self.weights.values()])
                 except ValueError:
                     # No weights or strengths -- arbitrarily choose -1.
                     chain_strength = -1.0
