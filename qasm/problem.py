@@ -53,7 +53,7 @@ class Problem(object):
             self.strengths[c] += chain_strength
         return chain_strength
 
-    def assign_pin_strength(self, chain_str, pin_str):
+    def assign_pin_strength(self, pin_str, chain_str):
         """Define a strength for each explicitly pinned qubit.  Return the
         computed pin strength."""
         pin_strength = pin_str
