@@ -25,7 +25,13 @@ def abend(str):
 # Define a function that returns the topology of the chimera graph associated
 # with a given solver.
 def chimera_topology(solver):
-    nominal_qubits = solver.properties["num_qubits"]
+    try:
+        nominal_qubits = solver.properties["num_qubits"]
+    except KeyError:
+        # The Ising heuristic solver is an example of a solver that lacks a
+        # fixed hardware representation.  We therefore claim an arbitrary
+        # topology (the D-Wave 2X's 12x12x4x2 topology).
+        return 4, 12, 12
     couplers = solver.properties["couplers"]
     deltas = [abs(c1 - c2) for c1, c2 in couplers]
     delta_tallies = {d: 0 for d in deltas}

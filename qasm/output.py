@@ -63,7 +63,7 @@ def output_qubist(outfile, as_qubo, problem):
         # The Ising heuristic solver is an example of a solver that lacks a
         # fixed hardware representation.  We therefore assert that the number
         # of qubits is exactly the number of qubits we require.
-        num_qubits = len(new_weights)
+        num_qubits = len(output_weights)
     outfile.write("%d %d\n" % (num_qubits, len(data)))
     for d in data:
         outfile.write("%s\n" % d)
