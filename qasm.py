@@ -323,18 +323,24 @@ if cl_args.verbose >= 2:
 
 # Output to standard output (regardless of --output) the solutions with no
 # broken chains.
-bool_str = {-1: "False", +1: "True"}
+bool_str = {-1: "False", +1: "True", 0: "[unused]"}
 sorted_solns = [id2solution[s] for s in sorted(id2solution.keys())]
 for snum in range(len(sorted_solns)):
     print "Solution #%d (energy = %.2f):\n" % (snum + 1, sorted_solns[snum].energy)
     print "    %-*s  Spin  Boolean" % (max_sym_name_len, "Name(s)")
-    print "    %s  ----  -------" % ("-" * max_sym_name_len)
+    print "    %s  ----  --------" % ("-" * max_sym_name_len)
     soln = sorted_solns[snum]
     output_lines = []
     for q in range(len(soln.spins)):
         names = soln.names[q]
         spin = soln.spins[q]
-        output_lines.append("    %-*s  %+4d  %-7s" % (max_sym_name_len, names, spin, bool_str[spin]))
+        if spin == 3:
+            # A spin of +3 is too weird to represent an unused qubit.
+            spin = 0
+            spin_str = "   0"
+        else:
+            spin_str = "%+4d" % spin
+        output_lines.append("    %-*s  %s  %-7s" % (max_sym_name_len, names, spin_str, bool_str[spin]))
     output_lines.sort()
     print "\n".join(output_lines), "\n"
 if len(sorted_solns) == 0:

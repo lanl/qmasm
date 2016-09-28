@@ -45,7 +45,11 @@ def connect_to_dwave():
 def find_dwave_embedding(logical, optimize, verbosity):
     """Find an embedding of a logical problem in the D-Wave's physical topology.
     Store the embedding within the Problem object."""
-    edges = logical.strengths.keys()
+    # SAPI tends to choke when embed_problem is told to embed a problem
+    # containing a zero-weight node whose adjacent couplers all have zero
+    # strength.  (Tested with SAPI 2.4.)  To help out SAPI, we simply remove
+    # all zero-strength couplers.
+    edges = [e for e in logical.strengths.keys() if logical.strengths[e] != 0.0]
     edges.sort()
     try:
         hw_adj = get_hardware_adjacency(qasm.solver)
