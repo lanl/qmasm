@@ -56,8 +56,9 @@ def find_dwave_embedding(logical, optimize, verbosity):
     except KeyError:
         # The Ising heuristic solver is an example of a solver that lacks a
         # fixed hardware representation.  We therefore assert that the hardware
-        # exactly matches the problem'input graph.
-        hw_adj = edges
+        # is an all-to-all network that connects every node to every other node.
+        endpoints = set([a for a, b in edges] + [b for a, b in edges])
+        hw_adj = [(a, b) for a in endpoints for b in endpoints if a != b]
 
     # Determine the edges of a rectangle of cells we want to use.
     L, M, N = qasm.chimera_topology(qasm.solver)
