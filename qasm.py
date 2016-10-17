@@ -246,7 +246,7 @@ if not cl_args.run:
 # Submit the problem to the D-Wave.
 if cl_args.verbose >= 1:
     sys.stderr.write("Submitting the problem to the %s solver.\n\n" % qasm.solver_name)
-answer, final_answer = qasm.submit_dwave_problem(physical, cl_args.samples, cl_args.anneal_time)
+answer, final_answer, num_occurrences = qasm.submit_dwave_problem(physical, cl_args.samples, cl_args.anneal_time)
 
 # Output solver timing information.
 if cl_args.verbose >= 1:
@@ -326,10 +326,14 @@ if cl_args.verbose >= 2:
 bool_str = {-1: "False", +1: "True", 0: "[unused]"}
 sorted_solns = [id2solution[s] for s in sorted(id2solution.keys())]
 for snum in range(len(sorted_solns)):
-    print "Solution #%d (energy = %.2f):\n" % (snum + 1, sorted_solns[snum].energy)
+    soln = sorted_solns[snum]
+    try:
+        num_seen = "%d" % num_occurrences[tuple(soln.solution)]
+    except KeyError:
+        num_seen = "?"
+    print "Solution #%d (energy = %.2f, tally = %s):\n" % (snum + 1, soln.energy, num_seen)
     print "    %-*s  Spin  Boolean" % (max_sym_name_len, "Name(s)")
     print "    %s  ----  --------" % ("-" * max_sym_name_len)
-    soln = sorted_solns[snum]
     output_lines = []
     for q in range(len(soln.spins)):
         names = soln.names[q]

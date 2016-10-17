@@ -229,8 +229,13 @@ def submit_dwave_problem(physical, samples, anneal_time):
         except RuntimeError as e:
             qasm.abend(e)
 
-    # Discard solutions with broken pins or broken chains.
+    # Tally the occurrences of each solution
     solutions = answer["solutions"]
-    valid_solns = [s for s in solutions if solution_is_intact(physical, s)]
-    final_answer = unembed_answer(valid_solns, physical.embedding, broken_chains="discard")
-    return answer, final_answer
+    semifinal_answer = unembed_answer(solutions, physical.embedding, broken_chains="vote")
+    num_occurrences = {tuple(k): v
+                       for k, v in zip(semifinal_answer, answer["num_occurrences"])}
+
+    # Discard solutions with broken pins or broken chains.
+    valid_solns = solutions  # [s for s in solutions if solution_is_intact(physical, s)]
+    final_answer = unembed_answer(valid_solns, physical.embedding, broken_chains="vote")
+    return answer, final_answer, num_occurrences

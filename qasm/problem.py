@@ -112,7 +112,9 @@ class Problem(object):
 
     def convert_chains_to_aliases(self):
         "Convert chains to aliases where possible."
-        # Identify all chains that can be converted to aliases.
+        # Identify all chains that can be converted to aliases.  A chain is
+        # convertible if the qubits on either end have the same point weight
+        # applied to them.
         num2allsyms = [[] for _ in range(len(qasm.sym2num))]
         for s, n in qasm.sym2num.items():
             num2allsyms[n].append(s)
@@ -122,10 +124,11 @@ class Problem(object):
                 make_aliases.append((q1, q2))
         make_aliases.sort(reverse=True, key=lambda qs: (qs[1], qs[0]))
 
-        # Replace each chain in make_aliases with an alias.  Work in reverse order
-        # of qubit number and shift all greater qubit numbers downward.
+        # Replace each chain in make_aliases with an alias.  Work in reverse
+        # order of qubit number and shift all greater qubit numbers downward.
         for q1, q2 in make_aliases:
-            # Map q2's symbolic names to q1's.  Shift everything above q2 downwards.
+            # Map q2's symbolic names to q1's.  Shift everything above q2
+            # downwards.
             alias_sym2num = {}
             for s, sq in qasm.sym2num.items():
                 if sq == q2:
@@ -179,8 +182,8 @@ class Problem(object):
                     alias_chains[(cq1, cq2)] = None
             self.chains = alias_chains
 
-            # Replace q2 with q1 in all pinned qubits.  Shift everything above q2
-            # downwards.
+            # Replace q2 with q1 in all pinned qubits.  Shift everything above
+            # q2 downwards.
             alias_pinned = []
             for pq, b in self.pinned:
                 if pq == q2:
