@@ -80,7 +80,12 @@ logical_stats["vars"] = qasm.next_sym_num + 1
 
 # Complain if we have no weights and no strengths.
 if len(logical_ising.weights) == 0 and len(logical_ising.strengths) == 0:
-    abend("Nothing to do (no weights or strengths specified)")
+    qasm.abend("Nothing to do (no weights or strengths specified)")
+
+# Complain if we have disconnected qubits.
+discon_syms = logical_ising.find_disconnected_variables()
+if len(discon_syms) > 0:
+    qasm.abend("Disconnected variables encountered: %s" % " ".join(sorted(discon_syms)))
 
 # Output a normalized input file.
 if cl_args.verbose >= 2:

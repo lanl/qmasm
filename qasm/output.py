@@ -15,7 +15,7 @@ def open_output_file(oname):
         try:
             outfile = open(oname, "w")
         except IOError:
-            abend('Failed to open %s for output' % oname)
+            qasm.abend('Failed to open %s for output' % oname)
     return outfile
 
 def coupler_number(M, N, L, q1, q2):
@@ -79,7 +79,7 @@ def output_dw(outfile, problem):
     try:
         L, M, N = qasm.chimera_topology(qasm.solver)
     except KeyError:
-        abend("Failed to query the chimera topology")
+        qasm.abend("Failed to query the chimera topology")
     wdata = []
     for q in range(len(output_weights)):
         if output_weights[q] != 0.0:

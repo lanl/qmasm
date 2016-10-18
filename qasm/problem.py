@@ -195,3 +195,20 @@ class Problem(object):
 
             # We now have one fewer symbol.
             qasm.next_sym_num -= 1
+
+    def find_disconnected_variables(self):
+        """Return a list of variables that are named but not coupled to any
+        other variable."""
+        # Construct a set of valid qubit numbers.
+        valid_nums = set()
+        for (a, b), str in self.strengths.items():
+            if str != 0.0:
+                valid_nums.add(a)
+                valid_nums.add(b)
+
+        # Complain about any variable whose number is not in the valid set.
+        invalid_syms = set()
+        for sym, num in qasm.sym2num.items():
+            if num not in valid_nums:
+                invalid_syms.add(sym)
+        return invalid_syms
