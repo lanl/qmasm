@@ -24,7 +24,10 @@ def connect_to_dwave():
     try:
         url = os.environ["DW_INTERNAL__HTTPLINK"]
         token = os.environ["DW_INTERNAL__TOKEN"]
-        proxy = os.environ["DW_INTERNAL__HTTPPROXY"]
+        try:
+            proxy = os.environ["DW_INTERNAL__HTTPPROXY"]
+        except KeyError:
+            proxy = ""
         conn = RemoteConnection(url, token, proxy)
     except KeyError:
         url = "<local>"
