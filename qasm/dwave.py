@@ -66,7 +66,7 @@ def find_dwave_embedding(logical, optimize, verbosity):
     # Determine the edges of a rectangle of cells we want to use.
     L, M, N = qasm.chimera_topology(qasm.solver)
     L2 = 2*L
-    ncells = (qasm.next_sym_num + 1) // L2
+    ncells = (qasm.next_sym_num + L2) // L2   # Round up the number of cells.
     if optimize:
         edgey = max(int(math.sqrt(ncells)), 1)
         edgex = max((ncells + edgey - 1) // edgey, 1)
