@@ -280,7 +280,7 @@ class PinParser(object):
 
     def __init__(self):
         self.bracket_re = re.compile(r'^\s*(\d+)(\s*\.\.\s*(\d+))?\s*$')
-        self.bool_re = re.compile(r'TRUE|FALSE|T|F|0|[-+]?1')
+        self.bool_re = re.compile(r'TRUE|FALSE|T|F|0|[-+]?1', re.IGNORECASE)
 
     def expand_brackets(self, vars, expr):
         """Repeat one or more variables for each bracketed expression.  For
