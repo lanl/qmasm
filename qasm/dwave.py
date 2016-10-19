@@ -235,8 +235,11 @@ def submit_dwave_problem(physical, samples, anneal_time):
     # Tally the occurrences of each solution
     solutions = answer["solutions"]
     semifinal_answer = unembed_answer(solutions, physical.embedding, broken_chains="vote")
-    num_occurrences = {tuple(k): v
-                       for k, v in zip(semifinal_answer, answer["num_occurrences"])}
+    try:
+        num_occurrences = {tuple(k): v
+                           for k, v in zip(semifinal_answer, answer["num_occurrences"])}
+    except KeyError:
+        num_occurrences = {tuple(a): 1 for a in semifinal_answer}
 
     # Discard solutions with broken pins or broken chains.
     valid_solns = solutions  # [s for s in solutions if solution_is_intact(physical, s)]

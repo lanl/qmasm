@@ -5,6 +5,7 @@
 
 import os
 import qasm
+import re
 import shlex
 import string
 import sys
@@ -224,11 +225,7 @@ def parse_file(infilename, infile):
             elif fields[1] == ":=":
                 # <symbol> := <value> -- force symbol <symbol> to have value
                 # <value>.
-                try:
-                    goal = str2bool[fields[2].upper()]
-                except KeyError:
-                    error_in_line('Right-hand side ("%s") must be a Boolean value' % fields[2])
-                target.append(Pin(filename, lineno, fields[0], goal))
+                parse_pin(" ".join(fields[:3]), filename, lineno)
             elif fields[1] == "<->":
                 # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of
                 # <symbol_2>.
@@ -278,24 +275,93 @@ def parse_files(file_list):
                 error_in_line("Unterminated definition of macro %s" % current_macro[0])
             infile.close()
 
-def parse_pin(pin):
-    "Parse a pin statement passed on the command line."
-    for pstr in pin:
-        lhs_rhs = pstr.split(":=")
-        if len(lhs_rhs) != 2:
-            qasm.abend('Failed to parse --pin="%s"' % pstr)
-        lhs = lhs_rhs[0].strip().split()
-        rhs = []
-        for r in lhs_rhs[1].strip().upper().split():
-            try:
-                rhs.append(str2bool[r])
-            except KeyError:
-                for subr in r:
-                    try:
-                        rhs.append(str2bool[subr])
-                    except KeyError:
-                        qasm.abend('Failed to parse --pin="%s"' % pstr)
-        if len(lhs) != len(rhs):
-            qasm.abend('Different number of left- and right-hand-side values in --pin="%s" (%d vs. %d)' % (pstr, len(lhs), len(rhs)))
-        for l, r in zip(lhs, rhs):
-            qasm.program.append(Pin("[command line]", 1, l, r))
+class PinParser(object):
+    "Provide methods for parsing a pin statement."
+
+    def __init__(self):
+        self.bracket_re = re.compile(r'^\s*(\d+)(\s*\.\.\s*(\d+))?\s*$')
+        self.bool_re = re.compile(r'TRUE|FALSE|T|F|0|[-+]?1')
+
+    def expand_brackets(self, vars, expr):
+        """Repeat one or more variables for each bracketed expression.  For
+        example, expanding ("hello", "1 .. 3") should produce
+        ("hello[1]", "hello[2]", "hello[3]")."""
+        # Determine the starting and ending numbers and the step.
+        bmatch = self.bracket_re.search(expr)
+        if bmatch == None:
+            qasm.abend('Failed to parse [%s] as either "[<int>]" or "[<int_1> .. <int_2>]"' % expr)
+        bmatches = bmatch.groups()
+        num1 = int(bmatches[0])
+        if bmatches[2] == None:
+            num2 = num1
+        else:
+            num2 = int(bmatches[2])
+        if num1 <= num2:
+            step = 1
+        else:
+            step = -1
+
+        # Append the same bracketed constant to each variable.
+        new_vars = []
+        for v in vars:
+            for i in range(num1, num2 + step, step):
+                new_vars.append("%s[%d]" % (v, i))
+        return new_vars
+
+    def parse_lhs(self, lhs):
+        "Parse the left-hand side of a pin statement."
+        variables = [""]
+        group_len = 1    # Number of variables produced from the same bracketed expression
+        bracket_expr = ""
+        in_bracket = False
+        for c in lhs:
+            if c == "[":
+                if in_bracket:
+                    qasm.abend("Nested brackets are not allowed")
+                in_bracket = True
+            elif c == "]":
+                if not in_bracket:
+                    qasm.abend('Encountered "]" before seeing a "["')
+                old_vars = variables[:-group_len]
+                current_vars = variables[-group_len:]
+                new_vars = self.expand_brackets(current_vars, bracket_expr)
+                variables = old_vars + new_vars
+                group_len = len(new_vars)
+                in_bracket = False
+                bracket_expr = ""
+            elif in_bracket:
+                bracket_expr += c
+            elif c == " " or c == "\t":
+                if in_bracket:
+                    qasm.abend("Unterminated bracketed expression")
+                variables.append("")
+                group_len = 1
+            else:
+                for i in range(1, group_len + 1):
+                    variables[-i] += c
+        if in_bracket:
+            qasm.abend("Unterminated bracketed expression")
+        if variables[-1] == "":
+            variables.pop()
+        return variables
+
+    def parse_rhs(self, rhs):
+        "Parse the right-hand side of a pin statement."
+        for inter in [t.strip() for t in self.bool_re.split(rhs)]:
+            if inter != "":
+                qasm.abend('Unexpected "%s" in pin right-hand side "%s"' % (inter, rhs))
+        return [qasm.str2bool[t.upper()] for t in self.bool_re.findall(rhs)]
+
+def parse_pin(pin, filename, lineno):
+    "Parse a pin statement into one or more Pin objects."
+    lhs_rhs = pin.split(":=")
+    if len(lhs_rhs) != 2:
+        qasm.abend('Failed to parse pin statement "%s"' % pin)
+    pin_parser = PinParser()
+    lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
+    rhs_list = pin_parser.parse_rhs(lhs_rhs[1])
+    if len(lhs_list) != len(rhs_list):
+        print("*** LHS:", lhs_list, "***")  # Temporary
+        qasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin, len(lhs_list), len(rhs_list)))
+    for l, r in zip(lhs_list, rhs_list):
+        qasm.program.append(Pin(filename, lineno, l, r))
