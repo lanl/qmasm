@@ -24,7 +24,7 @@ qasm.parse_files(cl_args.input)
 # the program.
 if cl_args.pin != None:
     for pin in cl_args.pin:
-        qasm.parse_pin(pin, "[command line]", 1)
+        qasm.program.extend(qasm.process_pin("[command line]", 1, pin))
 
 # Walk the statements in the program, processing each in turn.
 logical_either = qasm.Problem(cl_args.qubo)

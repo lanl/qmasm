@@ -219,13 +219,13 @@ def parse_file(infilename, infile):
                 target.append(Weight(filename, lineno, fields[0], val))
         elif len(fields) == 3:
             if fields[1] == "=":
-                # <symbol_1> = <symbol_2> -- create a chain between <symbol_1> and
-                # <symbol_2>.
-                target.append(Chain(filename, lineno, fields[0], fields[2]))
+                # <symbol_1> = <symbol_2> -- create a chain between <symbol_1>
+                # and <symbol_2>.
+                target.extend(process_chain(filename, lineno, " ".join(fields[:3])))
             elif fields[1] == ":=":
                 # <symbol> := <value> -- force symbol <symbol> to have value
                 # <value>.
-                parse_pin(" ".join(fields[:3]), filename, lineno)
+                target.extend(process_pin(filename, lineno, " ".join(fields[:3])))
             elif fields[1] == "<->":
                 # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of
                 # <symbol_2>.
@@ -334,7 +334,8 @@ class PinParser(object):
             elif c == " " or c == "\t":
                 if in_bracket:
                     qasm.abend("Unterminated bracketed expression")
-                variables.append("")
+                if variables[-1] != "":
+                    variables.append("")
                 group_len = 1
             else:
                 for i in range(1, group_len + 1):
@@ -352,16 +353,27 @@ class PinParser(object):
                 qasm.abend('Unexpected "%s" in pin right-hand side "%s"' % (inter, rhs))
         return [qasm.str2bool[t.upper()] for t in self.bool_re.findall(rhs)]
 
-def parse_pin(pin, filename, lineno):
-    "Parse a pin statement into one or more Pin objects."
-    lhs_rhs = pin.split(":=")
+def process_pin(filename, lineno, pin_str):
+    "Parse a pin statement into one or more Pin objects and add these to the program."
+    lhs_rhs = pin_str.split(":=")
     if len(lhs_rhs) != 2:
-        qasm.abend('Failed to parse pin statement "%s"' % pin)
+        qasm.abend('Failed to parse pin statement "%s"' % pin_str)
     pin_parser = PinParser()
     lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
     rhs_list = pin_parser.parse_rhs(lhs_rhs[1])
     if len(lhs_list) != len(rhs_list):
-        print("*** LHS:", lhs_list, "***")  # Temporary
-        qasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin, len(lhs_list), len(rhs_list)))
-    for l, r in zip(lhs_list, rhs_list):
-        qasm.program.append(Pin(filename, lineno, l, r))
+        qasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin_str, len(lhs_list), len(rhs_list)))
+    return [Pin(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+
+def process_chain(filename, lineno, chain_str):
+    "Parse a chain statement into one or more Chain objects and add these to the program."
+    # We use the LHS parser from PinParser to parse both sides of the chain.
+    lhs_rhs = chain_str.split("=")
+    if len(lhs_rhs) != 2:
+        qasm.abend('Failed to parse chain statement "%s"' % chain_str)
+    pin_parser = PinParser()
+    lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
+    rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
+    if len(lhs_list) != len(rhs_list):
+        qasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
+    return [Chain(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
