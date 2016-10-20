@@ -39,6 +39,10 @@ def chimera_topology(solver):
         delta_tallies[d] += 1
         sorted_tallies = sorted(delta_tallies.items(), key=lambda dt: dt[1], reverse=True)
     L = sorted_tallies[0][0]
-    M = sorted_tallies[1][0] // (2*L)
+    M = 1
+    for d, t in sorted_tallies[1:]:
+        if d > 2*L:
+            M = d // (2*L)
+            break
     N = (nominal_qubits + 2*L*M - 1) // (2*L*M)
     return L, M, N
