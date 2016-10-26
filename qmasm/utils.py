@@ -1,9 +1,9 @@
 ###################################
-# QASM utility functions          #
+# QMASM utility functions         #
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
-import qasm
+import qmasm
 import sys
 
 # Define a function that maps from a symbol to a number, creating a
@@ -11,15 +11,15 @@ import sys
 def symbol_to_number(sym):
     global sym2num, next_sym_num
     try:
-        return qasm.sym2num[sym]
+        return qmasm.sym2num[sym]
     except KeyError:
-        qasm.next_sym_num += 1
-        qasm.sym2num[sym] = qasm.next_sym_num
-        return qasm.next_sym_num
+        qmasm.next_sym_num += 1
+        qmasm.sym2num[sym] = qmasm.next_sym_num
+        return qmasm.next_sym_num
 
 # Define a function to abort the program on an error.
 def abend(str):
-    sys.stderr.write("%s: %s\n" % (qasm.progname, str))
+    sys.stderr.write("%s: %s\n" % (qmasm.progname, str))
     sys.exit(1)
 
 # Define a function that returns the topology of the chimera graph associated

@@ -6,7 +6,7 @@
 from collections import defaultdict
 from dwave_sapi2.util import ising_to_qubo, qubo_to_ising
 import copy
-import qasm
+import qmasm
 import random
 import string
 
@@ -16,7 +16,7 @@ def new_internal_sym():
         sym = "$"
         for i in range(5):
             sym += random.choice(string.lowercase)
-        if not qasm.sym2num.has_key(sym):
+        if not qmasm.sym2num.has_key(sym):
             return sym
 
 class Problem(object):
@@ -69,7 +69,7 @@ class Problem(object):
     def pin_qubits(self, pin_str):
         "Use a helper qubit to help pin values to true or false."
         for q_user, b in self.pinned:
-            q_helper = qasm.symbol_to_number(new_internal_sym())
+            q_helper = qmasm.symbol_to_number(new_internal_sym())
             q1, q2 = q_helper, q_user
             if q1 > q2:
                 q1, q2 = q2, q1
@@ -115,8 +115,8 @@ class Problem(object):
         # Identify all chains that can be converted to aliases.  A chain is
         # convertible if the qubits on either end have the same point weight
         # applied to them.
-        num2allsyms = [[] for _ in range(len(qasm.sym2num))]
-        for s, n in qasm.sym2num.items():
+        num2allsyms = [[] for _ in range(len(qmasm.sym2num))]
+        for s, n in qmasm.sym2num.items():
             num2allsyms[n].append(s)
         make_aliases = []
         for q1, q2 in self.chains:
@@ -130,13 +130,13 @@ class Problem(object):
             # Map q2's symbolic names to q1's.  Shift everything above q2
             # downwards.
             alias_sym2num = {}
-            for s, sq in qasm.sym2num.items():
+            for s, sq in qmasm.sym2num.items():
                 if sq == q2:
                     sq = q1
                 elif sq > q2:
                     sq -= 1
                 alias_sym2num[s] = sq
-            qasm.sym2num = alias_sym2num
+            qmasm.sym2num = alias_sym2num
 
             # Elide q2 from the list of weights.
             alias_weights = defaultdict(lambda: 0.0)
@@ -194,7 +194,7 @@ class Problem(object):
             self.pinned = alias_pinned
 
             # We now have one fewer symbol.
-            qasm.next_sym_num -= 1
+            qmasm.next_sym_num -= 1
 
     def find_disconnected_variables(self):
         """Return a list of variables that are named but not coupled to any
@@ -208,7 +208,7 @@ class Problem(object):
 
         # Complain about any variable whose number is not in the valid set.
         invalid_syms = set()
-        for sym, num in qasm.sym2num.items():
+        for sym, num in qmasm.sym2num.items():
             if num not in valid_nums:
                 invalid_syms.add(sym)
         return invalid_syms

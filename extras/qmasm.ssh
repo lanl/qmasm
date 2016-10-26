@@ -1,6 +1,6 @@
-# a2ps style sheet for QASM
+# a2ps style sheet for QMASM
 
-style "QASM" is
+style "QMASM" is
 written by "Scott Pakin <pakin@lanl.gov>"
 version is 1.0
 requires a2ps 4.12a

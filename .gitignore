@@ -1,4 +1,4 @@
 *.pyc
-QASM.egg-info/
+QMASM.egg-info/
 build/
 dist/

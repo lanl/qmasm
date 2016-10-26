@@ -1,16 +1,16 @@
-QASM examples
+QMASM examples
 =============
 
-This directory contains examples of QASM code.
+This directory contains examples of QMASM code.
 
 One of five
 -----------
 
-* Main file: [`1of5.qasm`](1of5.qasm)
+* Main file: [`1of5.qmasm`](1of5.qmasm)
 
-* Command line: `qasm --run 1of5.qasm`
+* Command line: `qmasm --run 1of5.qmasm`
 
-This is a trivial demonstration of QASM.  The program defines variables *A*, *B*, *C*, *D*, and *E* and outputs all (Boolean) values of those in which exactly one variable is *true*:
+This is a trivial demonstration of QMASM.  The program defines variables *A*, *B*, *C*, *D*, and *E* and outputs all (Boolean) values of those in which exactly one variable is *true*:
 ```
 Solution #1 (energy = -21.12):
 
@@ -63,20 +63,20 @@ Solution #5 (energy = -21.12):
     E          -1  False
 ```
 
-Try experimenting with the `--pin` option.  If a variable is pinned to *true*, QASM will output the single solution that honors that constraint.  If a variable is pinned to *false*, QASM will output the four solutions.  If *two* variables are pinned to *true*, a situation `1of5.qasm` does not include in its ground state, QASM may return no solutions or it may return one or more *incorrect* solutions—whatever exhibits the lowest total energy and doesn't break any chains or pins.
+Try experimenting with the `--pin` option.  If a variable is pinned to *true*, QMASM will output the single solution that honors that constraint.  If a variable is pinned to *false*, QMASM will output the four solutions.  If *two* variables are pinned to *true*, a situation `1of5.qmasm` does not include in its ground state, QMASM may return no solutions or it may return one or more *incorrect* solutions—whatever exhibits the lowest total energy and doesn't break any chains or pins.
 
 Circuit satisfiability
 ----------------------
 
-* Main file: [`circsat.qasm`](circsat.qasm)
+* Main file: [`circsat.qmasm`](circsat.qmasm)
 
-* Helper file: [`gates.qasm`](gates.qasm)
+* Helper file: [`gates.qmasm`](gates.qmasm)
 
-* Command line: `qasm --run --pin="x10 := true" circsat.qasm`
+* Command line: `qmasm --run --pin="x10 := true" circsat.qmasm`
 
-Given a Boolean expression with *n* inputs and one output, determine the sets of inputs that make the output *true*.  This is a classic NP-complete problem.  `circsat.qasm` represents a particular 3-input Boolean expression borrowed from the [*Introduction to Algorithms*](https://mitpress.mit.edu/books/introduction-algorithms) textbook's discussion of NP-completeness.
+Given a Boolean expression with *n* inputs and one output, determine the sets of inputs that make the output *true*.  This is a classic NP-complete problem.  `circsat.qmasm` represents a particular 3-input Boolean expression borrowed from the [*Introduction to Algorithms*](https://mitpress.mit.edu/books/introduction-algorithms) textbook's discussion of NP-completeness.
 
-`gates.qasm` defines macros for various Boolean operators (NOT, 2-input OR, 3-input AND), which are then used by the top-level program, `circsat.qasm`.  `circsat.qasm` maps inputs *x1*, *x2*, and *x3* to output *x10*.  By default, the program returns all sets of inputs and the corresponding output.  Pinning *x10* to *true* returns only the solutions to the circuit-satisfiability problem.  In this case, there is only one solution:
+`gates.qmasm` defines macros for various Boolean operators (NOT, 2-input OR, 3-input AND), which are then used by the top-level program, `circsat.qmasm`.  `circsat.qmasm` maps inputs *x1*, *x2*, and *x3* to output *x10*.  By default, the program returns all sets of inputs and the corresponding output.  Pinning *x10* to *true* returns only the solutions to the circuit-satisfiability problem.  In this case, there is only one solution:
 ```
 Solution #1 (energy = -80.00):
 
@@ -91,13 +91,13 @@ Solution #1 (energy = -80.00):
 Sorting
 -------
 
-* Main file: [`sort4.qasm`](sort4.qasm)
+* Main file: [`sort4.qmasm`](sort4.qmasm)
 
-* Helper file: [`comparator.qasm`](comparator.qasm)
+* Helper file: [`comparator.qmasm`](comparator.qmasm)
 
-* Command line: `qasm --run --pin="i1 i2 i3 i4 := 0 1 1 0" sort4.qasm`
+* Command line: `qmasm --run --pin="i1 i2 i3 i4 := 0 1 1 0" sort4.qmasm`
 
-Sort a list of four 1-bit numbers.  `sort4.qasm` implements a 4-element sorting network from [*Sorting and Searching*](http://www.informit.com/store/art-of-computer-programming-volume-3-sorting-and-searching-9780201896855).  Specify values for inputs *i1*, *i2*, *i3*, and *i4*, and the program will sort these into *o1*, *o2*, *o3*, and *o4*:
+Sort a list of four 1-bit numbers.  `sort4.qmasm` implements a 4-element sorting network from [*Sorting and Searching*](http://www.informit.com/store/art-of-computer-programming-volume-3-sorting-and-searching-9780201896855).  Specify values for inputs *i1*, *i2*, *i3*, and *i4*, and the program will sort these into *o1*, *o2*, *o3*, and *o4*:
 ```
 Solution #1 (energy = -89.50):
 

@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 ###################################
-# Install QASM                    #
+# Install QMASM                   #
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
@@ -11,22 +11,22 @@ from setuptools.command.install import install as _install
 
 class install(_install):
     def run(self):
-        # Install, then remove qasm.py, keeping only qasm.
+        # Install, then remove qmasm.py, keeping only qmasm.
         _install.run(self)
-        pyscript = os.path.join(self.install_scripts, "qasm.py")
-        script = os.path.join(self.install_scripts, "qasm")
+        pyscript = os.path.join(self.install_scripts, "qmasm.py")
+        script = os.path.join(self.install_scripts, "qmasm")
         os.rename(pyscript, script)
 
-setup(name = "QASM",
+setup(name = "QMASM",
       version = "1.0",
       description = "Quantum Macro Assembler",
       author = "Scott Pakin",
       author_email = "pakin@lanl.gov",
       classifiers = ["Topic :: Software Development :: Compilers"],
-      url = "https://github.com/losalamos/qasm",
+      url = "https://github.com/losalamos/qmasm",
       license = "BSD",
       keywords = "quantum assembler d-wave",
       packages = find_packages(),
-      scripts = ["qasm.py"],
+      scripts = ["qmasm.py"],
       cmdclass = {"install": install}
 )

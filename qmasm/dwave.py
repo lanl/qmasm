@@ -1,7 +1,7 @@
-########################################
-# Manage D-Wave communication for QASM #
-# By Scott Pakin <pakin@lanl.gov>      #
-########################################
+#########################################
+# Manage D-Wave communication for QMASM #
+# By Scott Pakin <pakin@lanl.gov>       #
+#########################################
 
 from dwave_sapi2.core import solve_ising
 from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
@@ -11,7 +11,7 @@ from dwave_sapi2.util import get_hardware_adjacency
 import copy
 import math
 import os
-import qasm
+import qmasm
 import re
 import sys
 import tempfile
@@ -34,16 +34,16 @@ def connect_to_dwave():
         token = "<N/A>"
         conn = local_connection
     except IOError as e:
-        qasm.abend("Failed to establish a remote connection (%s)" % e)
+        qmasm.abend("Failed to establish a remote connection (%s)" % e)
     try:
-        qasm.solver_name = os.environ["DW_INTERNAL__SOLVER"]
+        qmasm.solver_name = os.environ["DW_INTERNAL__SOLVER"]
     except:
         # Solver was not specified: Use the first available solver.
-        qasm.solver_name = conn.solver_names()[0]
+        qmasm.solver_name = conn.solver_names()[0]
     try:
-        qasm.solver = conn.get_solver(qasm.solver_name)
+        qmasm.solver = conn.get_solver(qmasm.solver_name)
     except KeyError:
-        qasm.abend("Failed to find solver %s on connection %s" % (qasm.solver_name, url))
+        qmasm.abend("Failed to find solver %s on connection %s" % (qmasm.solver_name, url))
 
 def find_dwave_embedding(logical, optimize, verbosity):
     """Find an embedding of a logical problem in the D-Wave's physical topology.
@@ -55,7 +55,7 @@ def find_dwave_embedding(logical, optimize, verbosity):
     edges = [e for e in logical.strengths.keys() if logical.strengths[e] != 0.0]
     edges.sort()
     try:
-        hw_adj = get_hardware_adjacency(qasm.solver)
+        hw_adj = get_hardware_adjacency(qmasm.solver)
     except KeyError:
         # The Ising heuristic solver is an example of a solver that lacks a
         # fixed hardware representation.  We therefore assert that the hardware
@@ -64,9 +64,9 @@ def find_dwave_embedding(logical, optimize, verbosity):
         hw_adj = [(a, b) for a in endpoints for b in endpoints if a != b]
 
     # Determine the edges of a rectangle of cells we want to use.
-    L, M, N = qasm.chimera_topology(qasm.solver)
+    L, M, N = qmasm.chimera_topology(qmasm.solver)
     L2 = 2*L
-    ncells = (qasm.next_sym_num + L2) // L2   # Round up the number of cells.
+    ncells = (qmasm.next_sym_num + L2) // L2   # Round up the number of cells.
     if optimize:
         edgey = max(int(math.sqrt(ncells)), 1)
         edgex = max((ncells + edgey - 1) // edgey, 1)
@@ -127,7 +127,7 @@ def find_dwave_embedding(logical, optimize, verbosity):
         else:
             edgey += 1
     if not(edgex <= M and edgey <= N):
-        qasm.abend("Failed to embed the problem")
+        qmasm.abend("Failed to embed the problem")
 
     # Store in the logical problem additional information about the embedding.
     logical.embedding = embedding
@@ -140,19 +140,19 @@ def embed_problem_on_dwave(logical, optimize, verbosity):
     # Embed the problem.  Abort on failure.
     find_dwave_embedding(logical, optimize, verbosity)
     try:
-        h_range = qasm.solver.properties["h_range"]
-        j_range = qasm.solver.properties["j_range"]
+        h_range = qmasm.solver.properties["h_range"]
+        j_range = qmasm.solver.properties["j_range"]
     except KeyError:
         h_range = [-1.0, 1.0]
         j_range = [-1.0, 1.0]
-    weight_list = [logical.weights[q] for q in range(qasm.next_sym_num + 1)]
+    weight_list = [logical.weights[q] for q in range(qmasm.next_sym_num + 1)]
     smearable = any([s != 0.0 for s in logical.strengths.values()])
     try:
         [new_weights, new_strengths, new_chains, new_embedding] = embed_problem(
             weight_list, logical.strengths, logical.embedding, logical.hw_adj,
             True, smearable, h_range, j_range)
     except ValueError as e:
-        qasm.abend("Failed to embed the problem in the solver (%s)" % e)
+        qmasm.abend("Failed to embed the problem in the solver (%s)" % e)
 
     # Construct a physical Problem object.
     physical = copy.deepcopy(logical)
@@ -172,7 +172,7 @@ def update_strengths_from_chains(physical):
     """Update strengths using the chains introduced by embedding.  Return a new
     physical Problem object."""
     new_physical = copy.deepcopy(physical)
-    new_physical.chains = {c: qasm.chain_strength for c in physical.chains.keys()}
+    new_physical.chains = {c: qmasm.chain_strength for c in physical.chains.keys()}
     new_physical.strengths = physical.strengths.copy()
     new_physical.strengths.update(new_physical.chains)
     return new_physical
@@ -220,7 +220,7 @@ def submit_dwave_problem(physical, samples, anneal_time):
         # Repeatedly remove parameters the particular solver doesn't like until
         # it actually works -- or fails for a different reason.
         try:
-            answer = solve_ising(qasm.solver, physical.weights, physical.strengths, **solver_params)
+            answer = solve_ising(qmasm.solver, physical.weights, physical.strengths, **solver_params)
             break
         except ValueError as e:
             # Is there a better way to extract the failing symbol than a regular
@@ -230,7 +230,7 @@ def submit_dwave_problem(physical, samples, anneal_time):
                 raise e
             del solver_params[bad_name.group(1)]
         except RuntimeError as e:
-            qasm.abend(e)
+            qmasm.abend(e)
 
     # Tally the occurrences of each solution
     solutions = answer["solutions"]

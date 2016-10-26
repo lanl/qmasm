@@ -1,14 +1,14 @@
 ###################################
-# Parse the QASM command line     #
+# Parse the QMASM command line    #
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
 import argparse
-import qasm
+import qmasm
 import sys
 
 def parse_command_line():
-    "Parse the QASM command line.  Return an argparse.Namespace."
+    "Parse the QMASM command line.  Return an argparse.Namespace."
     cl_parser = argparse.ArgumentParser(description="Assemble a symbolic quantum machine instruction into a numeric one")
     cl_parser.add_argument("input", nargs="*",
                            help="file from which to read a symbolic QMI")
@@ -36,7 +36,7 @@ def parse_command_line():
                            help="Optimize the layout (i.e., use fewer unit cells)")
     cl_args = cl_parser.parse_args()
     if cl_args.chain_strength >= 0.0:
-        sys.stderr.write("%s: Warning: A non-negative chain strength (%.20g) was specified\n" % (qasm.progname, cl_args.chain_strength))
+        sys.stderr.write("%s: Warning: A non-negative chain strength (%.20g) was specified\n" % (qmasm.progname, cl_args.chain_strength))
     if cl_args.pin_strength >= 0.0:
-        sys.stderr.write("%s: Warning: A non-negative pin strength (%.20g) was specified\n" % (qasm.progname, cl_args.pin_strength))
+        sys.stderr.write("%s: Warning: A non-negative pin strength (%.20g) was specified\n" % (qmasm.progname, cl_args.pin_strength))
     return cl_args

@@ -1,10 +1,10 @@
 ###################################
-# Parse a QASM source file        #
+# Parse a QMASM source file       #
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
 import os
-import qasm
+import qmasm
 import re
 import shlex
 import string
@@ -29,9 +29,9 @@ def find_file_in_path(pathnames, filename):
         fname = os.path.join(pname, filename)
         if os.path.exists(fname):
             return fname
-        fname_qasm = fname + ".qasm"
-        if os.path.exists(fname_qasm):
-            return fname_qasm
+        fname_qmasm = fname + ".qmasm"
+        if os.path.exists(fname_qmasm):
+            return fname_qmasm
     return None
 
 # Define a function that says if a string can be treated as a float.
@@ -43,7 +43,7 @@ def is_float(str):
         return False
 
 class Statement(object):
-    "One statement in a QASM source file."
+    "One statement in a QMASM source file."
 
     def __init__(self, filename, lineno):
         self.filename = filename
@@ -51,7 +51,7 @@ class Statement(object):
 
     def error_in_line(self, msg):
         if self.lineno == None:
-            qasm.abend(msg)
+            qmasm.abend(msg)
         else:
             sys.stderr.write('%s:%d: error: %s\n' % (self.filename, self.lineno, msg))
         sys.exit(1)
@@ -64,7 +64,7 @@ class Weight(Statement):
         self.weight = weight
 
     def update_qmi(self, prefix, problem):
-        num = qasm.symbol_to_number(prefix + self.sym)
+        num = qmasm.symbol_to_number(prefix + self.sym)
         problem.weights[num] += self.weight
 
 class Chain(Statement):
@@ -75,8 +75,8 @@ class Chain(Statement):
         self.sym2 = sym2
 
     def update_qmi(self, prefix, problem):
-        num1 = qasm.symbol_to_number(prefix + self.sym1)
-        num2 = qasm.symbol_to_number(prefix + self.sym2)
+        num1 = qmasm.symbol_to_number(prefix + self.sym1)
+        num2 = qmasm.symbol_to_number(prefix + self.sym2)
         if num1 == num2:
             self.error_in_line("A chain cannot connect a spin to itself")
         elif num1 > num2:
@@ -91,7 +91,7 @@ class Pin(Statement):
         self.goal = goal
 
     def update_qmi(self, prefix, problem):
-        num = qasm.symbol_to_number(prefix + self.sym)
+        num = qmasm.symbol_to_number(prefix + self.sym)
         problem.pinned.append((num, self.goal))
 
 class Alias(Statement):
@@ -105,7 +105,7 @@ class Alias(Statement):
         sym1 = prefix + self.sym1
         sym2 = prefix + self.sym2
         try:
-            qasm.sym2num[sym1] = qasm.sym2num[sym2]
+            qmasm.sym2num[sym1] = qmasm.sym2num[sym2]
         except KeyError:
             self.error_in_line("Cannot make symbol %s an alias of undefined symbol %s" % (sym1, sym2))
         if sym1 == sym2:
@@ -120,8 +120,8 @@ class Strength(Statement):
         self.strength = strength
 
     def update_qmi(self, prefix, problem):
-        num1 = qasm.symbol_to_number(prefix + self.sym1)
-        num2 = qasm.symbol_to_number(prefix + self.sym2)
+        num1 = qmasm.symbol_to_number(prefix + self.sym1)
+        num2 = qmasm.symbol_to_number(prefix + self.sym2)
         if num1 == num2:
             self.error_in_line("A coupler cannot connect a spin to itself")
         elif num1 > num2:
@@ -145,7 +145,7 @@ class MacroUse(Statement):
 macros = {}        # Map from a macro name to a list of Statement objects
 current_macro = (None, [])   # Macro currently being defined (name and statements)
 aliases = {}       # Map from a symbol to its textual expansion
-target = qasm.program   # Reference to either the program or the current macro
+target = qmasm.program   # Reference to either the program or the current macro
 def parse_file(infilename, infile):
     global macros, current_macro, aliases, target, filename, lineno
     filename = infilename
@@ -169,14 +169,14 @@ def parse_file(infilename, infile):
             # "!include" "<filename>" -- process a named auxiliary file.
             incname = string.join(fields[1:], " ")
             if len(incname) >= 2 and incname[0] == "<" and incname[-1] == ">":
-                # Search QASMPATH for the filename.
+                # Search QMASMPATH for the filename.
                 incname = incname[1:-1]
                 try:
-                    qasmpath = string.split(os.environ["QASMPATH"], ":")
-                    qasmpath.append(".")
+                    qmasmpath = string.split(os.environ["QMASMPATH"], ":")
+                    qmasmpath.append(".")
                 except KeyError:
-                    qasmpath = ["."]
-                found_incname = find_file_in_path(qasmpath, incname)
+                    qmasmpath = ["."]
+                found_incname = find_file_in_path(qmasmpath, incname)
                 if found_incname != None:
                     incname = found_incname
             elif len(incname) >= 2:
@@ -187,7 +187,7 @@ def parse_file(infilename, infile):
             try:
                 incfile = open(incname)
             except IOError:
-                qasm.abend('Failed to open %s for input' % incname)
+                qmasm.abend('Failed to open %s for input' % incname)
             parse_file(incname, incfile)
             incfile.close()
         elif len(fields) == 2:
@@ -208,7 +208,7 @@ def parse_file(infilename, infile):
                 if current_macro[0] != name:
                     error_in_line("Ended macro %s after beginning macro %s" % (name, current_macro[0]))
                 macros[name] = current_macro[1]
-                target = qasm.program
+                target = qmasm.program
                 current_macro = (None, [])
             else:
                 # <symbol> <weight> -- increment a symbol's point weight.
@@ -269,7 +269,7 @@ def parse_files(file_list):
             try:
                 infile = open(infilename)
             except IOError:
-                qasm.abend('Failed to open %s for input' % infilename)
+                qmasm.abend('Failed to open %s for input' % infilename)
             parse_file(infilename, infile)
             if current_macro[0] != None:
                 error_in_line("Unterminated definition of macro %s" % current_macro[0])
@@ -289,7 +289,7 @@ class PinParser(object):
         # Determine the starting and ending numbers and the step.
         bmatch = self.bracket_re.search(expr)
         if bmatch == None:
-            qasm.abend('Failed to parse [%s] as either "[<int>]" or "[<int_1> .. <int_2>]"' % expr)
+            qmasm.abend('Failed to parse [%s] as either "[<int>]" or "[<int_1> .. <int_2>]"' % expr)
         bmatches = bmatch.groups()
         num1 = int(bmatches[0])
         if bmatches[2] == None:
@@ -317,11 +317,11 @@ class PinParser(object):
         for c in lhs:
             if c == "[":
                 if in_bracket:
-                    qasm.abend("Nested brackets are not allowed")
+                    qmasm.abend("Nested brackets are not allowed")
                 in_bracket = True
             elif c == "]":
                 if not in_bracket:
-                    qasm.abend('Encountered "]" before seeing a "["')
+                    qmasm.abend('Encountered "]" before seeing a "["')
                 old_vars = variables[:-group_len]
                 current_vars = variables[-group_len:]
                 new_vars = self.expand_brackets(current_vars, bracket_expr)
@@ -333,7 +333,7 @@ class PinParser(object):
                 bracket_expr += c
             elif c == " " or c == "\t":
                 if in_bracket:
-                    qasm.abend("Unterminated bracketed expression")
+                    qmasm.abend("Unterminated bracketed expression")
                 if variables[-1] != "":
                     variables.append("")
                 group_len = 1
@@ -341,7 +341,7 @@ class PinParser(object):
                 for i in range(1, group_len + 1):
                     variables[-i] += c
         if in_bracket:
-            qasm.abend("Unterminated bracketed expression")
+            qmasm.abend("Unterminated bracketed expression")
         if variables[-1] == "":
             variables.pop()
         return variables
@@ -350,19 +350,19 @@ class PinParser(object):
         "Parse the right-hand side of a pin statement."
         for inter in [t.strip() for t in self.bool_re.split(rhs)]:
             if inter != "":
-                qasm.abend('Unexpected "%s" in pin right-hand side "%s"' % (inter, rhs))
-        return [qasm.str2bool[t.upper()] for t in self.bool_re.findall(rhs)]
+                qmasm.abend('Unexpected "%s" in pin right-hand side "%s"' % (inter, rhs))
+        return [qmasm.str2bool[t.upper()] for t in self.bool_re.findall(rhs)]
 
 def process_pin(filename, lineno, pin_str):
     "Parse a pin statement into one or more Pin objects and add these to the program."
     lhs_rhs = pin_str.split(":=")
     if len(lhs_rhs) != 2:
-        qasm.abend('Failed to parse pin statement "%s"' % pin_str)
+        qmasm.abend('Failed to parse pin statement "%s"' % pin_str)
     pin_parser = PinParser()
     lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
     rhs_list = pin_parser.parse_rhs(lhs_rhs[1])
     if len(lhs_list) != len(rhs_list):
-        qasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin_str, len(lhs_list), len(rhs_list)))
+        qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin_str, len(lhs_list), len(rhs_list)))
     return [Pin(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
 
 def process_chain(filename, lineno, chain_str):
@@ -370,10 +370,10 @@ def process_chain(filename, lineno, chain_str):
     # We use the LHS parser from PinParser to parse both sides of the chain.
     lhs_rhs = chain_str.split("=")
     if len(lhs_rhs) != 2:
-        qasm.abend('Failed to parse chain statement "%s"' % chain_str)
+        qmasm.abend('Failed to parse chain statement "%s"' % chain_str)
     pin_parser = PinParser()
     lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
     rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
     if len(lhs_list) != len(rhs_list):
-        qasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
+        qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
     return [Chain(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]

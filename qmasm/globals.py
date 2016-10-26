@@ -1,23 +1,23 @@
 ###################################
-# QASM global variables           #
+# QMASM global variables          #
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
-import qasm
+import qmasm
 import sys
 
 # Name of this program
-qasm.progname = sys.argv[0]
+qmasm.progname = sys.argv[0]
 
 # Map from a symbol to a unique number
-qasm.sym2num = {}
+qmasm.sym2num = {}
 
 # One less than the next symbol number to assign
-qasm.next_sym_num = -1
+qmasm.next_sym_num = -1
 
 # List of Statement objects
-qasm.program = []
+qmasm.program = []
 
 # Define our internal representation.
-qasm.chain_strength = 0    # Strength of chain couplers
-qasm.pin_strength = 0      # Strength of pin couplers
+qmasm.chain_strength = 0    # Strength of chain couplers
+qmasm.pin_strength = 0      # Strength of pin couplers

@@ -3,7 +3,7 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
-import qasm
+import qmasm
 import sys
 from dwave_sapi2.util import ising_to_qubo, linear_index_to_chimera
 
@@ -15,7 +15,7 @@ def open_output_file(oname):
         try:
             outfile = open(oname, "w")
         except IOError:
-            qasm.abend('Failed to open %s for output' % oname)
+            qmasm.abend('Failed to open %s for output' % oname)
     return outfile
 
 def coupler_number(M, N, L, q1, q2):
@@ -58,7 +58,7 @@ def output_qubist(outfile, as_qubo, problem):
 
     # Output the header and data in Qubist format.
     try:
-        num_qubits = qasm.solver.properties["num_qubits"]
+        num_qubits = qmasm.solver.properties["num_qubits"]
     except KeyError:
         # The Ising heuristic solver is an example of a solver that lacks a
         # fixed hardware representation.  We therefore assert that the number
@@ -77,9 +77,9 @@ def output_dw(outfile, problem):
         output_weights = problem.weights
         output_strengths = problem.strengths
     try:
-        L, M, N = qasm.chimera_topology(qasm.solver)
+        L, M, N = qmasm.chimera_topology(qmasm.solver)
     except KeyError:
-        qasm.abend("Failed to query the chimera topology")
+        qmasm.abend("Failed to query the chimera topology")
     wdata = []
     for q in range(len(output_weights)):
         if output_weights[q] != 0.0:

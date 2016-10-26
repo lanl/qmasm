@@ -1,7 +1,7 @@
-################################################
-# QASM example: one "on" bit out of five total #
-# By Scott Pakin <pakin@lanl.gov>              #
-################################################
+#################################################
+# QMASM example: one "on" bit out of five total #
+# By Scott Pakin <pakin@lanl.gov>               #
+#################################################
 
 # Point weights
 # A-E are the variables we care about.
