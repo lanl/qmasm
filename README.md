@@ -6,7 +6,7 @@ Description
 
 QMASM fills a gap in the software ecosystem for [D-Wave's adiabatic quantum computers](http://www.dwavesys.com/) by shielding the programmer from having to know system-specific hardware details while still enabling programs to be expressed at a fairly low level of abstraction.  It is therefore analogous to a conventional macro assembler and can be used in much the same way: as a target either for programmers who want a great deal of control over the hardware or for compilers that implement higher-level languages.
 
-N.B. This project was renamed from QASM to avoid confusion with [MIT's QASM](http://www.media.mit.edu/quanta/quanta-web/projects/qasm-tools/), which is used to describe quantum circuits (a different model of quantum computation from what the D-Wave uses).
+N.B. This tool used to be called "QASM" but was renamed to avoid confusion with [MIT's QASM](http://www.media.mit.edu/quanta/quanta-web/projects/qasm-tools/), which is used to describe quantum circuits (a different model of quantum computation from what the D-Wave uses).
 
 Installation
 ------------
