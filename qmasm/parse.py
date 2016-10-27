@@ -229,7 +229,7 @@ def parse_file(infilename, infile):
             elif fields[1] == "<->":
                 # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of
                 # <symbol_2>.
-                target.append(Alias(filename, lineno, fields[0], fields[2]))
+                target.extend(process_alias(filename, lineno, " ".join(fields[:3])))
             elif fields[0] == "!use_macro":
                 # "!use_macro" <macro_name> <instance_name> -- instantiate
                 # a macro using <instance_name> as each variable's prefix.
@@ -279,7 +279,7 @@ class PinParser(object):
     "Provide methods for parsing a pin statement."
 
     def __init__(self):
-        self.bracket_re = re.compile(r'^\s*(\d+)(\s*\.\.\s*(\d+))?\s*$')
+        self.bracket_re = re.compile(r'^\s*(\d+)(\s*(?:\.\.|:)\s*(\d+))?\s*$')
         self.bool_re = re.compile(r'TRUE|FALSE|T|F|0|[-+]?1', re.IGNORECASE)
 
     def expand_brackets(self, vars, expr):
@@ -289,7 +289,7 @@ class PinParser(object):
         # Determine the starting and ending numbers and the step.
         bmatch = self.bracket_re.search(expr)
         if bmatch == None:
-            qmasm.abend('Failed to parse [%s] as either "[<int>]" or "[<int_1> .. <int_2>]"' % expr)
+            return ["%s[%s]" % (v, expr) for v in vars]
         bmatches = bmatch.groups()
         num1 = int(bmatches[0])
         if bmatches[2] == None:
@@ -377,3 +377,16 @@ def process_chain(filename, lineno, chain_str):
     if len(lhs_list) != len(rhs_list):
         qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
     return [Chain(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+
+def process_alias(filename, lineno, alias_str):
+    "Parse an alias statement into one or more Alias objects and add these to the program."
+    # We use the LHS parser from PinParser to parse both sides of the alias.
+    lhs_rhs = alias_str.split("<->")
+    if len(lhs_rhs) != 2:
+        qmasm.abend('Failed to parse alias statement "%s"' % alias_str)
+    pin_parser = PinParser()
+    lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
+    rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
+    if len(lhs_list) != len(rhs_list):
+        qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (alias_str, len(lhs_list), len(rhs_list)))
+    return [Alias(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
