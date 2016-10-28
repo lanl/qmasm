@@ -269,7 +269,7 @@ if cl_args.verbose >= 1:
 
 # Define a class to represent a valid solution.
 class ValidSolution:
-    "Represent a valid ground state of a spin system."
+    "Represent a minimal state of a spin system."
 
     def __init__(self, soln, energy):
         self.solution = soln
@@ -302,7 +302,7 @@ if cl_args.verbose >= 1:
     sys.stderr.write("Number of solutions found:\n\n")
     sys.stderr.write("    %6d total\n" % len(energies))
     sys.stderr.write("    %6d with no broken chains or broken pins\n" % len(final_answer))
-    sys.stderr.write("    %6d in the ground state\n" % n_low_energies)
+    sys.stderr.write("    %6d at minimal energy\n" % n_low_energies)
     sys.stderr.write("    %6d excluding duplicate variable assignments\n" % len(id2solution))
     sys.stderr.write("\n")
 
