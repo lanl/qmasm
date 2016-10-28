@@ -320,7 +320,8 @@ if cl_args.verbose >= 2:
             new_energy_tallies[e] = t
     new_energies = new_energy_tallies.keys()
     new_energies.sort()
-    sys.stderr.write("Energy histogram:\n\n")
+    min_energy_possible = -sum([abs(w) for w in physical.weights] + [abs(s) for s in physical.strengths.values()])
+    sys.stderr.write("Energy histogram (theoretical minimum = %.4f):\n\n" % min_energy_possible)
     sys.stderr.write("    Energy      Tally\n")
     sys.stderr.write("    ----------  ------\n")
     for e in new_energies:
