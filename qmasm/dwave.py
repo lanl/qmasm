@@ -242,6 +242,6 @@ def submit_dwave_problem(physical, samples, anneal_time):
         num_occurrences = {tuple(a): 1 for a in semifinal_answer}
 
     # Discard solutions with broken pins or broken chains.
-    valid_solns = solutions  # [s for s in solutions if solution_is_intact(physical, s)]
-    final_answer = unembed_answer(valid_solns, physical.embedding, broken_chains="vote")
+    valid_solns = [s for s in solutions if solution_is_intact(physical, s)]
+    final_answer = unembed_answer(valid_solns, physical.embedding, broken_chains="discard")
     return answer, final_answer, num_occurrences
