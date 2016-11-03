@@ -49,10 +49,10 @@ def output_qubist(outfile, as_qubo, problem):
         output_weights = problem.weights
         output_strengths = problem.strengths
     data = []
-    for q in range(len(output_weights)):
-        if output_weights[q] != 0.0:
-            data.append("%d %d %.10g" % (q, q, output_weights[q]))
-    for sp, str in output_strengths.items():
+    for q, wt in sorted(output_weights.items()):
+        if wt != 0.0:
+            data.append("%d %d %.10g" % (q, q, wt))
+    for sp, str in sorted(output_strengths.items()):
         if str != 0.0:
             data.append("%d %d %.10g" % (sp[0], sp[1], str))
 
@@ -69,7 +69,7 @@ def output_qubist(outfile, as_qubo, problem):
         outfile.write("%s\n" % d)
 
 def output_dw(outfile, problem):
-    # Output weights and strengths in dw format.
+    "Output weights and strengths in dw format."
     if not problem.qubo:
         qprob = problem.convert_to_qubo()
         output_weights, output_strengths = qprob.weights, qprob.strengths
@@ -94,16 +94,35 @@ def output_dw(outfile, problem):
     outfile.write("\n".join(wdata + sdata) + "\n")
 
 def output_qbsolv(outfile, problem):
-    # Output weights and strengths in qbsolv format.
+    "Output weights and strengths in qbsolv format."
+    key_width = 0
+    val_width = 0
+    items = []
+    for s, n in qmasm.sym2num.items():
+        if "$" in s:
+            continue
+        if len(s) > key_width:
+            key_width = len(s)
+        nstr = str(n)
+        if len(nstr) > val_width:
+            val_width = len(nstr)
+        items.append((s, nstr))
+    items.sort()
+    for s, nstr in items:
+        outfile.write("c %-*s --> %-*s\n" % (key_width, s, val_width, nstr))
     if not problem.qubo:
         qprob = problem.convert_to_qubo()
         output_weights, output_strengths = qprob.weights, qprob.strengths
     else:
         output_weights = problem.weights
         output_strengths = problem.strengths
+    num_output_weights = len(output_weights)
+    for q1, q2 in output_strengths.keys():
+        # A large-numbered qubit might have zero weight but nonzero strength.
+        num_output_weights = max(num_output_weights, q1 + 1, q2 + 1)
     nonzero_strengths = [s for s in output_strengths.values() if s != 0.0]
-    outfile.write("p qubo 0 %d %d %d\n" % (len(output_weights), len(output_weights), len(nonzero_strengths)))
-    for q in range(len(output_weights)):
+    outfile.write("p qubo 0 %d %d %d\n" % (num_output_weights, num_output_weights, len(nonzero_strengths)))
+    for q in range(num_output_weights):
         outfile.write("%d %d %.10g\n" % (q, q, output_weights[q]))
     for qs in sorted(output_strengths.keys()):
         s = output_strengths[qs]

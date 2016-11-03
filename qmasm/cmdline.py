@@ -39,4 +39,6 @@ def parse_command_line():
         sys.stderr.write("%s: Warning: A non-negative chain strength (%.20g) was specified\n" % (qmasm.progname, cl_args.chain_strength))
     if cl_args.pin_strength >= 0.0:
         sys.stderr.write("%s: Warning: A non-negative pin strength (%.20g) was specified\n" % (qmasm.progname, cl_args.pin_strength))
+    if cl_args.format == "qbsolv" and cl_args.run:
+        qmasm.abend("The --run and --format=qbsolv options are mutually exclusive")
     return cl_args
