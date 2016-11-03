@@ -3,6 +3,7 @@
 # By Scott Pakin <pakin@lanl.gov>       #
 #########################################
 
+from collections import defaultdict
 from dwave_sapi2.core import solve_ising
 from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
 from dwave_sapi2.local import local_connection
@@ -145,7 +146,7 @@ def embed_problem_on_dwave(logical, optimize, verbosity):
     except KeyError:
         h_range = [-1.0, 1.0]
         j_range = [-1.0, 1.0]
-    weight_list = [logical.weights[q] for q in range(qmasm.next_sym_num + 1)]
+    weight_list = qmasm.dict_to_list(logical.weights)
     smearable = any([s != 0.0 for s in logical.strengths.values()])
     try:
         [new_weights, new_strengths, new_chains, new_embedding] = embed_problem(
@@ -161,8 +162,10 @@ def embed_problem_on_dwave(logical, optimize, verbosity):
     physical.h_range = h_range
     physical.j_range = j_range
     physical.strengths = new_strengths
-    physical.weight_list = weight_list
-    physical.weights = new_weights
+    physical.weights = defaultdict(lambda: 0.0,
+                                   {q: new_weights[q]
+                                    for q in range(len(new_weights))
+                                    if new_weights[q] != 0.0})
     physical.pinned = []
     for l, v in logical.pinned:
         physical.pinned.extend([(p, v) for p in physical.embedding[l]])
@@ -181,12 +184,13 @@ def scale_weights_strengths(physical, verbosity):
     "Manually scale the weights and strengths so Qubist doesn't complain."
     h_range = physical.h_range
     j_range = physical.j_range
-    old_cap = max([abs(w) for w in physical.weights + physical.strengths.values()])
+    weight_list = qmasm.dict_to_list(physical.weights)
+    old_cap = max([abs(w) for w in weight_list + physical.strengths.values()])
     new_cap = min(-h_range[0], h_range[1], -j_range[0], j_range[1])
     if old_cap == 0.0:
         # Handle the obscure case of a zero old_cap.
         old_cap = new_cap
-    new_weights = [w*new_cap/old_cap for w in physical.weights]
+    new_weights = qmasm.list_to_dict([w*new_cap/old_cap for w in weight_list])
     new_strengths = {js: w*new_cap/old_cap for js, w in physical.strengths.items()}
     if verbosity >= 1 and old_cap != new_cap:
         sys.stderr.write("Scaling weights and strengths from [%.10g, %.10g] to [%.10g, %.10g].\n\n" % (-old_cap, old_cap, -new_cap, new_cap))
@@ -220,7 +224,8 @@ def submit_dwave_problem(physical, samples, anneal_time):
         # Repeatedly remove parameters the particular solver doesn't like until
         # it actually works -- or fails for a different reason.
         try:
-            answer = solve_ising(qmasm.solver, physical.weights, physical.strengths, **solver_params)
+            weight_list = qmasm.dict_to_list(physical.weights)
+            answer = solve_ising(qmasm.solver, weight_list, physical.strengths, **solver_params)
             break
         except ValueError as e:
             # Is there a better way to extract the failing symbol than a regular

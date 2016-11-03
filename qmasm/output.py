@@ -49,8 +49,7 @@ def output_qubist(outfile, as_qubo, problem):
         output_weights = problem.weights
         output_strengths = problem.strengths
     data = []
-    for q in range(len(output_weights)):
-        wt = output_weights[q]
+    for q, wt in sorted(output_weights.items()):
         if wt != 0.0:
             data.append("%d %d %.10g" % (q, q, wt))
     for sp, str in sorted(output_strengths.items()):

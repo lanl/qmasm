@@ -3,12 +3,12 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
+from collections import defaultdict
 import qmasm
 import sys
 
-# Define a function that maps from a symbol to a number, creating a
-# new association if necessary.
 def symbol_to_number(sym):
+    "Map from a symbol to a number, creating a new association if necessary."
     global sym2num, next_sym_num
     try:
         return qmasm.sym2num[sym]
@@ -17,14 +17,28 @@ def symbol_to_number(sym):
         qmasm.sym2num[sym] = qmasm.next_sym_num
         return qmasm.next_sym_num
 
-# Define a function to abort the program on an error.
 def abend(str):
+    "Abort the program on an error."
     sys.stderr.write("%s: %s\n" % (qmasm.progname, str))
     sys.exit(1)
 
-# Define a function that returns the topology of the chimera graph associated
-# with a given solver.
+def dict_to_list(d):
+    "Convert a dictionary to a list."
+    llen = max(d.keys()) + 1
+    lst = [0] * llen
+    for k, v in d.items():
+        lst[k] = v
+    return lst
+
+def list_to_dict(lst):
+    "Convert a list to a dictionary."
+    return defaultdict(lambda: 0.0,
+                       {k: lst[k]
+                        for k in range(len(lst))
+                        if lst[k] != 0.0})
+
 def chimera_topology(solver):
+    "Return the topology of the chimera graph associated with a given solver."
     try:
         nominal_qubits = solver.properties["num_qubits"]
     except KeyError:
