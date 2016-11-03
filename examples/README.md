@@ -95,101 +95,75 @@ Sorting
 
 * Helper file: [`comparator.qmasm`](comparator.qmasm)
 
-* Command line: `qmasm --run --pin="i1 i2 i3 i4 := 0 1 1 0" sort4.qmasm`
+* Command line: `qmasm --run --pin="in[1:4] := 0110" sort4.qmasm`
 
-Sort a list of four 1-bit numbers.  `sort4.qmasm` implements a 4-element sorting network from [*Sorting and Searching*](http://www.informit.com/store/art-of-computer-programming-volume-3-sorting-and-searching-9780201896855).  Specify values for inputs *i1*, *i2*, *i3*, and *i4*, and the program will sort these into *o1*, *o2*, *o3*, and *o4*:
+Sort a list of four 1-bit numbers.  `sort4.qmasm` implements a 4-element sorting network from [*Sorting and Searching*](http://www.informit.com/store/art-of-computer-programming-volume-3-sorting-and-searching-9780201896855).  Specify values for inputs *in[1]*, *in[2]*, *in[3]*, and *in[4]*, and the program will sort these into *out[1]*, *out[2]*, *out[3]*, and *out[4]*:
 ```
-Solution #1 (energy = -89.50):
+Solution #1 (energy = -106.50, tally = 2):
 
-    Name(s)  Spin  Boolean
-    -------  ----  -------
-    i1         -1  False
-    i2         +1  True
-    i3         +1  True
-    i4         -1  False
-    o1         -1  False
-    o2         -1  False
-    o3         +1  True
-    o4         +1  True
+    Name(s)    Spin  Boolean
+    ---------  ----  --------
+    in[1]        -1  False
+    in[2]        +1  True
+    in[3]        +1  True
+    in[4]        -1  False
+    out[1]       -1  False
+    out[2]       -1  False
+    out[3]       +1  True
+    out[4]       +1  True
 ```
-Because there is no clear distinction between inputs and outputs, one can also specify the outputs and receive a list of inputs that would sort to those outputs.  For example, `--pin="o1 o2 o3 o4 := 0 0 1 1"` produces the following 6 solutions:
+Because there is no clear distinction between inputs and outputs, one can also specify the outputs and receive a list of inputs that would sort to those outputs.  For example, `qmasm --run --pin="out[1:4] := 0011" sort4.qmasm` produces the following 6 solutions:
 ```
-Solution #1 (energy = -89.50):
+Solution #1 (energy = -98.50, tally = 3):
 
-    Name(s)  Spin  Boolean
-    -------  ----  -------
-    i1         +1  True
-    i2         -1  False
-    i3         -1  False
-    i4         +1  True
-    o1         -1  False
-    o2         -1  False
-    o3         +1  True
-    o4         +1  True
+    Name(s)    Spin  Boolean
+    ---------  ----  --------
+    in[1]        +1  True
+    in[2]        -1  False
+    in[3]        -1  False
+    in[4]        +1  True
+    out[1]       -1  False
+    out[2]       -1  False
+    out[3]       +1  True
+    out[4]       +1  True
 
-Solution #2 (energy = -89.50):
+Solution #2 (energy = -98.50, tally = 1):
 
-    Name(s)  Spin  Boolean
-    -------  ----  -------
-    i1         -1  False
-    i2         -1  False
-    i3         +1  True
-    i4         +1  True
-    o1         -1  False
-    o2         -1  False
-    o3         +1  True
-    o4         +1  True
+    Name(s)    Spin  Boolean
+    ---------  ----  --------
+    in[1]        +1  True
+    in[2]        -1  False
+    in[3]        +1  True
+    in[4]        -1  False
+    out[1]       -1  False
+    out[2]       -1  False
+    out[3]       +1  True
+    out[4]       +1  True
 
-Solution #3 (energy = -89.50):
+Solution #3 (energy = -98.50, tally = 1):
 
-    Name(s)  Spin  Boolean
-    -------  ----  -------
-    i1         +1  True
-    i2         -1  False
-    i3         +1  True
-    i4         -1  False
-    o1         -1  False
-    o2         -1  False
-    o3         +1  True
-    o4         +1  True
+    Name(s)    Spin  Boolean
+    ---------  ----  --------
+    in[1]        -1  False
+    in[2]        +1  True
+    in[3]        -1  False
+    in[4]        +1  True
+    out[1]       -1  False
+    out[2]       -1  False
+    out[3]       +1  True
+    out[4]       +1  True
 
-Solution #4 (energy = -89.50):
+Solution #4 (energy = -98.50, tally = 1):
 
-    Name(s)  Spin  Boolean
-    -------  ----  -------
-    i1         -1  False
-    i2         +1  True
-    i3         -1  False
-    i4         +1  True
-    o1         -1  False
-    o2         -1  False
-    o3         +1  True
-    o4         +1  True
-
-Solution #5 (energy = -89.50):
-
-    Name(s)  Spin  Boolean
-    -------  ----  -------
-    i1         +1  True
-    i2         +1  True
-    i3         -1  False
-    i4         -1  False
-    o1         -1  False
-    o2         -1  False
-    o3         +1  True
-    o4         +1  True
-
-Solution #6 (energy = -89.50):
-
-    Name(s)  Spin  Boolean
-    -------  ----  -------
-    i1         -1  False
-    i2         +1  True
-    i3         +1  True
-    i4         -1  False
-    o1         -1  False
-    o2         -1  False
-    o3         +1  True
-    o4         +1  True
+    Name(s)    Spin  Boolean
+    ---------  ----  --------
+    in[1]        +1  True
+    in[2]        +1  True
+    in[3]        -1  False
+    in[4]        -1  False
+    out[1]       -1  False
+    out[2]       -1  False
+    out[3]       +1  True
+    out[4]       +1  True
 ```
-One can even specify combinations of inputs and outputs.  As an exercise, see what solutions `--pin="i1 i2 i3 o2 := 0 1 1 0"` leads to.
+One can even specify combinations of inputs and outputs.  As an exercise, see what solutions `qmasm --run --pin="in[1:3] out[2] := 0110" sort4.qmasm` leads to.
