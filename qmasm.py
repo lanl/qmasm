@@ -158,6 +158,13 @@ if cl_args.verbose >= 1:
             sys.stderr.write("    %-*s  %s\n" % (max_key_len, k, val_str))
     sys.stderr.write("\n")
 
+# As a special case, if the user requested qbsolv output we output the
+# pre-embedded version of the problem then exit.  (We already aborted with an
+# error message if the user specified both --format=qbsolv and --run.)
+if cl_args.format == "qbsolv":
+    qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
+    sys.exit(0)
+
 # Embed the problem onto the D-Wave.
 physical = qmasm.embed_problem_on_dwave(logical_ising, cl_args.O, cl_args.verbose)
 
@@ -235,15 +242,10 @@ if cl_args.verbose >= 1:
 # Manually scale the weights and strengths so Qubist doesn't complain.
 physical = qmasm.scale_weights_strengths(physical, cl_args.verbose)
 
-# Output a file in any of a variety of formats.
+# Output a file in any of a variety of formats.  Note that we've already
+# handled qbsolv output as a special case.
 if cl_args.output != "<stdout>" or not cl_args.run:
-    # As a special case, qbsolv works on the pre-embedded (logical) problem
-    # because it has the ability to partition and embed problems itself.
-    if cl_args.format == "qbsolv":
-        problem = logical_ising
-    else:
-        problem = physical
-    qmasm.write_output(problem, cl_args.output, cl_args.format, cl_args.qubo)
+    qmasm.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo)
 
 # If we weren't told to run anything we can exit now.
 if not cl_args.run:

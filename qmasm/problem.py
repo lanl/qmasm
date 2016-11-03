@@ -103,11 +103,17 @@ class Problem(object):
             raise TypeError("Can convert only Ising problems to QUBO problems")
         new_obj = copy.deepcopy(self)
         qmatrix, _ = ising_to_qubo(self.weights, self.strengths)
-        new_obj.weights = [0] * len(self.weights)
+        max_weight = max([q1
+                          for (q1, q2), wt in qmatrix.items()
+                          if q1 == q2])
+        new_obj.weights = [0] * (max_weight + 1)
         for (q1, q2), wt in qmatrix.items():
             if q1 == q2:
                 new_obj.weights[q1] = wt
-        new_obj.strengths = {(q1, q2): wt for (q1, q2), wt in qmatrix.items() if q1 != q2}
+        new_obj.strengths = defaultdict(lambda: 0.0,
+                                        {(q1, q2): wt
+                                         for (q1, q2), wt in qmatrix.items()
+                                         if q1 != q2})
         return new_obj
 
     def convert_chains_to_aliases(self):
