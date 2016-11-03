@@ -114,7 +114,7 @@ Solution #1 (energy = -106.50, tally = 2):
 ```
 Because there is no clear distinction between inputs and outputs, one can also specify the outputs and receive a list of inputs that would sort to those outputs.  For example, `qmasm --run --pin="out[1:4] := 0011" sort4.qmasm` produces the following 6 solutions:
 ```
-Solution #1 (energy = -98.50, tally = 3):
+Solution #1 (energy = -116.50, tally = 3):
 
     Name(s)    Spin  Boolean
     ---------  ----  --------
@@ -127,7 +127,20 @@ Solution #1 (energy = -98.50, tally = 3):
     out[3]       +1  True
     out[4]       +1  True
 
-Solution #2 (energy = -98.50, tally = 1):
+Solution #2 (energy = -116.50, tally = 1):
+
+    Name(s)    Spin  Boolean
+    ---------  ----  --------
+    in[1]        -1  False
+    in[2]        -1  False
+    in[3]        +1  True
+    in[4]        +1  True
+    out[1]       -1  False
+    out[2]       -1  False
+    out[3]       +1  True
+    out[4]       +1  True
+
+Solution #3 (energy = -116.50, tally = 2):
 
     Name(s)    Spin  Boolean
     ---------  ----  --------
@@ -140,7 +153,7 @@ Solution #2 (energy = -98.50, tally = 1):
     out[3]       +1  True
     out[4]       +1  True
 
-Solution #3 (energy = -98.50, tally = 1):
+Solution #4 (energy = -116.50, tally = 2):
 
     Name(s)    Spin  Boolean
     ---------  ----  --------
@@ -153,13 +166,26 @@ Solution #3 (energy = -98.50, tally = 1):
     out[3]       +1  True
     out[4]       +1  True
 
-Solution #4 (energy = -98.50, tally = 1):
+Solution #5 (energy = -116.50, tally = 8):
 
     Name(s)    Spin  Boolean
     ---------  ----  --------
     in[1]        +1  True
     in[2]        +1  True
     in[3]        -1  False
+    in[4]        -1  False
+    out[1]       -1  False
+    out[2]       -1  False
+    out[3]       +1  True
+    out[4]       +1  True
+
+Solution #6 (energy = -116.50, tally = 1):
+
+    Name(s)    Spin  Boolean
+    ---------  ----  --------
+    in[1]        -1  False
+    in[2]        +1  True
+    in[3]        +1  True
     in[4]        -1  False
     out[1]       -1  False
     out[2]       -1  False
