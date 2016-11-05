@@ -111,6 +111,7 @@ class Problem(object):
                                         {(q1, q2): wt
                                          for (q1, q2), wt in qmatrix.items()
                                          if q1 != q2})
+        new_obj.qubo = True
         return new_obj
 
     def convert_chains_to_aliases(self):
