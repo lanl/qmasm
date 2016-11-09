@@ -161,11 +161,24 @@ def output_minizinc(outfile, problem):
     for s, n in qmasm.sym2num.items():
         num2syms[n].append(s)
         max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
+    def compare_syms(a, b):
+        "Compare with internal variables appearing after external variables."
+        if "$" in a and "$" in b:
+            return cmp(a, b)   # Both contain "$"
+        elif "$" in a:
+            return +1          # Only a contains "$"
+        elif "$" in b:
+            return -1          # Only b contains "$"
+        else:
+            return cmp(a, b)   # Neither contains "$"
+    for n in range(len(num2syms)):
+        num2syms[n].sort(cmp=compare_syms)
 
     # Output code to show the results symbolically.
+    outfile.write("output [\n")
+    outfile.write('  "%-*s  Spin  Boolean\\n",\n' % (max_sym_name_len, "Name(s)"))
+    outfile.write('  "%s  ----  -------\\n",\n' % ("-" * max_sym_name_len))
     outlist = []
-    outlist.append('"%-*s  Spin  Boolean\\n"' % (max_sym_name_len, "Name(s)"))
-    outlist.append('"%s  ----  -------\\n"' % ("-" * max_sym_name_len))
     for n in range(len(num2syms)):
         try:
             phys = problem.embedding[n][0]
@@ -181,7 +194,7 @@ def output_minizinc(outfile, problem):
         line += '"  ", show(if q%d then "True" else "False" endif), ' % phys
         line += '"\\n"'
         outlist.append(line)
-    outfile.write("output [\n")
+    outlist.sort()
     outfile.write("  %s\n];\n" % ",\n  ".join(outlist))
 
 def write_output(problem, oname, oformat, as_qubo):
