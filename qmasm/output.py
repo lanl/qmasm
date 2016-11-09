@@ -129,6 +129,61 @@ def output_qbsolv(outfile, problem):
         if s != 0.0:
             outfile.write("%d %d %.10g\n" % (qs[0], qs[1], s))
 
+def output_minizinc(outfile, problem):
+    "Output weights and strengths as a MiniZinc constraint problem."
+    # Output all QMASM variables as MiniZinc variables.
+    all_weights = set(problem.weights.keys())
+    all_weights.update([qs[0] for qs in problem.strengths.keys()])
+    all_weights.update([qs[1] for qs in problem.strengths.keys()])
+    for q in sorted(all_weights):
+        outfile.write("var bool: q%d;\n" % q)
+    outfile.write("\n")
+
+    # We'll dynamically convert Booleans to spins.
+    if not problem.qubo:
+        outfile.write("function var int: to_spin(var bool: q) = 2*q - 1;\n\n")
+
+    # Output one massive minimization expression.
+    scale_to_int = lambda f: int(round(10000.0*f))
+    outfile.write("solve minimize\n")
+    if problem.qubo:
+        weight_terms = ["%8d * q%d" % (scale_to_int(wt), q) for q, wt in sorted(problem.weights.items())]
+        strength_terms = ["%8d * q%d * q%d" % (scale_to_int(s), qs[0], qs[1]) for qs, s in sorted(problem.strengths.items())]
+    else:
+        weight_terms = ["%8d * to_spin(q%d)" % (scale_to_int(wt), q) for q, wt in sorted(problem.weights.items())]
+        strength_terms = ["%8d * to_spin(q%d) * to_spin(q%d)" % (scale_to_int(s), qs[0], qs[1]) for qs, s in sorted(problem.strengths.items())]
+    all_terms = weight_terms + strength_terms
+    outfile.write("  %s;\n\n" % " +\n  ".join(all_terms))
+
+    # Map each logical qubit to one or more symbols.
+    num2syms = [[] for _ in range(len(qmasm.sym2num))]
+    max_sym_name_len = 7
+    for s, n in qmasm.sym2num.items():
+        num2syms[n].append(s)
+        max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
+
+    # Output code to show the results symbolically.
+    outlist = []
+    outlist.append('"%-*s  Spin  Boolean\\n"' % (max_sym_name_len, "Name(s)"))
+    outlist.append('"%s  ----  -------\\n"' % ("-" * max_sym_name_len))
+    for n in range(len(num2syms)):
+        try:
+            phys = problem.embedding[n][0]
+        except IndexError:
+            continue
+        syms = " ".join(num2syms[n])
+        line = ""
+        line += '"%-*s  ", ' % (max_sym_name_len, syms)
+        if problem.qubo:
+            line += 'show_int(4, q%d), ' % phys
+        else:
+            line += 'show_int(4, 2*q%d - 1), ' % phys
+        line += '"  ", show(if q%d then "True" else "False" endif), ' % phys
+        line += '"\\n"'
+        outlist.append(line)
+    outfile.write("output [\n")
+    outfile.write("  %s\n];\n" % ",\n  ".join(outlist))
+
 def write_output(problem, oname, oformat, as_qubo):
     "Write an output file in one of a variety of formats."
 
@@ -142,6 +197,8 @@ def write_output(problem, oname, oformat, as_qubo):
         output_dw(outfile, problem)
     elif oformat == "qbsolv":
         output_qbsolv(outfile, problem)
+    elif oformat == "minizinc":
+        output_minizinc(outfile, problem)
 
     # Close the output file.
     if oname != "<stdout>":
