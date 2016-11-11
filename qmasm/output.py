@@ -4,6 +4,7 @@
 ###################################
 
 import qmasm
+import re
 import sys
 from dwave_sapi2.util import ising_to_qubo, linear_index_to_chimera
 
@@ -129,8 +130,30 @@ def output_qbsolv(outfile, problem):
         if s != 0.0:
             outfile.write("%d %d %.10g\n" % (qs[0], qs[1], s))
 
+# quote was adapted from Python 3's shlex module because the quote method isn't
+# included in Python 2's shlex.
+_find_unsafe = re.compile(r'[^\w@%+=:,./-]').search
+def quote(s):
+    """Return a shell-escaped version of the string *s*."""
+    if not s:
+        return "''"
+    if _find_unsafe(s) is None:
+        return s
+
+    # Use single quotes, and put single quotes into double quotes
+    # the string $'b is then quoted as '$'"'"'b'.
+    return "'" + s.replace("'", "'\"'\"'") + "'"
+
 def output_minizinc(outfile, problem):
     "Output weights and strengths as a MiniZinc constraint problem."
+    # Write some header information.
+    outfile.write("""% Use MiniZinc to minimize a given Hamiltonian.
+%
+% Producer:     QMASM (https://github.com/losalamos/qmasm/)
+% Author:       Scott Pakin (pakin@lanl.gov)
+""")
+    outfile.write("%% Command line: %s\n\n" % " ".join([quote(a) for a in sys.argv]))
+
     # Output all QMASM variables as MiniZinc variables.
     all_weights = set(problem.weights.keys())
     all_weights.update([qs[0] for qs in problem.strengths.keys()])
@@ -143,9 +166,9 @@ def output_minizinc(outfile, problem):
     if not problem.qubo:
         outfile.write("function var int: to_spin(var bool: q) = 2*q - 1;\n\n")
 
-    # Output one massive minimization expression.
+    # Express energy as one, big Hamiltonian.
     scale_to_int = lambda f: int(round(10000.0*f))
-    outfile.write("solve minimize\n")
+    outfile.write("var int: energy =\n")
     if problem.qubo:
         weight_terms = ["%8d * q%d" % (scale_to_int(wt), q) for q, wt in sorted(problem.weights.items())]
         strength_terms = ["%8d * q%d * q%d" % (scale_to_int(s), qs[0], qs[1]) for qs, s in sorted(problem.strengths.items())]
@@ -153,7 +176,24 @@ def output_minizinc(outfile, problem):
         weight_terms = ["%8d * to_spin(q%d)" % (scale_to_int(wt), q) for q, wt in sorted(problem.weights.items())]
         strength_terms = ["%8d * to_spin(q%d) * to_spin(q%d)" % (scale_to_int(s), qs[0], qs[1]) for qs, s in sorted(problem.strengths.items())]
     all_terms = weight_terms + strength_terms
-    outfile.write("  %s;\n\n" % " +\n  ".join(all_terms))
+    outfile.write("  %s;\n" % " +\n  ".join(all_terms))
+
+    # Because we can't both minimize and enumerate all solutions, we do only
+    # the former with instructions for the user on how to switch to the latter.
+    outfile.write("""
+% First pass: Compute the minimum energy.
+solve minimize energy;
+
+% Second pass: Find all minimum-energy solutions.
+%
+% Once you've solved for minimum energy, comment out the "solve minimize
+% energy" line, plug the minimal energy value into the following line,
+% uncomment it and the "solve satisfy" line, and re-run MiniZinc, requesting
+% all solutions this time.
+%constraint energy = -12345;
+%solve satisfy;
+
+""")
 
     # Map each logical qubit to one or more symbols.
     num2syms = [[] for _ in range(len(qmasm.sym2num))]
@@ -176,6 +216,7 @@ def output_minizinc(outfile, problem):
 
     # Output code to show the results symbolically.
     outfile.write("output [\n")
+    outfile.write('  "Energy = ", show(energy), "\\n\\n",\n')
     outfile.write('  "%-*s  Spin  Boolean\\n",\n' % (max_sym_name_len, "Name(s)"))
     outfile.write('  "%s  ----  -------\\n",\n' % ("-" * max_sym_name_len))
     outlist = []
