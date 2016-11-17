@@ -2,3 +2,4 @@
 QMASM.egg-info/
 build/
 dist/
+setenv.sh

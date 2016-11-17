@@ -60,7 +60,7 @@ if cl_args.verbose >= 1:
     sys.stderr.write("\n")
 
 # Use a helper bit to help pin values to true or false.
-logical_ising.pin_qubits(qmasm.pin_strength)
+logical_ising.pin_qubits(qmasm.pin_strength, qmasm.chain_strength)
 
 # Convert chains to aliases where possible.
 if cl_args.O:

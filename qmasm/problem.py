@@ -58,15 +58,15 @@ class Problem(object):
         computed pin strength."""
         pin_strength = pin_str
         if pin_strength == None:
-            # Pin strength defaults to half the chain strength.
-            pin_strength = chain_str/2.0
+            # Pin strength defaults to the chain strength.
+            pin_strength = chain_str
         elif self.qubo:
             # With QUBO input we need to divide the chain strength by 4 for
             # consistency with the other coupler strengths.
             pin_strength /= 4.0
         return pin_strength
 
-    def pin_qubits(self, pin_str):
+    def pin_qubits(self, pin_str, chain_str):
         "Use a helper qubit to help pin values to true or false."
         for q_user, b in self.pinned:
             q_helper = qmasm.symbol_to_number(new_internal_sym())
@@ -74,13 +74,10 @@ class Problem(object):
             if q1 > q2:
                 q1, q2 = q2, q1
             if b:
-                self.weights[q_helper] += pin_str/2.0
-                self.weights[q_user] += pin_str
-                self.strengths[(q1, q2)] += -pin_str/2.0
+                self.weights[q_helper] -= pin_str
             else:
-                self.weights[q_helper] += pin_str/2.0
-                self.weights[q_user] += -pin_str
-                self.strengths[(q1, q2)] += pin_str/2.0
+                self.weights[q_helper] += pin_str
+            self.strengths[(q1, q2)] += -chain_str
 
     def convert_to_ising(self):
         """Transform a QUBO problem into an Ising problem.  Return the new
