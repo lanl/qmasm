@@ -99,7 +99,7 @@ if cl_args.verbose >= 2:
     # Chains
     if len(logical_ising.chains) > 0:
         for qs in sorted(logical_ising.chains.keys()):
-            sys.stderr.write("    q%d = q%d\n" % (qs[0], qs[1]))
+            sys.stderr.write("    q%d = q%d\n" % (qs[0] + 1, qs[1] + 1))
         sys.stderr.write("\n")
 
     # Strengths (those that are not chains)
