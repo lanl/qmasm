@@ -63,6 +63,9 @@ class Weight(Statement):
         self.sym = sym
         self.weight = weight
 
+    def as_str(self, prefix=""):
+        return "%s%s %s" % (prefix, self.sym, self.weight)
+
     def update_qmi(self, prefix, problem):
         num = qmasm.symbol_to_number(prefix + self.sym)
         problem.weights[num] += self.weight
@@ -73,6 +76,9 @@ class Chain(Statement):
         super(Chain, self).__init__(filename, lineno)
         self.sym1 = sym1
         self.sym2 = sym2
+
+    def as_str(self, prefix=""):
+        return "%s%s = %s%s" % (prefix, self.sym1, prefix, self.sym2)
 
     def update_qmi(self, prefix, problem):
         num1 = qmasm.symbol_to_number(prefix + self.sym1)
@@ -90,6 +96,9 @@ class Pin(Statement):
         self.sym = sym
         self.goal = goal
 
+    def as_str(self, prefix=""):
+        return "%s%s := %s" % (prefix, self.sym, self.goal)
+
     def update_qmi(self, prefix, problem):
         num = qmasm.symbol_to_number(prefix + self.sym)
         problem.pinned.append((num, self.goal))
@@ -100,6 +109,9 @@ class Alias(Statement):
         super(Alias, self).__init__(filename, lineno)
         self.sym1 = sym1
         self.sym2 = sym2
+
+    def as_str(self, prefix=""):
+        return "%s%s <-> %s%s" % (prefix, self.sym1, prefix, self.sym2)
 
     def update_qmi(self, prefix, problem):
         sym1 = prefix + self.sym1
@@ -119,6 +131,9 @@ class Strength(Statement):
         self.sym2 = sym2
         self.strength = strength
 
+    def as_str(self, prefix=""):
+        return "%s%s %s%s %s" % (prefix, self.sym1, prefix, self.sym2, self.strength)
+
     def update_qmi(self, prefix, problem):
         num1 = qmasm.symbol_to_number(prefix + self.sym1)
         num2 = qmasm.symbol_to_number(prefix + self.sym2)
@@ -135,6 +150,12 @@ class MacroUse(Statement):
         self.name = name
         self.body = body
         self.prefix = prefix
+
+    def as_str(self, prefix=""):
+        stmt_strs = []
+        for stmt in self.body:
+            stmt_strs.append(stmt.as_str(self.prefix + prefix))
+        return "\n".join(stmt_strs)
 
     def update_qmi(self, prefix, problem):
         for stmt in self.body:

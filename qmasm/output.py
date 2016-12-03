@@ -130,6 +130,11 @@ def output_qbsolv(outfile, problem):
         if s != 0.0:
             outfile.write("%d %d %.10g\n" % (qs[0], qs[1], s))
 
+def output_qmasm(outfile):
+    "Output weights and strengths as a flattened QMASM source file."
+    for p in qmasm.program:
+        outfile.write("%s\n" % p.as_str())
+
 # quote was adapted from Python 3's shlex module because the quote method isn't
 # included in Python 2's shlex.
 _find_unsafe = re.compile(r'[^\w@%+=:,./-]').search
@@ -251,6 +256,8 @@ def write_output(problem, oname, oformat, as_qubo):
         output_dw(outfile, problem)
     elif oformat == "qbsolv":
         output_qbsolv(outfile, problem)
+    elif oformat == "qmasm":
+        output_qmasm(outfile)
     elif oformat == "minizinc":
         output_minizinc(outfile, problem)
 

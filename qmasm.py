@@ -165,6 +165,14 @@ if cl_args.format == "qbsolv":
     qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
     sys.exit(0)
 
+# As a special case, if the user requested QMASM output we output the
+# pre-embedded version of the problem.  If we weren't asked to run, we can stop
+# here.
+if cl_args.format == "qmasm":
+    qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
+    if not cl_args.run:
+        sys.exit(0)
+
 # Embed the problem onto the D-Wave.
 physical = qmasm.embed_problem_on_dwave(logical_ising, cl_args.O, cl_args.verbose)
 
@@ -243,8 +251,8 @@ if cl_args.verbose >= 1:
 physical = qmasm.scale_weights_strengths(physical, cl_args.verbose)
 
 # Output a file in any of a variety of formats.  Note that we've already
-# handled qbsolv output as a special case.
-if cl_args.output != "<stdout>" or not cl_args.run:
+# handled qbsolv output and QMASM output as special cases.
+if cl_args.format != "qmasm" and (cl_args.output != "<stdout>" or not cl_args.run):
     qmasm.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo)
 
 # If we weren't told to run anything we can exit now.

@@ -16,7 +16,7 @@ def parse_command_line():
                            help="run the generated QMI")
     cl_parser.add_argument("-o", "--output", metavar="FILE", default="<stdout>",
                            help="file to which to write weights and strengths")
-    cl_parser.add_argument("-f", "--format", choices=["qubist", "dw", "qbsolv", "minizinc"], default="qubist",
+    cl_parser.add_argument("-f", "--format", choices=["qubist", "dw", "qbsolv", "qmasm", "minizinc"], default="qubist",
                            help="output-file format")
     cl_parser.add_argument("-p", "--pin", action="append",
                            help="pin a set of qubits to a set of true or false values")
