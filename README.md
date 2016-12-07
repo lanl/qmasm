@@ -28,7 +28,7 @@ Documentation for QMASM can be found on the [QMASM wiki](https://github.com/losa
 
 QMASM (then known as QASM) is discussed in the following publication:
 
-> Scott Pakin. "A Quantum Macro Assembler". In _Proceedings of the 20th Annual IEEE High Performance Extreme Computing Conference_ (HPEC 2016), Waltham, Massachusetts, USA, 13–15 September 2016.
+> Scott Pakin. "A Quantum Macro Assembler". In _Proceedings of the 20th Annual IEEE High Performance Extreme Computing Conference_ (HPEC 2016), Waltham, Massachusetts, USA, 13–15 September 2016.  DOI: [10.1109/HPEC.2016.7761637](http://dx.doi.org/10.1109/HPEC.2016.7761637).
 
 
 License
