@@ -159,27 +159,36 @@ def output_minizinc(outfile, problem):
 """)
     outfile.write("%% Command line: %s\n\n" % " ".join([quote(a) for a in sys.argv]))
 
+    # The model is easier to express as a QUBO so convert to that format.
+    if problem.qubo:
+        qprob = problem
+    else:
+        qprob = problem.convert_to_qubo()
+
     # Output all QMASM variables as MiniZinc variables.
-    all_weights = set(problem.weights.keys())
-    all_weights.update([qs[0] for qs in problem.strengths.keys()])
-    all_weights.update([qs[1] for qs in problem.strengths.keys()])
+    all_weights = set(qprob.weights.keys())
+    all_weights.update([qs[0] for qs in qprob.strengths.keys()])
+    all_weights.update([qs[1] for qs in qprob.strengths.keys()])
     for q in sorted(all_weights):
-        outfile.write("var bool: q%d;\n" % q)
+        outfile.write("var 0..1: q%d;\n" % q)
     outfile.write("\n")
 
-    # We'll dynamically convert Booleans to spins.
-    if not problem.qubo:
-        outfile.write("function var int: to_spin(var bool: q) = 2*q - 1;\n\n")
+    # Define variables representing products of QMASM variables.  Constrain the
+    # product variables to be the products.
+    outfile.write("% Define p_X_Y variables and constrain them to be the product of qX and qY.\n")
+    for q0, q1 in sorted(qprob.strengths.keys()):
+        pstr = "p_%d_%d" % (q0, q1)
+        outfile.write("var 0..1: %s;\n" % pstr)
+        outfile.write("constraint %s >= q%d + q%d - 1;\n" % (pstr, q0, q1))
+        outfile.write("constraint %s <= q%d;\n" % (pstr, q0))
+        outfile.write("constraint %s <= q%d;\n" % (pstr, q1))
+    outfile.write("\n")
 
     # Express energy as one, big Hamiltonian.
     scale_to_int = lambda f: int(round(10000.0*f))
     outfile.write("var int: energy =\n")
-    if problem.qubo:
-        weight_terms = ["%8d * q%d" % (scale_to_int(wt), q) for q, wt in sorted(problem.weights.items())]
-        strength_terms = ["%8d * q%d * q%d" % (scale_to_int(s), qs[0], qs[1]) for qs, s in sorted(problem.strengths.items())]
-    else:
-        weight_terms = ["%8d * to_spin(q%d)" % (scale_to_int(wt), q) for q, wt in sorted(problem.weights.items())]
-        strength_terms = ["%8d * to_spin(q%d) * to_spin(q%d)" % (scale_to_int(s), qs[0], qs[1]) for qs, s in sorted(problem.strengths.items())]
+    weight_terms = ["%8d * q%d" % (scale_to_int(wt), q) for q, wt in sorted(qprob.weights.items())]
+    strength_terms = ["%8d * p_%d_%d" % (scale_to_int(s), qs[0], qs[1]) for qs, s in sorted(qprob.strengths.items())]
     all_terms = weight_terms + strength_terms
     outfile.write("  %s;\n" % " +\n  ".join(all_terms))
 
@@ -237,7 +246,7 @@ solve minimize energy;
             line += 'show_int(4, q%d), ' % phys
         else:
             line += 'show_int(4, 2*q%d - 1), ' % phys
-        line += '"  ", show(if q%d then "True" else "False" endif), ' % phys
+        line += '"  ", if show(q%d) == "1" then "True" else "False" endif, ' % phys
         line += '"\\n"'
         outlist.append(line)
     outlist.sort()
