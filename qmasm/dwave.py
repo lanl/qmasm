@@ -216,10 +216,14 @@ def solution_is_intact(physical, soln):
     # The solution looks good!
     return True
 
-def submit_dwave_problem(physical, samples, anneal_time):
+def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs):
     "Submit a QMI to the D-Wave."
     # Submit a QMI to the D-Wave and get back a list of solution vectors.
-    solver_params = dict(chains=physical.embedding, num_reads=samples, annealing_time=anneal_time)
+    solver_params = dict(chains=physical.embedding,
+                         num_reads=samples,
+                         annealing_time=anneal_time,
+                         num_spin_reversal_transforms=spin_revs)
+    unused_params = dict()
     while True:
         # Repeatedly remove parameters the particular solver doesn't like until
         # it actually works -- or fails for a different reason.
@@ -230,12 +234,30 @@ def submit_dwave_problem(physical, samples, anneal_time):
         except ValueError as e:
             # Is there a better way to extract the failing symbol than a regular
             # expression match?
-            bad_name = re.match(r'"(.*?)"', str(e))
-            if bad_name == None:
+            bad_name_match = re.match(r'"(.*?)"', str(e))
+            if bad_name_match == None:
                 raise e
-            del solver_params[bad_name.group(1)]
+            bad_name = bad_name_match.group(1)
+            unused_params[bad_name] = solver_params[bad_name]
+            del solver_params[bad_name]
         except RuntimeError as e:
             qmasm.abend(e)
+    if verbosity >= 2:
+        # Output parameters we kept and those we discarded
+        sys.stderr.write("Parameters accepted by the %s solver:\n" % qmasm.solver_name)
+        if len(solver_params) > 0:
+            for k, v in solver_params.items():
+                sys.stderr.write("    %s = %s\n" % (k, v))
+        else:
+            sys.stderr.write("    [none]\n")
+        sys.stderr.write("\n")
+        sys.stderr.write("Parameters rejected by the %s solver:\n" % qmasm.solver_name)
+        if len(unused_params) > 0:
+            for k, v in unused_params.items():
+                sys.stderr.write("    %s = %s\n" % (k, v))
+        else:
+            sys.stderr.write("    [none]\n")
+        sys.stderr.write("\n")
 
     # Tally the occurrences of each solution
     solutions = answer["solutions"]

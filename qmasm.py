@@ -262,12 +262,13 @@ if not cl_args.run:
 # Submit the problem to the D-Wave.
 if cl_args.verbose >= 1:
     sys.stderr.write("Submitting the problem to the %s solver.\n\n" % qmasm.solver_name)
-answer, final_answer, num_occurrences = qmasm.submit_dwave_problem(physical, cl_args.samples, cl_args.anneal_time)
+answer, final_answer, num_occurrences = qmasm.submit_dwave_problem(cl_args.verbose, physical, cl_args.samples, cl_args.anneal_time, cl_args.spin_revs)
 
 # Output solver timing information.
 if cl_args.verbose >= 1:
     try:
         timing_info = answer["timing"].items()
+        sys.stderr.write("Timing information:\n\n")
         sys.stderr.write("    %-30s %-10s\n" % ("Measurement", "Value (us)"))
         sys.stderr.write("    %s %s\n" % ("-" * 30, "-" * 10))
         for timing_value in timing_info:
