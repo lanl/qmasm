@@ -216,13 +216,14 @@ def solution_is_intact(physical, soln):
     # The solution looks good!
     return True
 
-def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs):
+def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, postproc):
     "Submit a QMI to the D-Wave."
     # Submit a QMI to the D-Wave and get back a list of solution vectors.
     solver_params = dict(chains=physical.embedding,
                          num_reads=samples,
                          annealing_time=anneal_time,
-                         num_spin_reversal_transforms=spin_revs)
+                         num_spin_reversal_transforms=spin_revs,
+                         postprocess=postproc)
     unused_params = dict()
     while True:
         # Repeatedly remove parameters the particular solver doesn't like until

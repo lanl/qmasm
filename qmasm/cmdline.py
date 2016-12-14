@@ -34,10 +34,13 @@ def parse_command_line():
                            help="treat inputs as QUBOs rather than Ising systems")
     cl_parser.add_argument("-s", "--samples", metavar="POS_INT", type=int, default=1000,
                            help="specify the number of samples to take (default: 1000)")
-    cl_parser.add_argument("-A", "--anneal-time", metavar="POS_INT", type=int, default=20,
+    cl_parser.add_argument("--anneal-time", metavar="POS_INT", type=int, default=20,
                            help="specify the annealing time in microseconds (default: 20)")
-    cl_parser.add_argument("-R", "--spin-revs", metavar="POS_INT", type=int, default=0,
+    cl_parser.add_argument("--spin-revs", metavar="POS_INT", type=int, default=0,
                            help="specify the number of spin-reversal transforms to perform (default: 0)")
+    cl_parser.add_argument("--postproc", choices=["", "sampling", "optimization"],
+                           default="",
+                           help="specify the type of postprocess to perform (default: none)")
     cl_args = cl_parser.parse_args()
     if cl_args.chain_strength >= 0.0:
         sys.stderr.write("%s: Warning: A non-negative chain strength (%.20g) was specified\n" % (qmasm.progname, cl_args.chain_strength))
