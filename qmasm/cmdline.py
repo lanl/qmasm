@@ -40,7 +40,7 @@ def parse_command_line():
                            help="specify the number of spin-reversal transforms to perform (default: 0)")
     cl_parser.add_argument("--postproc", choices=["", "sampling", "optimization"],
                            default="",
-                           help="specify the type of postprocess to perform (default: none)")
+                           help="specify the type of postprocessing to perform (default: none)")
     cl_args = cl_parser.parse_args()
     if cl_args.chain_strength >= 0.0:
         sys.stderr.write("%s: Warning: A non-negative chain strength (%.20g) was specified\n" % (qmasm.progname, cl_args.chain_strength))
