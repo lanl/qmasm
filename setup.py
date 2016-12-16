@@ -13,9 +13,10 @@ class install(_install):
     def run(self):
         # Install, then remove qmasm.py, keeping only qmasm.
         _install.run(self)
-        pyscript = os.path.join(self.install_scripts, "qmasm.py")
-        script = os.path.join(self.install_scripts, "qmasm")
-        os.rename(pyscript, script)
+        for scr in ["qmasm", "qb2qmasm"]:
+            pyscript = os.path.join(self.install_scripts, scr + ".py")
+            script = os.path.join(self.install_scripts, scr)
+            os.rename(pyscript, script)
 
 setup(name = "QMASM",
       version = "1.2",
@@ -27,6 +28,6 @@ setup(name = "QMASM",
       license = "BSD",
       keywords = "quantum assembler d-wave",
       packages = find_packages(),
-      scripts = ["qmasm.py"],
+      scripts = ["qmasm.py", "qb2qmasm.py"],
       cmdclass = {"install": install}
 )
