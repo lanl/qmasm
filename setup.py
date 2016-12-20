@@ -9,11 +9,13 @@ import os.path
 from setuptools import setup, find_packages
 from setuptools.command.install import install as _install
 
+script_list = ["qmasm", "qb2qmasm", "qmasm-ground-state"]
+
 class install(_install):
     def run(self):
         # Install, then remove qmasm.py, keeping only qmasm.
         _install.run(self)
-        for scr in ["qmasm", "qb2qmasm"]:
+        for scr in script_list:
             pyscript = os.path.join(self.install_scripts, scr + ".py")
             script = os.path.join(self.install_scripts, scr)
             os.rename(pyscript, script)
@@ -28,6 +30,6 @@ setup(name = "QMASM",
       license = "BSD",
       keywords = "quantum assembler d-wave",
       packages = find_packages(),
-      scripts = ["qmasm.py", "qb2qmasm.py"],
+      scripts = [s + ".py" for s in script_list],
       cmdclass = {"install": install}
 )

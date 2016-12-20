@@ -11,11 +11,11 @@ def parse_command_line():
     "Parse the QMASM command line.  Return an argparse.Namespace."
     cl_parser = argparse.ArgumentParser(description="Assemble a symbolic quantum machine instruction into a numeric one")
     cl_parser.add_argument("input", nargs="*",
-                           help="file from which to read a symbolic QMI")
+                           help="file from which to read a symbolic Hamiltonian")
     cl_parser.add_argument("-v", "--verbose", action="count",
                            help="increase output verbosity (can be specified repeatedly)")
     cl_parser.add_argument("-r", "--run", action="store_true",
-                           help="run the generated QMI")
+                           help="run the program on the current solver")
     cl_parser.add_argument("-o", "--output", metavar="FILE", default="<stdout>",
                            help="file to which to write weights and strengths")
     cl_parser.add_argument("-f", "--format", choices=["qubist", "dw", "qbsolv", "qmasm", "minizinc"], default="qubist",
