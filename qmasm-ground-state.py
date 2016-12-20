@@ -43,6 +43,10 @@ def macro_to_coeffs(macro):
             qmasm.abend("Only weights and strengths are currently supported")
     return sorted(syms, key=lambda s: ("$" in s, s)), h, J
 
+def similar(a, b):
+    "Return True if two floating-point numbers are nearly equal."
+    return abs(a - b) < 0.01
+
 def output_ground_state(syms, h, J):
     "Exhaustively evaluate the ground states of a truth table."
     width = max([len(s) for s in syms])
@@ -76,7 +80,7 @@ def output_ground_state(syms, h, J):
             min_energy = energy
             if cl_args.verbose == 0:
                 table = []    # We don't need excited states unless we're outputting them.
-        if energy == min_energy or cl_args.verbose > 0:
+        if similar(energy, min_energy) or cl_args.verbose > 0:
             table.append((spins, energy))
 
     # Output the ground-state rows (or all rows if verbosity is enabled).
@@ -87,7 +91,7 @@ def output_ground_state(syms, h, J):
         spin_str = " ".join(["%+*d" % (width, s) for s in spins])
         energy_str = "%10.2f" % energy
         gs_str = " N"
-        if energy == min_energy:
+        if similar(energy, min_energy):
             gs_str = " Y"
         print spin_str, energy_str, gs_str
     print ""
