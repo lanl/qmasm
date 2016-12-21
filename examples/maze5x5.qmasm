@@ -1,0 +1,191 @@
+#########################################
+# Find the shortest path through a maze #
+# By Scott Pakin <pakin@lanl.gov>       #
+#########################################
+
+# This is a generated file.
+# Command line:  ./generate-maze 5 5 
+
+# Maze to solve:
+#
+#      A  B  C  D  E 
+#     +--+  +--+--+--+
+#   1 |              |
+#     +--+--+  +--+  +
+#   2 |  |  |     |  |
+#     +  +  +--+  +--+
+#   3 |        |     |
+#     +--+  +--+--+  +
+#   4 |              |
+#     +  +  +--+--+--+
+#   5 |  |           |
+#     +--+--+  +--+--+
+
+# Truth table for a room:
+#
+#   0 0 0 0
+#   0 0 1 1
+#   0 1 0 1
+#   0 1 1 0
+#   1 0 0 1
+#   1 0 1 0
+#   1 1 0 0
+
+# Define a macro for a room that has the preceding truth table as
+# the degenerate ground state of the corresponding Hamiltonian.
+!begin_macro room
+N    0.25
+E    0.00
+S    0.00
+W    0.25
+$a1  1.00
+$a2  1.00
+
+N   E    0.50
+N   S    0.50
+N   W    0.50
+N   $a1  1.00
+N   $a2 -0.75
+E   S    0.50
+E   W    0.50
+E   $a1  1.00
+E   $a2 -1.00
+S   W    0.50
+S   $a1  1.00
+S   $a2 -1.00
+W   $a1  1.00
+W   $a2 -0.75
+$a1 $a2 -1.00
+!end_macro room
+
+# Define some helpful aliases.
+!alias egress TRUE
+!alias wall   FALSE
+
+# Output in turn each room of the maze.
+
+!use_macro room A1
+A1.N := wall
+A1.S := wall
+A1.W := wall
+
+!use_macro room B1
+B1.N := egress
+B1.S := wall
+B1.W = A1.E
+
+!use_macro room C1
+C1.N := wall
+C1.W = B1.E
+
+!use_macro room D1
+D1.N := wall
+D1.S := wall
+D1.W = C1.E
+
+!use_macro room E1
+E1.N := wall
+E1.E := wall
+E1.W = D1.E
+
+!use_macro room A2
+A2.N := wall
+A2.E := wall
+A2.W := wall
+
+!use_macro room B2
+B2.N := wall
+B2.E := wall
+B2.W := wall
+
+!use_macro room C2
+C2.S := wall
+C2.W := wall
+C2.N = C1.S
+
+!use_macro room D2
+D2.N := wall
+D2.E := wall
+D2.W = C2.E
+
+!use_macro room E2
+E2.E := wall
+E2.S := wall
+E2.W := wall
+E2.N = E1.S
+
+!use_macro room A3
+A3.S := wall
+A3.W := wall
+A3.N = A2.S
+
+!use_macro room B3
+B3.N = B2.S
+B3.W = A3.E
+
+!use_macro room C3
+C3.N := wall
+C3.E := wall
+C3.S := wall
+C3.W = B3.E
+
+!use_macro room D3
+D3.S := wall
+D3.W := wall
+D3.N = D2.S
+
+!use_macro room E3
+E3.N := wall
+E3.E := wall
+E3.W = D3.E
+
+!use_macro room A4
+A4.N := wall
+A4.W := wall
+
+!use_macro room B4
+B4.N = B3.S
+B4.W = A4.E
+
+!use_macro room C4
+C4.N := wall
+C4.S := wall
+C4.W = B4.E
+
+!use_macro room D4
+D4.N := wall
+D4.S := wall
+D4.W = C4.E
+
+!use_macro room E4
+E4.E := wall
+E4.S := wall
+E4.N = E3.S
+E4.W = D4.E
+
+!use_macro room A5
+A5.E := wall
+A5.S := wall
+A5.W := wall
+A5.N = A4.S
+
+!use_macro room B5
+B5.S := wall
+B5.W := wall
+B5.N = B4.S
+
+!use_macro room C5
+C5.S := egress
+C5.N := wall
+C5.W = B5.E
+
+!use_macro room D5
+D5.N := wall
+D5.S := wall
+D5.W = C5.E
+
+!use_macro room E5
+E5.N := wall
+E5.E := wall
+E5.S := wall
+E5.W = D5.E
