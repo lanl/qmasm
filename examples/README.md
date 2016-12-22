@@ -220,46 +220,79 @@ Shortest path through a maze
 
 * Command line: `qmasm --postproc=optimization --run maze5x5.qmasm | egrep 'Solution|True'`
 
-Find the shortest path through a 5×5 maze.  The cleverness in the implementation is that each room of the maze (macro `room`) constrains the shortest path to traversing either zero or two of the four compass directions.  The former case implies that the shortest path does not pass through that room.  The latter case implies that the shortest path enters and exits the room exactly once.  No other options are allowed.  Pinning the ingress and egress to *true* (done within `maze5x5.qmasm` itself) causes the minimal-energy solution to represent the shortest path between the corresponding two rooms.
+Find the shortest path through a 5×5 maze.
+```
+   A  B  C  D  E
+  +--+--+--+  +--+
+1 |  |     |     |
+  +  +  +  +--+  +
+2 |  |  |  |     |
+  +  +  +  +  +--+
+3 |     |        |
+  +--+  +--+--+  +
+4 |           |  |
+  +--+  +--+--+  +
+5 |        |     |
+  +  +--+--+--+--+
+```
+The cleverness in the implementation is that each room of the maze (macro `room`) constrains the shortest path to traversing either zero or two of the four compass directions.  The former case implies that the shortest path does not pass through that room.  The latter case implies that the shortest path enters and exits the room exactly once.  All other options require more energy.  Pinning the ingress and egress to *true* (done within `maze5x5.qmasm` itself) causes the minimal-energy solution to represent the shortest path between the corresponding two rooms.
 
 The program takes a long time to embed in the Chimera graph so be patient.  (`maze5x5.qmasm` can therefore serve as a good test for new embedding algorithms.)  When it runs, it finds a single valid solution:
 ```
-Solution #1 (energy = -563.00, tally = 28):
-    B1.E       +1  True   
-    B1.N       +1  True   
-    B4.E       +1  True   
-    B4.S       +1  True   
-    B5.E       +1  True   
-    B5.N       +1  True   
-    C1.S       +1  True   
-    C1.W       +1  True   
-    C2.E       +1  True   
-    C2.N       +1  True   
-    C4.E       +1  True   
-    C4.W       +1  True   
-    C5.S       +1  True   
-    C5.W       +1  True   
-    D2.S       +1  True   
-    D2.W       +1  True   
-    D3.E       +1  True   
-    D3.N       +1  True   
-    D4.E       +1  True   
-    D4.W       +1  True   
-    E3.S       +1  True   
-    E3.W       +1  True   
-    E4.N       +1  True   
-    E4.W       +1  True   
+Solution #1 (energy = -515.00, tally = 11):
+    A5.E       +1  True
+    A5.S       +1  True
+    B1.E       +1  True
+    B1.S       +1  True
+    B2.N       +1  True
+    B2.S       +1  True
+    B3.N       +1  True
+    B3.S       +1  True
+    B4.N       +1  True
+    B4.S       +1  True
+    B5.N       +1  True
+    B5.W       +1  True
+    C1.S       +1  True
+    C1.W       +1  True
+    C2.N       +1  True
+    C2.S       +1  True
+    C3.E       +1  True
+    C3.N       +1  True
+    D1.E       +1  True
+    D1.N       +1  True
+    D2.E       +1  True
+    D2.S       +1  True
+    D3.N       +1  True
+    D3.W       +1  True
+    E1.S       +1  True
+    E1.W       +1  True
+    E2.N       +1  True
+    E2.W       +1  True
 ```
-This can be validated by beginning at the ingress at `B1.N`.  The only exit from B1 other than the ingress is `B1.E`, which takes us to `C1`.  Because we came from `C1.W` the only other exit is `C1.S`, which takes us to `C2`.  The process continues until we reach the egress at `C5`, via `C1.S`.
+This can be validated by beginning at the ingress at `D1.N`.  The only exit from D1 other than the ingress is `D1.E`, which takes us to `E1`.  Because we came from `E1.W` the only other exit is `E1.S`, which takes us to `E2`.  The process continues until we reach the egress at `A5`, via `B5.W`.
 
-If you want to experiment with other mazes, [`generate-maze.go`](generate-maze.go) is the source code for a maze-generating program written in [Go](https://golang.org/).  Once you've installed a Go compiler, build `generate-maze` with
+If you want to experiment with other mazes, [`qmasm-maze.go`](qmasm-maze.go) is the source code for a maze-generating program written in [Go](https://golang.org/).  Once you've installed a Go compiler, build `qmasm-maze` with
 ```bash
 go get github.com/spakin/disjoint
-go build generate-maze.go 
+go build qmasm-maze.go
 ```
 In case you're unfamiliar with Go, the first line of the above installs a dependency, and the second line compiles the program.  You'll need to set your `GOPATH` environment variable so `go` knows where to install to (e.g., `export GOPATH=$HOME/go`).
 
-Once compiled, `generate-maze` accepts a pair of dimensions (the number of rooms wide and tall) to use for the maze and outputs QMASM code:
+Once compiled, `qmasm-maze` accepts a pair of dimensions (the number of rooms wide and tall) to use for the maze and outputs QMASM code:
 ```bash
-./generate-maze 5 5 > my-maze.qmasm
+./qmasm-maze gen 5 5 > my-maze.qmasm
+```
+
+`qmasm-maze` can also validate solutions produced by running the code.  For example, the solution shown above can be seen to be correct:
+```
+$ qmasm --postproc=optimization --run maze5x5.qmasm | ./qmasm-maze validate
+Solution 1: D1 -- E1 -- E2 -- D2 -- D3 -- C3 -- C2 -- C1 -- B1 -- B2 -- B3 -- B4 -- B5 -- A5
+```
+Without optimization postprocessing, QMASM frequently returns invalid paths through the maze:
+```
+$ ./qmasm-maze gen 5 5 | qmasm --run 2>&1 | ./qmasm-maze validate
+Solution 1: [Room D1 contains 1 exit(s) but should have 0 or 2]
+Solution 2: [Room D1 contains 1 exit(s) but should have 0 or 2]
+Solution 3: [Room A1 contains 1 exit(s) but should have 0 or 2]
+Solution 4: [Room A1 contains 1 exit(s) but should have 0 or 2]
 ```
