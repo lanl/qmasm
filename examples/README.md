@@ -115,7 +115,7 @@ Solution #1 (energy = -122.00, tally = 3):
 
 Oops, that didn't work.  The D-Wave incorrectly sorted `0 1 1 0` into `0 0 0 1`, due to hardware artifacts such as limited precision or cross-qubit interference.  This is a case where optimization postprocessing is useful for transforming nearly correct solutions into truly correct solutions:
 ```
-$ qmasm --postproc=optimization --run --pin="in[1:4] := 0110" sort4.qmasm
+$ qmasm --postproc=opt --run --pin="in[1:4] := 0110" sort4.qmasm
 Solution #1 (energy = -93.50, tally = 1000):
 
     Name(s)    Spin  Boolean
@@ -218,7 +218,7 @@ Shortest path through a maze
 
 * Main file: [`maze5x5.qmasm`](maze5x5.qmasm)
 
-* Command line: `qmasm --postproc=optimization --run maze5x5.qmasm | egrep 'Solution|True'`
+* Command line: `qmasm --postproc=opt --run maze5x5.qmasm | egrep 'Solution|True'`
 
 Find the shortest path through a 5×5 maze.
 ```
@@ -285,7 +285,7 @@ Once compiled, `qmasm-maze` accepts a pair of dimensions (the number of rooms wi
 
 `qmasm-maze` can also validate solutions produced by running the code.  For example, the solution shown above can be seen to be correct:
 ```
-$ qmasm --postproc=optimization --run maze5x5.qmasm | ./qmasm-maze validate
+$ qmasm --postproc=opt --run maze5x5.qmasm | ./qmasm-maze validate
 Solution 1: D1 -- E1 -- E2 -- D2 -- D3 -- C3 -- C2 -- C1 -- B1 -- B2 -- B3 -- B4 -- B5 -- A5
 ```
 Without optimization postprocessing, QMASM frequently returns invalid paths through the maze:

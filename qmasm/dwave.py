@@ -218,6 +218,9 @@ def solution_is_intact(physical, soln):
 
 def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, postproc):
     "Submit a QMI to the D-Wave."
+    # Map abbreviated to full names for postprocessing types.
+    postproc = {"": "", "opt": "optimization", "sample": "sampling"}[postproc]
+
     # Submit a QMI to the D-Wave and get back a list of solution vectors.
     solver_params = dict(chains=physical.embedding,
                          num_reads=samples,
