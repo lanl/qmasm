@@ -216,60 +216,54 @@ One can even specify combinations of inputs and outputs.  As an exercise, see wh
 Shortest path through a maze
 ----------------------------
 
-* Main file: [`maze5x5.qmasm`](maze5x5.qmasm)
+* Main file: [`maze6x6.qmasm`](maze6x6.qmasm)
 
-* Command line: `qmasm --postproc=opt --run maze5x5.qmasm | egrep 'Solution|True'`
+* Command line: `qmasm --postproc=opt --run maze6x6.qmasm | egrep 'Solution|True'`
 
-Find the shortest path through a 5×5 maze.
+Find the shortest path through a 6×6 maze.
 ```
-   A  B  C  D  E
-  +--+--+--+  +--+
-1 |  |     |     |
-  +  +  +  +--+  +
-2 |  |  |  |     |
-  +  +  +  +  +--+
-3 |     |        |
-  +--+  +--+--+  +
-4 |           |  |
-  +--+  +--+--+  +
-5 |        |     |
-  +  +--+--+--+--+
+   A  B  C  D  E  F
+  +--+--+--+--+--+  +
+1 |           |     |
+  +  +  +--+  +  +  +
+2 |  |     |  |  |  |
+  +--+--+  +  +  +--+
+3 |  |     |        |
+  +  +--+--+  +  +  +
+4 |  |     |  |  |  |
+  +  +--+  +--+  +--+
+5 |                 |
+  +  +  +  +--+  +--+
+6 |  |  |  |        |
+  +--+  +--+--+--+--+
 ```
-The cleverness in the implementation is that each room of the maze (macro `room`) constrains the shortest path to traversing either zero or two of the four compass directions.  The former case implies that the shortest path does not pass through that room.  The latter case implies that the shortest path enters and exits the room exactly once.  All other options require more energy.  Pinning the ingress and egress to *true* (done within `maze5x5.qmasm` itself) causes the minimal-energy solution to represent the shortest path between the corresponding two rooms.
+The cleverness in the implementation is that each room of the maze (macro `room`) constrains the shortest path to traversing either zero or two of the four compass directions.  The former case implies that the shortest path does not pass through that room.  The latter case implies that the shortest path enters and exits the room exactly once.  All other options require more energy.  Pinning the ingress and egress to *true* (done within `maze6x6.qmasm` itself) causes the minimal-energy solution to represent the shortest path between the corresponding two rooms.
 
-The program takes a long time to embed in the Chimera graph so be patient.  (`maze5x5.qmasm` can therefore serve as a good test for new embedding algorithms.)  When it runs, it finds a single valid solution:
+The program takes a long time to embed in the Chimera graph so be patient.  (`maze6x6.qmasm` can therefore serve as a good test for new embedding algorithms.)  When it runs, it finds a single valid solution:
 ```
-Solution #1 (energy = -515.00, tally = 11):
-    A5.E       +1  True
-    A5.S       +1  True
-    B1.E       +1  True
-    B1.S       +1  True
-    B2.N       +1  True
-    B2.S       +1  True
-    B3.N       +1  True
-    B3.S       +1  True
-    B4.N       +1  True
-    B4.S       +1  True
-    B5.N       +1  True
-    B5.W       +1  True
-    C1.S       +1  True
-    C1.W       +1  True
-    C2.N       +1  True
-    C2.S       +1  True
-    C3.E       +1  True
-    C3.N       +1  True
-    D1.E       +1  True
-    D1.N       +1  True
-    D2.E       +1  True
-    D2.S       +1  True
-    D3.N       +1  True
-    D3.W       +1  True
+Solution #1 (energy = -664.00, tally = 1000):
+    B5.E       +1  True
+    B5.S       +1  True
+    B6.N       +1  True
+    B6.S       +1  True
+    C5.E       +1  True
+    C5.W       +1  True
+    D5.E       +1  True
+    D5.W       +1  True
+    E1.E       +1  True
     E1.S       +1  True
-    E1.W       +1  True
     E2.N       +1  True
-    E2.W       +1  True
+    E2.S       +1  True
+    E3.N       +1  True
+    E3.S       +1  True
+    E4.N       +1  True
+    E4.S       +1  True
+    E5.N       +1  True
+    E5.W       +1  True
+    F1.N       +1  True
+    F1.W       +1  True
 ```
-This can be validated by beginning at the ingress at `D1.N`.  The only exit from D1 other than the ingress is `D1.E`, which takes us to `E1`.  Because we came from `E1.W` the only other exit is `E1.S`, which takes us to `E2`.  The process continues until we reach the egress at `A5`, via `B5.W`.
+This can be validated by beginning at the ingress at `F1.N`.  The only exit from F1 other than the ingress is `F1.W`, which takes us to `E1`.  Because we came from `E1.E` the only other exit is `E1.S`, which takes us to `E2`.  The process continues until we reach the egress at `B6.S`.
 
 If you want to experiment with other mazes, [`qmasm-maze.go`](qmasm-maze.go) is the source code for a maze-generating program written in [Go](https://golang.org/).  Once you've installed a Go compiler, build `qmasm-maze` with
 ```bash
@@ -280,19 +274,17 @@ In case you're unfamiliar with Go, the first line of the above installs a depend
 
 Once compiled, `qmasm-maze` accepts a pair of dimensions (the number of rooms wide and tall) to use for the maze and outputs QMASM code:
 ```bash
-./qmasm-maze gen 5 5 > my-maze.qmasm
+./qmasm-maze gen 6 6 > my-maze.qmasm
 ```
 
 `qmasm-maze` can also validate solutions produced by running the code.  For example, the solution shown above can be seen to be correct:
 ```
-$ qmasm --postproc=opt --run maze5x5.qmasm | ./qmasm-maze validate
-Solution 1: D1 -- E1 -- E2 -- D2 -- D3 -- C3 -- C2 -- C1 -- B1 -- B2 -- B3 -- B4 -- B5 -- A5
+$ qmasm --postproc=opt --run maze6x6.qmasm | ./qmasm-maze validate
+Solution 1: F1 -- E1 -- E2 -- E3 -- E4 -- E5 -- D5 -- C5 -- B5 -- B6
 ```
 Without optimization postprocessing, QMASM frequently returns invalid paths through the maze:
 ```
-$ ./qmasm-maze gen 5 5 | qmasm --run 2>&1 | ./qmasm-maze validate
-Solution 1: [Room D1 contains 1 exit(s) but should have 0 or 2]
-Solution 2: [Room D1 contains 1 exit(s) but should have 0 or 2]
-Solution 3: [Room A1 contains 1 exit(s) but should have 0 or 2]
-Solution 4: [Room A1 contains 1 exit(s) but should have 0 or 2]
+$ ./qmasm-maze gen 6 6 | qmasm --run 2>&1 | ./qmasm-maze validate
+Solution 1: [Room F1 contains 1 exit(s) but should have 0 or 2]
+Solution 2: [Room E1 contains 1 exit(s) but should have 0 or 2]
 ```

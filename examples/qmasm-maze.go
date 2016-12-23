@@ -200,28 +200,22 @@ func WriteHeader(w io.Writer, m Maze) {
 # Define a macro for a room that has the preceding truth table as
 # the degenerate ground state of the corresponding Hamiltonian.
 !begin_macro room
-N    0.25
-E    0.00
-S    0.00
-W    0.25
-$a1  1.00
-$a2  1.00
+N   0.50
+E   0.50
+S   0.50
+W   0.50
+$a1 1.00
 
-N   E    0.50
-N   S    0.50
-N   W    0.50
-N   $a1  1.00
-N   $a2 -0.75
-E   S    0.50
-E   W    0.50
-E   $a1  1.00
-E   $a2 -1.00
-S   W    0.50
-S   $a1  1.00
-S   $a2 -1.00
-W   $a1  1.00
-W   $a2 -0.75
-$a1 $a2 -1.00
+N E   0.25
+N S   0.25
+N W   0.25
+N $a1 0.50
+E S   0.25
+E W   0.25
+E $a1 0.50
+S W   0.25
+S $a1 0.50
+W $a1 0.50
 !end_macro room
 
 # Define some helpful aliases.
