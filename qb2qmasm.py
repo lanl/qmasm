@@ -40,32 +40,35 @@ else:
         sys.stderr.write("%s: Failed to open %s for output\n" % cl_args.output)
         sys.exit(1)
 
-# Read the input file into memory.
+# Read the input file into memory, keeping track of all qubit numbers seen.
 qubist = []
-min_qubit = 2**30
+qnums = set()
 for line in infile:
     fields = line.split()
     if len(fields) != 3:
         continue
     q1, q2, val = int(fields[0]), int(fields[1]), fields[2]
-    min_qubit = min(min_qubit, q1, q2)
+    qnums.add(q1)
+    qnums.add(q2)
     qubist.append((q1, q2, val))
+qnums = sorted(qnums)
 
-# Compute a value to add to each qubit number.
-delta = 0
+# Map old qubit numbers to new qubit numbers.
 if cl_args.renumber_from != None:
-    delta = cl_args.renumber_from - min_qubit
+    newq = dict(zip(qnums, range(cl_args.renumber_from, cl_args.renumber_from + len(qnums))))
+else:
+    newq = {q: q for q in qnums}
 
 # Convert each line in turn.
 for q1, q2, val in qubist:
     if q1 == q2:
         # Point weight
         fmt = cl_args.format + " %s\n"
-        outfile.write(fmt % (q1 + delta, val))
+        outfile.write(fmt % (newq[q1], val))
     else:
         # Coupler strength
         fmt = cl_args.format + " " + cl_args.format + " %s\n"
-        outfile.write(fmt % (q1 + delta, q2 + delta, val))
+        outfile.write(fmt % (newq[q1], newq[q2], val))
 
 # Wrap up.
 if cl_args.input != "-":
