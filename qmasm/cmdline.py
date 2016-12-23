@@ -9,7 +9,7 @@ import sys
 
 def parse_command_line():
     "Parse the QMASM command line.  Return an argparse.Namespace."
-    cl_parser = argparse.ArgumentParser(description="Assemble a symbolic quantum machine instruction into a numeric one")
+    cl_parser = argparse.ArgumentParser(description="Assemble a symbolic Hamiltonian into a numeric one")
     cl_parser.add_argument("input", nargs="*",
                            help="file from which to read a symbolic Hamiltonian")
     cl_parser.add_argument("-v", "--verbose", action="count",
