@@ -301,7 +301,7 @@ func NewMaze() Maze {
 
 // Extend extends a maze by parsing a coordinate and a Boolean value.
 func (m Maze) Extend(s string, b bool) Maze {
-	// Parse the string.  We don't current check for validity.
+	// Parse the string.  Invalid input strings do not extend the maze.
 	var i int
 	col := 0
 	for i = 0; s[i] >= 'A' && s[i] <= 'Z'; i++ {
@@ -312,8 +312,16 @@ func (m Maze) Extend(s string, b bool) Maze {
 		row = row*10 + int(s[i]-'0')
 	}
 	row--
+	if row < 0 {
+		return m // Invalid room specification
+	}
 	i++ // Skip the "."
 	dir := s[i]
+	switch dir {
+	case 'N', 'E', 'S', 'W':
+	default:
+		return m // Invalid room specification
+	}
 
 	// Add rows and columns as necessary.  We assume we'll typically be
 	// adding rooms in order.
@@ -335,7 +343,7 @@ func (m Maze) Extend(s string, b bool) Maze {
 	case 'W':
 		m[row][col].W = b
 	default:
-		notify.Fatalf("Unknown direction \"%c\"", dir)
+		panic("Invalid direction") // We should never get here.
 	}
 	return m
 }
