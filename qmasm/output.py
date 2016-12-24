@@ -228,11 +228,14 @@ solve minimize energy;
     for n in range(len(num2syms)):
         num2syms[n].sort(cmp=compare_syms)
 
-    # Output code to show the results symbolically.
+    # Output code to show the results symbolically.  We output in the same
+    # format as QMASM normally does.  Unfortunately, I don't know how to get
+    # MiniZinc to output the current solution number explicitly so I had to
+    # hard-wire "Solution #1".
     outfile.write("output [\n")
-    outfile.write('  "Energy = ", show(energy), "\\n\\n",\n')
-    outfile.write('  "%-*s  Spin  Boolean\\n",\n' % (max_sym_name_len, "Name(s)"))
-    outfile.write('  "%s  ----  -------\\n",\n' % ("-" * max_sym_name_len))
+    outfile.write('  "Solution #1 (energy = ", show(energy), ", tally = 1)\\n\\n",\n')
+    outfile.write('  "    %-*s  Spin  Boolean\\n",\n' % (max_sym_name_len, "Name(s)"))
+    outfile.write('  "    %s  ----  -------\\n",\n' % ("-" * max_sym_name_len))
     outlist = []
     for n in range(len(num2syms)):
         try:
@@ -241,7 +244,7 @@ solve minimize energy;
             continue
         syms = " ".join(num2syms[n])
         line = ""
-        line += '"%-*s  ", ' % (max_sym_name_len, syms)
+        line += '"    %-*s  ", ' % (max_sym_name_len, syms)
         if problem.qubo:
             line += 'show_int(4, q%d), ' % phys
         else:
