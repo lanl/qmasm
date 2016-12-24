@@ -9,7 +9,7 @@ import os.path
 from setuptools import setup, find_packages
 from setuptools.command.install import install as _install
 
-script_list = ["qmasm", "qb2qmasm", "qmasm-ground-state"]
+script_list = ["qmasm", "qb2qmasm", "qmasm-ground-state", "qmasm-qbsolv"]
 
 class install(_install):
     def run(self):
