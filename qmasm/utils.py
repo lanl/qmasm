@@ -24,6 +24,8 @@ def abend(str):
 
 def dict_to_list(d):
     "Convert a dictionary to a list."
+    if len(d) == 0:
+        return []
     llen = max(d.keys()) + 1
     lst = [0] * llen
     for k, v in d.items():
