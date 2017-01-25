@@ -20,35 +20,6 @@ def error_in_line(filename, lineno, str):
 str2bool = {s: True for s in ["1", "+1", "T", "TRUE"]}
 str2bool.update({s: False for s in ["0", "-1", "F", "FALSE"]})
 
-class RegEx(object):
-    "Encapsulate a regular expression object."
-    def __init__(self, filename, lineno, search, replace, flagstr=""):
-        self.replace = replace
-        self.flags = []
-        self.count = 1
-        for c in set(flagstr):
-            if c == "e":
-                try:
-                    self.replace = eval("lambda m: (lambda a: str(%s))([m.group(0)] + list(m.groups()))" % self.replace)
-                except:
-                    qmasm.abend('%s:%d: Failed to evaluate "%s" as a Python expression' % (filename, lineno, self.replace))
-            elif c == "i":
-                self.flags.append(re.IGNORECASE)
-            elif c == "x":
-                self.flags.append(re.VERBOSE)
-            elif c == "g":
-                self.count = 0
-            else:
-                qmasm.abend('%s:%d: Unknown flag "%s"' % (filename, lineno, c))
-        try:
-            self.pat = re.compile(search, *self.flags)
-        except re.error:
-            qmasm.abend('%s:%d: Failed to parse "%s" as a regular expression' % (filename, lineno, search))
-
-    def apply(self, str):
-        "Apply a regular expression to a string.  Return the modified string."
-        return self.pat.sub(self.replace, str, self.count)
-
 # Define a function that searches a list of directories for a file.
 def find_file_in_path(pathnames, filename):
     for pname in pathnames:
@@ -71,16 +42,9 @@ def is_float(str):
 class Statement(object):
     "One statement in a QMASM source file."
 
-    def __init__(self, filename, lineno, symrepls):
+    def __init__(self, filename, lineno):
         self.filename = filename
         self.lineno = lineno
-        self.symrepls = symrepls
-
-    def replace_symbol(self, sym):
-        "Apply user-specified transformations to a symbol."
-        for rex in reversed(self.symrepls):
-            sym = rex.apply(sym)
-        return sym
 
     def error_in_line(self, msg):
         if self.lineno == None:
@@ -91,37 +55,31 @@ class Statement(object):
 
 class Weight(Statement):
     "Represent a point weight on a qubit."
-    def __init__(self, filename, lineno, symrepls, sym, weight):
-        super(Weight, self).__init__(filename, lineno, symrepls)
+    def __init__(self, filename, lineno, sym, weight):
+        super(Weight, self).__init__(filename, lineno)
         self.sym = sym
         self.weight = weight
 
     def as_str(self, prefix=""):
-        sym = self.replace_symbol(prefix + self.sym)
-        return "%s %s" % (sym, self.weight)
+        return "%s%s %s" % (prefix, self.sym, self.weight)
 
     def update_qmi(self, prefix, problem):
-        sym = self.replace_symbol(prefix + self.sym)
-        num = qmasm.symbol_to_number(sym)
+        num = qmasm.symbol_to_number(prefix + self.sym)
         problem.weights[num] += self.weight
 
 class Chain(Statement):
     "Chain between qubits."
-    def __init__(self, filename, lineno, symrepls, sym1, sym2):
-        super(Chain, self).__init__(filename, lineno, symrepls)
+    def __init__(self, filename, lineno, sym1, sym2):
+        super(Chain, self).__init__(filename, lineno)
         self.sym1 = sym1
         self.sym2 = sym2
 
     def as_str(self, prefix=""):
-        sym1 = self.replace_symbol(prefix + self.sym1)
-        sym2 = self.replace_symbol(prefix + self.sym2)
-        return "%s = %s" % (sym1, sym2)
+        return "%s%s = %s%s" % (prefix, self.sym1, prefix, self.sym2)
 
     def update_qmi(self, prefix, problem):
-        sym1 = self.replace_symbol(prefix + self.sym1)
-        sym2 = self.replace_symbol(prefix + self.sym2)
-        num1 = qmasm.symbol_to_number(sym1)
-        num2 = qmasm.symbol_to_number(sym2)
+        num1 = qmasm.symbol_to_number(prefix + self.sym1)
+        num2 = qmasm.symbol_to_number(prefix + self.sym2)
         if num1 == num2:
             self.error_in_line("A chain cannot connect a spin to itself")
         elif num1 > num2:
@@ -130,35 +88,31 @@ class Chain(Statement):
 
 class Pin(Statement):
     "Pinning of a qubit to true or false."
-    def __init__(self, filename, lineno, symrepls, sym, goal):
-        super(Pin, self).__init__(filename, lineno, symrepls)
+    def __init__(self, filename, lineno, sym, goal):
+        super(Pin, self).__init__(filename, lineno)
         self.sym = sym
         self.goal = goal
 
     def as_str(self, prefix=""):
-        sym = self.replace_symbol(prefix + self.sym)
-        return "%s := %s" % (sym, self.goal)
+        return "%s%s := %s" % (prefix, self.sym, self.goal)
 
     def update_qmi(self, prefix, problem):
-        sym = self.replace_symbol(prefix + self.sym)
-        num = qmasm.symbol_to_number(sym)
+        num = qmasm.symbol_to_number(prefix + self.sym)
         problem.pinned.append((num, self.goal))
 
 class Alias(Statement):
     "Alias of one symbol to another."
-    def __init__(self, filename, lineno, symrepls, sym1, sym2):
-        super(Alias, self).__init__(filename, lineno, symrepls)
+    def __init__(self, filename, lineno, sym1, sym2):
+        super(Alias, self).__init__(filename, lineno)
         self.sym1 = sym1
         self.sym2 = sym2
 
     def as_str(self, prefix=""):
-        sym1 = self.replace_symbol(prefix + self.sym1)
-        sym2 = self.replace_symbol(prefix + self.sym2)
-        return "%s <-> %s" % (sym1, sym2)
+        return "%s%s <-> %s%s" % (prefix, self.sym1, prefix, self.sym2)
 
     def update_qmi(self, prefix, problem):
-        sym1 = self.replace_symbol(prefix + self.sym1)
-        sym2 = self.replace_symbol(prefix + self.sym2)
+        sym1 = prefix + self.sym1
+        sym2 = prefix + self.sym2
         try:
             qmasm.sym2num[sym1] = qmasm.sym2num[sym2]
         except KeyError:
@@ -168,22 +122,18 @@ class Alias(Statement):
 
 class Strength(Statement):
     "Coupler strength between two qubits."
-    def __init__(self, filename, lineno, symrepls, sym1, sym2, strength):
-        super(Strength, self).__init__(filename, lineno, symrepls)
+    def __init__(self, filename, lineno, sym1, sym2, strength):
+        super(Strength, self).__init__(filename, lineno)
         self.sym1 = sym1
         self.sym2 = sym2
         self.strength = strength
 
     def as_str(self, prefix=""):
-        sym1 = self.replace_symbol(prefix + self.sym1)
-        sym2 = self.replace_symbol(prefix + self.sym2)
-        return "%s %s %s" % (sym1, sym2, self.strength)
+        return "%s%s %s%s %s" % (prefix, self.sym1, prefix, self.sym2, self.strength)
 
     def update_qmi(self, prefix, problem):
-        sym1 = self.replace_symbol(prefix + self.sym1)
-        sym2 = self.replace_symbol(prefix + self.sym2)
-        num1 = qmasm.symbol_to_number(sym1)
-        num2 = qmasm.symbol_to_number(sym2)
+        num1 = qmasm.symbol_to_number(prefix + self.sym1)
+        num2 = qmasm.symbol_to_number(prefix + self.sym2)
         if num1 == num2:
             self.error_in_line("A coupler cannot connect a spin to itself")
         elif num1 > num2:
@@ -192,8 +142,8 @@ class Strength(Statement):
 
 class MacroUse(Statement):
     "Instantiation of a macro definition."
-    def __init__(self, filename, lineno, symrepls, name, body, prefix):
-        super(MacroUse, self).__init__(filename, lineno, symrepls)
+    def __init__(self, filename, lineno, name, body, prefix):
+        super(MacroUse, self).__init__(filename, lineno)
         self.name = name
         self.body = body
         self.prefix = prefix
@@ -214,9 +164,8 @@ macros = {}        # Map from a macro name to a list of Statement objects
 current_macro = (None, [])   # Macro currently being defined (name and statements)
 aliases = {}       # Map from a symbol to its textual expansion
 target = qmasm.program   # Reference to either the program or the current macro
-symrepls = []      # List of symbol replacements to perform
 def parse_file(filename, infile):
-    global macros, current_macro, aliases, target, symrepls
+    global macros, current_macro, aliases, target
     lineno = 0
     for line in infile:
         # Split the line into fields and apply text aliases.
@@ -259,24 +208,6 @@ def parse_file(filename, infile):
                 qmasm.abend('Failed to open %s for input' % incname)
             parse_file(incname, incfile)
             incfile.close()
-        elif len(fields) in [3, 4] and fields[0] == "!begin_replace_sym":
-            # "!begin_replace_sym" <regexp> <replacement> [<flags>] -- replace
-            # (expanded) symbols that match a pattern.
-            symrepls = [r for r in symrepls]  # Shallow copy
-            if len(fields) >= 4:
-                symrepls.append(RegEx(filename, lineno, fields[1], fields[2], fields[3]))
-            else:
-                symrepls.append(RegEx(filename, lineno, fields[1], fields[2]))
-        elif len(fields) == 1:
-            if fields[0] == "!end_replace_sym":
-                symrepls = [r for r in symrepls]  # Shallow copy
-                try:
-                    symrepls.pop()
-                except IndexError:
-                    error_in_line(filename, lineno, "Found an !end_replace_sym without a matching !begin_replace_sym")
-            else:
-                # One field but none of the above cases
-                error_in_line(filename, lineno, 'Cannot parse "%s"' % line)
         elif len(fields) == 2:
             if fields[0] == "!begin_macro":
                 # "!begin_macro" <name> -- begin a macro definition.
@@ -303,26 +234,26 @@ def parse_file(filename, infile):
                     val = float(fields[1])
                 except ValueError:
                     error_in_line(filename, lineno, 'Failed to parse "%s %s" as a symbol followed by a numerical weight' % (fields[0], fields[1]))
-                target.append(Weight(filename, lineno, symrepls, fields[0], val))
+                target.append(Weight(filename, lineno, fields[0], val))
         elif len(fields) == 3:
             if fields[1] == "=":
                 # <symbol_1> = <symbol_2> -- create a chain between <symbol_1>
                 # and <symbol_2>.
-                target.extend(process_chain(filename, lineno, symrepls, " ".join(fields[:3])))
+                target.extend(process_chain(filename, lineno, " ".join(fields[:3])))
             elif fields[1] == ":=":
                 # <symbol> := <value> -- force symbol <symbol> to have value
                 # <value>.
-                target.extend(process_pin(filename, lineno, symrepls, " ".join(fields[:3])))
+                target.extend(process_pin(filename, lineno, " ".join(fields[:3])))
             elif fields[1] == "<->":
                 # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of
                 # <symbol_2>.
-                target.extend(process_alias(filename, lineno, symrepls, " ".join(fields[:3])))
+                target.extend(process_alias(filename, lineno, " ".join(fields[:3])))
             elif fields[0] == "!use_macro":
                 # "!use_macro" <macro_name> <instance_name> -- instantiate
                 # a macro using <instance_name> as each variable's prefix.
                 name = fields[1]
                 try:
-                    target.append(MacroUse(filename, lineno, symrepls, name, macros[name], fields[2] + "."))
+                    target.append(MacroUse(filename, lineno, name, macros[name], fields[2] + "."))
                 except KeyError:
                     error_in_line(filename, lineno, "Unknown macro %s" % name)
             elif fields[0] == "!alias":
@@ -335,7 +266,7 @@ def parse_file(filename, infile):
                     strength = float(fields[2])
                 except ValueError:
                     error_in_line(filename, lineno, 'Failed to parse "%s" as a number' % fields[2])
-                target.append(Strength(filename, lineno, symrepls, fields[0], fields[1], strength))
+                target.append(Strength(filename, lineno, fields[0], fields[1], strength))
             else:
                 # Three fields but none of the above cases
                 error_in_line(filename, lineno, 'Cannot parse "%s"' % line)
@@ -440,7 +371,7 @@ class PinParser(object):
                 qmasm.abend('Unexpected "%s" in pin right-hand side "%s"' % (inter, rhs))
         return [qmasm.str2bool[t.upper()] for t in self.bool_re.findall(rhs)]
 
-def process_pin(filename, lineno, symrepls, pin_str):
+def process_pin(filename, lineno, pin_str):
     "Parse a pin statement into one or more Pin objects and add these to the program."
     lhs_rhs = pin_str.split(":=")
     if len(lhs_rhs) != 2:
@@ -450,9 +381,9 @@ def process_pin(filename, lineno, symrepls, pin_str):
     rhs_list = pin_parser.parse_rhs(lhs_rhs[1])
     if len(lhs_list) != len(rhs_list):
         qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin_str, len(lhs_list), len(rhs_list)))
-    return [Pin(filename, lineno, symrepls, l, r) for l, r in zip(lhs_list, rhs_list)]
+    return [Pin(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
 
-def process_chain(filename, lineno, symrepls, chain_str):
+def process_chain(filename, lineno, chain_str):
     "Parse a chain statement into one or more Chain objects and add these to the program."
     # We use the LHS parser from PinParser to parse both sides of the chain.
     lhs_rhs = chain_str.split("=")
@@ -463,9 +394,9 @@ def process_chain(filename, lineno, symrepls, chain_str):
     rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
     if len(lhs_list) != len(rhs_list):
         qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
-    return [Chain(filename, lineno, symrepls, l, r) for l, r in zip(lhs_list, rhs_list)]
+    return [Chain(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
 
-def process_alias(filename, lineno, symrepls, alias_str):
+def process_alias(filename, lineno, alias_str):
     "Parse an alias statement into one or more Alias objects and add these to the program."
     # We use the LHS parser from PinParser to parse both sides of the alias.
     lhs_rhs = alias_str.split("<->")
@@ -476,4 +407,4 @@ def process_alias(filename, lineno, symrepls, alias_str):
     rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
     if len(lhs_list) != len(rhs_list):
         qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (alias_str, len(lhs_list), len(rhs_list)))
-    return [Alias(filename, lineno, symrepls, l, r) for l, r in zip(lhs_list, rhs_list)]
+    return [Alias(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
