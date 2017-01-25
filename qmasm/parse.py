@@ -12,10 +12,7 @@ import sys
 
 # Define a function that aborts the program, reporting an invalid
 # input line as part of the error message.
-filename = "<stdin>"
-lineno = 0
-def error_in_line(str):
-    global filename, lineno
+def error_in_line(filename, lineno, str):
     sys.stderr.write('%s:%d: error: %s\n' % (filename, lineno, str))
     sys.exit(1)
 
@@ -218,9 +215,9 @@ current_macro = (None, [])   # Macro currently being defined (name and statement
 aliases = {}       # Map from a symbol to its textual expansion
 target = qmasm.program   # Reference to either the program or the current macro
 symrepls = []      # List of symbol replacements to perform
-def parse_file(infilename, infile):
-    global macros, current_macro, aliases, target, filename, lineno, symrepls
-    filename = infilename
+def parse_file(filename, infile):
+    global macros, current_macro, aliases, target, symrepls
+    lineno = 0
     for line in infile:
         # Split the line into fields and apply text aliases.
         lineno += 1
@@ -276,27 +273,27 @@ def parse_file(infilename, infile):
                 try:
                     symrepls.pop()
                 except IndexError:
-                    error_in_line("Found an !end_replace_sym without a matching !begin_replace_sym")
+                    error_in_line(filename, lineno, "Found an !end_replace_sym without a matching !begin_replace_sym")
             else:
                 # One field but none of the above cases
-                error_in_line('Cannot parse "%s"' % line)
+                error_in_line(filename, lineno, 'Cannot parse "%s"' % line)
         elif len(fields) == 2:
             if fields[0] == "!begin_macro":
                 # "!begin_macro" <name> -- begin a macro definition.
                 name = fields[1]
                 if macros.has_key(name):
-                    error_in_line("Macro %s is multiply defined" % name)
+                    error_in_line(filename, lineno, "Macro %s is multiply defined" % name)
                 if current_macro[0] != None:
-                    error_in_line("Nested macros are not supported")
+                    error_in_line(filename, lineno, "Nested macros are not supported")
                 current_macro = (name, [])
                 target = current_macro[1]
             elif fields[0] == "!end_macro":
                 # "!end_macro" <name> -- end a macro definition.
                 name = fields[1]
                 if current_macro[0] == None:
-                    error_in_line("Ended macro %s with no corresponding begin" % name)
+                    error_in_line(filename, lineno, "Ended macro %s with no corresponding begin" % name)
                 if current_macro[0] != name:
-                    error_in_line("Ended macro %s after beginning macro %s" % (name, current_macro[0]))
+                    error_in_line(filename, lineno, "Ended macro %s after beginning macro %s" % (name, current_macro[0]))
                 macros[name] = current_macro[1]
                 target = qmasm.program
                 current_macro = (None, [])
@@ -305,7 +302,7 @@ def parse_file(infilename, infile):
                 try:
                     val = float(fields[1])
                 except ValueError:
-                    error_in_line('Failed to parse "%s %s" as a symbol followed by a numerical weight' % (fields[0], fields[1]))
+                    error_in_line(filename, lineno, 'Failed to parse "%s %s" as a symbol followed by a numerical weight' % (fields[0], fields[1]))
                 target.append(Weight(filename, lineno, symrepls, fields[0], val))
         elif len(fields) == 3:
             if fields[1] == "=":
@@ -327,7 +324,7 @@ def parse_file(infilename, infile):
                 try:
                     target.append(MacroUse(filename, lineno, symrepls, name, macros[name], fields[2] + "."))
                 except KeyError:
-                    error_in_line("Unknown macro %s" % name)
+                    error_in_line(filename, lineno, "Unknown macro %s" % name)
             elif fields[0] == "!alias":
                 # "!alias" <symbol> <text> -- replace a field of <symbol> with
                 # <text>.
@@ -337,14 +334,14 @@ def parse_file(infilename, infile):
                 try:
                     strength = float(fields[2])
                 except ValueError:
-                    error_in_line('Failed to parse "%s" as a number' % fields[2])
+                    error_in_line(filename, lineno, 'Failed to parse "%s" as a number' % fields[2])
                 target.append(Strength(filename, lineno, symrepls, fields[0], fields[1], strength))
             else:
                 # Three fields but none of the above cases
-                error_in_line('Cannot parse "%s"' % line)
+                error_in_line(filename, lineno, 'Cannot parse "%s"' % line)
         else:
             # None of the above
-            error_in_line('Cannot parse "%s"' % line)
+            error_in_line(filename, lineno, 'Cannot parse "%s"' % line)
 
 def parse_files(file_list):
     "Parse a list of file(s) into an internal representation."
@@ -352,7 +349,7 @@ def parse_files(file_list):
         # No files were specified: Read from standard input.
         parse_file("<stdin>", sys.stdin)
         if current_macro[0] != None:
-            error_in_line("Unterminated definition of macro %s" % current_macro[0])
+            error_in_line(filename, lineno, "Unterminated definition of macro %s" % current_macro[0])
     else:
         # Files were specified: Process each in turn.
         for infilename in file_list:
@@ -362,7 +359,7 @@ def parse_files(file_list):
                 qmasm.abend('Failed to open %s for input' % infilename)
             parse_file(infilename, infile)
             if current_macro[0] != None:
-                error_in_line("Unterminated definition of macro %s" % current_macro[0])
+                error_in_line(filename, lineno, "Unterminated definition of macro %s" % current_macro[0])
             infile.close()
 
 class PinParser(object):
