@@ -158,210 +158,203 @@ class MacroUse(Statement):
         for stmt in self.body:
             stmt.update_qmi(prefix + self.prefix, problem)
 
-# File parsing makes use of the following global variables.
-macros = {}        # Map from a macro name to a list of Statement objects
-current_macro = (None, [])   # Macro currently being defined (name and statements)
-aliases = {}       # Map from a symbol to its textual expansion
-target = qmasm.program   # Reference to either the program or the current macro
+class FileParser(object):
+    "Parse a QMASM file."
 
-def parse_line_include(filename, lineno, fields):
-    "Parse an !include directive."
-    # "!include" "<filename>" -- process a named auxiliary file.
-    if len(fields) < 2:
-        error_in_line(filename, lineno, "Expected a filename to follow !include")
-    incname = string.join(fields[1:], " ")
-    if len(incname) >= 2 and incname[0] == "<" and incname[-1] == ">":
-        # Search QMASMPATH for the filename.
-        incname = incname[1:-1]
-        try:
-            qmasmpath = string.split(os.environ["QMASMPATH"], ":")
-            qmasmpath.append(".")
-        except KeyError:
-            qmasmpath = ["."]
-        found_incname = find_file_in_path(qmasmpath, incname)
-        if found_incname != None:
-            incname = found_incname
-    elif len(incname) >= 2:
-        # Search only the current directory for the filename.
-        found_incname = find_file_in_path(["."], incname)
-        if found_incname != None:
-            incname = found_incname
-    try:
-        incfile = open(incname)
-    except IOError:
-        error_in_line(filename, lineno, 'Failed to open %s for input' % incname)
-    parse_file(incname, incfile)
-    incfile.close()
+    def __init__(self):
+        self.macros = {}        # Map from a macro name to a list of Statement objects
+        self.current_macro = (None, [])   # Macro currently being defined (name and statements)
+        self.aliases = {}       # Map from a symbol to its textual expansion
+        self.target = qmasm.program   # Reference to either the program or the current macro
 
-def parse_line_begin_macro(filename, lineno, fields):
-    "Parse a !begin_macro directive."
-    # "!begin_macro" <name> -- begin a macro definition.
-    global macros, current_macro, aliases, target
-    if len(fields) < 2:
-        error_in_line(filename, lineno, "Expected a macro name to follow !begin_macro")
-    name = fields[1]
-    if macros.has_key(name):
-        error_in_line(filename, lineno, "Macro %s is multiply defined" % name)
-    if current_macro[0] != None:
-        error_in_line(filename, lineno, "Nested macros are not supported")
-    current_macro = (name, [])
-    target = current_macro[1]
-
-def parse_line_end_macro(filename, lineno, fields):
-    "Parse an !end_macro directive."
-    # "!end_macro" <name> -- end a macro definition.
-    global macros, current_macro, aliases, target
-    if len(fields) < 2:
-        error_in_line(filename, lineno, "Expected a macro name to follow !end_macro")
-    name = fields[1]
-    if current_macro[0] == None:
-        error_in_line(filename, lineno, "Ended macro %s with no corresponding begin" % name)
-    if current_macro[0] != name:
-        error_in_line(filename, lineno, "Ended macro %s after beginning macro %s" % (name, current_macro[0]))
-    macros[name] = current_macro[1]
-    target = qmasm.program
-    current_macro = (None, [])
-
-def parse_line_weight(filename, lineno, fields):
-    "Parse a qubit weight."
-    # <symbol> <weight> -- increment a symbol's point weight.
-    global macros, current_macro, aliases, target
-    if len(fields) < 2:
-        error_in_line(filename, lineno, "Internal error in parse_line_weight")
-    try:
-        val = float(fields[1])
-    except ValueError:
-        error_in_line(filename, lineno, 'Failed to parse "%s %s" as a symbol followed by a numerical weight' % (fields[0], fields[1]))
-    target.append(Weight(filename, lineno, fields[0], val))
-
-def parse_line_chain(filename, lineno, fields):
-    "Parse a qubit chain."
-    # <symbol_1> = <symbol_2> -- create a chain between <symbol_1>
-    # and <symbol_2>.
-    global macros, current_macro, aliases, target
-    if len(fields) < 3 or fields[1] != "=":
-        error_in_line(filename, lineno, "Internal error in parse_line_chain")
-    target.extend(process_chain(filename, lineno, " ".join(fields[:3])))
-
-def parse_line_pin(filename, lineno, fields):
-    "Parse a qubit pin."
-    # <symbol> := <value> -- force symbol <symbol> to have value <value>.
-    global macros, current_macro, aliases, target
-    if len(fields) < 3 or fields[1] != ":=":
-        error_in_line(filename, lineno, "Internal error in parse_line_pin")
-    target.extend(process_pin(filename, lineno, " ".join(fields[:3])))
-
-def parse_line_alias(filename, lineno, fields):
-    "Parse a qubit alias."
-    # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of <symbol_2>.
-    global macros, current_macro, aliases, target
-    if len(fields) < 3 or fields[1] != "<->":
-        error_in_line(filename, lineno, "Internal error in parse_line_alias")
-    target.extend(process_alias(filename, lineno, " ".join(fields[:3])))
-
-def parse_line_strength(filename, lineno, fields):
-    "Parse a coupler strength."
-    # <symbol_1> <symbol_2> <strength> -- increment a coupler strength.
-    global macros, current_macro, aliases, target
-    if len(fields) < 3 or not is_float(fields[2]):
-        error_in_line(filename, lineno, "Internal error in parse_line_strength")
-    try:
-        strength = float(fields[2])
-    except ValueError:
-        error_in_line(filename, lineno, 'Failed to parse "%s" as a number' % fields[2])
-    target.append(Strength(filename, lineno, fields[0], fields[1], strength))
-
-def parse_line_use_macro(filename, lineno, fields):
-    "Parse an !use_macro directive."
-    # "!use_macro" <macro_name> <instance_name> -- instantiate a macro using
-    # <instance_name> as each variable's prefix.
-    global macros, current_macro, aliases, target
-    if len(fields) < 3:
-        error_in_line(filename, lineno, "Expected a macro name and an instance name to follow !use_macro")
-    name = fields[1]
-    try:
-        target.append(MacroUse(filename, lineno, name, macros[name], fields[2] + "."))
-    except KeyError:
-        error_in_line(filename, lineno, "Unknown macro %s" % name)
-
-def parse_line_sym_alias(filename, lineno, fields):
-    "Parse an !alias directive."
-    if len(fields) < 3:
-        error_in_line(filename, lineno, "Expected a symbol name and replacement to follow !alias")
-    aliases[fields[1]] = fields[2]
-
-def parse_file(filename, infile):
-    """Define a function that parses an input file into an internal
-    representation.  This function can be called recursively (due to !include
-    directives)."""
-    global macros, current_macro, aliases, target
-
-    # Establish a mapping from a first-field directive to a parsing function.
-    dir_to_func = {
-        "!include":     parse_line_include,
-        "!begin_macro": parse_line_begin_macro,
-        "!end_macro":   parse_line_end_macro,
-        "!use_macro":   parse_line_use_macro,
-        "!alias":       parse_line_sym_alias
-    }
-
-    # Process the file line-by-line.
-    lineno = 0
-    for line in infile:
-        # Split the line into fields and apply text aliases.
-        lineno += 1
-        if line.strip() == "":
-            continue
-        fields = shlex.split(line, True)
-        nfields = len(fields)
-        for i in range(nfields):
+    def parse_line_include(self, filename, lineno, fields):
+        "Parse an !include directive."
+        # "!include" "<filename>" -- process a named auxiliary file.
+        if len(fields) < 2:
+            error_in_line(filename, lineno, "Expected a filename to follow !include")
+        incname = string.join(fields[1:], " ")
+        if len(incname) >= 2 and incname[0] == "<" and incname[-1] == ">":
+            # Search QMASMPATH for the filename.
+            incname = incname[1:-1]
             try:
-                fields[i] = aliases[fields[i]]
+                qmasmpath = string.split(os.environ["QMASMPATH"], ":")
+                qmasmpath.append(".")
             except KeyError:
-                pass
-
-        # Process the line.
-        if nfields == 0:
-            # Ignore empty lines.
-            continue
+                qmasmpath = ["."]
+            found_incname = find_file_in_path(qmasmpath, incname)
+            if found_incname != None:
+                incname = found_incname
+        elif len(incname) >= 2:
+            # Search only the current directory for the filename.
+            found_incname = find_file_in_path(["."], incname)
+            if found_incname != None:
+                incname = found_incname
         try:
-            # Parse first-field directives.
-            func = dir_to_func[fields[0]]
-        except KeyError:
-            # Parse all lines not containing a directive in the first field.
-            if nfields == 2:
-                func = parse_line_weight
-            elif nfields == 3 and fields[1] == "=":
-                func = parse_line_chain
-            elif nfields == 3 and fields[1] == ":=":
-                func = parse_line_pin
-            elif nfields == 3 and fields[1] == "<->":
-                func = parse_line_alias
-            elif nfields == 3 and is_float(fields[2]):
-                func = parse_line_strength
-            else:
-                # None of the above
-                error_in_line(filename, lineno, 'Failed to parse "%s"' % line)
-        func(filename, lineno, fields)
+            incfile = open(incname)
+        except IOError:
+            error_in_line(filename, lineno, 'Failed to open %s for input' % incname)
+        self.parse_file(incname, incfile)
+        incfile.close()
 
-def parse_files(file_list):
-    "Parse a list of file(s) into an internal representation."
-    if file_list == []:
-        # No files were specified: Read from standard input.
-        parse_file("<stdin>", sys.stdin)
-        if current_macro[0] != None:
-            error_in_line(filename, lineno, "Unterminated definition of macro %s" % current_macro[0])
-    else:
-        # Files were specified: Process each in turn.
-        for infilename in file_list:
+    def parse_line_begin_macro(self, filename, lineno, fields):
+        "Parse a !begin_macro directive."
+        # "!begin_macro" <name> -- begin a macro definition.
+        if len(fields) < 2:
+            error_in_line(filename, lineno, "Expected a macro name to follow !begin_macro")
+        name = fields[1]
+        if self.macros.has_key(name):
+            error_in_line(self, filename, lineno, "Macro %s is multiply defined" % name)
+        if self.current_macro[0] != None:
+            error_in_line(filename, lineno, "Nested macros are not supported")
+        self.current_macro = (name, [])
+        self.target = self.current_macro[1]
+
+    def parse_line_end_macro(self, filename, lineno, fields):
+        "Parse an !end_macro directive."
+        # "!end_macro" <name> -- end a macro definition.
+        if len(fields) < 2:
+            error_in_line(filename, lineno, "Expected a macro name to follow !end_macro")
+        name = fields[1]
+        if self.current_macro[0] == None:
+            error_in_line(filename, lineno, "Ended macro %s with no corresponding begin" % name)
+        if self.current_macro[0] != name:
+            error_in_line(filename, lineno, "Ended macro %s after beginning macro %s" % (name, self.current_macro[0]))
+        self.macros[name] = self.current_macro[1]
+        self.target = qmasm.program
+        self.current_macro = (None, [])
+
+    def parse_line_weight(self, filename, lineno, fields):
+        "Parse a qubit weight."
+        # <symbol> <weight> -- increment a symbol's point weight.
+        if len(fields) < 2:
+            error_in_line(filename, lineno, "Internal error in parse_line_weight")
+        try:
+            val = float(fields[1])
+        except ValueError:
+            error_in_line(filename, lineno, 'Failed to parse "%s %s" as a symbol followed by a numerical weight' % (fields[0], fields[1]))
+        self.target.append(Weight(filename, lineno, fields[0], val))
+
+    def parse_line_chain(self, filename, lineno, fields):
+        "Parse a qubit chain."
+        # <symbol_1> = <symbol_2> -- create a chain between <symbol_1>
+        # and <symbol_2>.
+        if len(fields) < 3 or fields[1] != "=":
+            error_in_line(filename, lineno, "Internal error in parse_line_chain")
+        self.target.extend(process_chain(filename, lineno, " ".join(fields[:3])))
+
+    def parse_line_pin(self, filename, lineno, fields):
+        "Parse a qubit pin."
+        # <symbol> := <value> -- force symbol <symbol> to have value <value>.
+        if len(fields) < 3 or fields[1] != ":=":
+            error_in_line(filename, lineno, "Internal error in parse_line_pin")
+        self.target.extend(process_pin(filename, lineno, " ".join(fields[:3])))
+
+    def parse_line_alias(filename, lineno, fields):
+        "Parse a qubit alias."
+        # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of <symbol_2>.
+        if len(fields) < 3 or fields[1] != "<->":
+            error_in_line(filename, lineno, "Internal error in parse_line_alias")
+        self.target.extend(process_alias(filename, lineno, " ".join(fields[:3])))
+
+    def parse_line_strength(self, filename, lineno, fields):
+        "Parse a coupler strength."
+        # <symbol_1> <symbol_2> <strength> -- increment a coupler strength.
+        if len(fields) < 3 or not is_float(fields[2]):
+            error_in_line(filename, lineno, "Internal error in parse_line_strength")
+        try:
+            strength = float(fields[2])
+        except ValueError:
+            error_in_line(filename, lineno, 'Failed to parse "%s" as a number' % fields[2])
+        self.target.append(Strength(filename, lineno, fields[0], fields[1], strength))
+
+    def parse_line_use_macro(self, filename, lineno, fields):
+        "Parse an !use_macro directive."
+        # "!use_macro" <macro_name> <instance_name> -- instantiate a macro using
+        # <instance_name> as each variable's prefix.
+        if len(fields) < 3:
+            error_in_line(filename, lineno, "Expected a macro name and an instance name to follow !use_macro")
+        name = fields[1]
+        try:
+            self.target.append(MacroUse(filename, lineno, name, self.macros[name], fields[2] + "."))
+        except KeyError:
+            error_in_line(filename, lineno, "Unknown macro %s" % name)
+
+    def parse_line_sym_alias(self, filename, lineno, fields):
+        "Parse an !alias directive."
+        if len(fields) < 3:
+            error_in_line(filename, lineno, "Expected a symbol name and replacement to follow !alias")
+        self.aliases[fields[1]] = fields[2]
+
+    def parse_file(self, filename, infile):
+        """Define a function that parses an input file into an internal
+        representation.  This function can be called recursively (due to !include
+        directives)."""
+        # Establish a mapping from a first-field directive to a parsing function.
+        dir_to_func = {
+            "!include":     self.parse_line_include,
+            "!begin_macro": self.parse_line_begin_macro,
+            "!end_macro":   self.parse_line_end_macro,
+            "!use_macro":   self.parse_line_use_macro,
+            "!alias":       self.parse_line_sym_alias
+        }
+
+        # Process the file line-by-line.
+        lineno = 0
+        for line in infile:
+            # Split the line into fields and apply text aliases.
+            lineno += 1
+            if line.strip() == "":
+                continue
+            fields = shlex.split(line, True)
+            nfields = len(fields)
+            for i in range(nfields):
+                try:
+                    fields[i] = self.aliases[fields[i]]
+                except KeyError:
+                    pass
+
+            # Process the line.
+            if nfields == 0:
+                # Ignore empty lines.
+                continue
             try:
-                infile = open(infilename)
-            except IOError:
-                qmasm.abend('Failed to open %s for input' % infilename)
-            parse_file(infilename, infile)
-            if current_macro[0] != None:
-                error_in_line(filename, lineno, "Unterminated definition of macro %s" % current_macro[0])
-            infile.close()
+                # Parse first-field directives.
+                func = dir_to_func[fields[0]]
+            except KeyError:
+                # Parse all lines not containing a directive in the first field.
+                if nfields == 2:
+                    func = self.parse_line_weight
+                elif nfields == 3 and fields[1] == "=":
+                    func = self.parse_line_chain
+                elif nfields == 3 and fields[1] == ":=":
+                    func = self.parse_line_pin
+                elif nfields == 3 and fields[1] == "<->":
+                    func = self.parse_line_alias
+                elif nfields == 3 and is_float(fields[2]):
+                    func = self.parse_line_strength
+                else:
+                    # None of the above
+                    error_in_line(filename, lineno, 'Failed to parse "%s"' % line)
+            func(filename, lineno, fields)
+
+    def parse_files(self, file_list):
+        "Parse a list of file(s) into an internal representation."
+        if file_list == []:
+            # No files were specified: Read from standard input.
+            self.parse_file("<stdin>", sys.stdin)
+            if self.current_macro[0] != None:
+                error_in_line(filename, lineno, "Unterminated definition of macro %s" % self.current_macro[0])
+        else:
+            # Files were specified: Process each in turn.
+            for infilename in file_list:
+                try:
+                    infile = open(infilename)
+                except IOError:
+                    qmasm.abend('Failed to open %s for input' % infilename)
+                self.parse_file(infilename, infile)
+                if self.current_macro[0] != None:
+                    error_in_line(filename, lineno, "Unterminated definition of macro %s" % self.current_macro[0])
+                infile.close()
 
 class PinParser(object):
     "Provide methods for parsing a pin statement."

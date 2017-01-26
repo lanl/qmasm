@@ -18,7 +18,8 @@ cl_args = qmasm.parse_command_line()
 min_energy_delta = 0.005
 
 # Parse the original input file(s) into an internal representation.
-qmasm.parse_files(cl_args.input)
+fparse = qmasm.FileParser()
+fparse.parse_files(cl_args.input)
 
 # Parse the variable pinnings specified on the command line.  Append these to
 # the program.
