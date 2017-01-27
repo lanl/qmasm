@@ -150,9 +150,19 @@ class MacroUse(Statement):
 
     def as_str(self, prefix=""):
         stmt_strs = []
-        for pfx in self.prefixes:
+        nprefixes = len(self.prefixes)
+        for p in range(nprefixes):
+            pfx = self.prefixes[p]
             for stmt in self.body:
-                stmt_strs.append(stmt.as_str(prefix + pfx))
+                sstr = stmt.as_str(prefix + pfx)
+                if "!next." in sstr:
+                    if p == nprefixes - 1:
+                        # Drop statements that use "!next." if there's
+                        # no next prefix.
+                        continue
+                    next_pfx = self.prefixes[p + 1]
+                    sstr = sstr.replace(prefix + pfx + "!next.", prefix + next_pfx)
+                stmt_strs.append(sstr)
         return "\n".join(stmt_strs)
 
     def update_qmi(self, prefix, problem):
@@ -324,6 +334,12 @@ class FileParser(object):
                 # Parse first-field directives.
                 func = dir_to_func[fields[0]]
             except KeyError:
+                # Prohibit "!next." outside of macros.
+                if self.current_macro[0] == None:
+                    for f in fields:
+                        if "!next." in f:
+                            error_in_line(filename, lineno, '"!next." is allowed only within !begin_macro...!end_macro blocks')
+
                 # Parse all lines not containing a directive in the first field.
                 if nfields == 2:
                     func = self.parse_line_weight
