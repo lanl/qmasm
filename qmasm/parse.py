@@ -142,21 +142,23 @@ class Strength(Statement):
 
 class MacroUse(Statement):
     "Instantiation of a macro definition."
-    def __init__(self, filename, lineno, name, body, prefix):
+    def __init__(self, filename, lineno, name, body, prefixes):
         super(MacroUse, self).__init__(filename, lineno)
         self.name = name
         self.body = body
-        self.prefix = prefix
+        self.prefixes = prefixes
 
     def as_str(self, prefix=""):
         stmt_strs = []
-        for stmt in self.body:
-            stmt_strs.append(stmt.as_str(self.prefix + prefix))
+        for pfx in self.prefixes:
+            for stmt in self.body:
+                stmt_strs.append(stmt.as_str(prefix + pfx))
         return "\n".join(stmt_strs)
 
     def update_qmi(self, prefix, problem):
-        for stmt in self.body:
-            stmt.update_qmi(prefix + self.prefix, problem)
+        for pfx in self.prefixes:
+            for stmt in self.body:
+                stmt.update_qmi(prefix + pfx, problem)
 
 class FileParser(object):
     "Parse a QMASM file."
@@ -272,10 +274,11 @@ class FileParser(object):
         # "!use_macro" <macro_name> <instance_name> -- instantiate a macro using
         # <instance_name> as each variable's prefix.
         if len(fields) < 3:
-            error_in_line(filename, lineno, "Expected a macro name and an instance name to follow !use_macro")
+            error_in_line(filename, lineno, "Expected a macro name and at least one instance name to follow !use_macro")
         name = fields[1]
+        prefixes = [p + "." for p in fields[2:]]
         try:
-            self.target.append(MacroUse(filename, lineno, name, self.macros[name], fields[2] + "."))
+            self.target.append(MacroUse(filename, lineno, name, self.macros[name], prefixes))
         except KeyError:
             error_in_line(filename, lineno, "Unknown macro %s" % name)
 
