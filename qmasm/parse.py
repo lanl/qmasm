@@ -63,8 +63,8 @@ class Weight(Statement):
     def as_str(self, prefix=""):
         return "%s%s %s" % (prefix, self.sym, self.weight)
 
-    def update_qmi(self, prefix, problem):
-        num = qmasm.symbol_to_number(prefix + self.sym)
+    def update_qmi(self, prefix, next_prefix, problem):
+        num = qmasm.symbol_to_number(prefix + self.sym, prefix, next_prefix)
         problem.weights[num] += self.weight
 
 class Chain(Statement):
@@ -77,9 +77,9 @@ class Chain(Statement):
     def as_str(self, prefix=""):
         return "%s%s = %s%s" % (prefix, self.sym1, prefix, self.sym2)
 
-    def update_qmi(self, prefix, problem):
-        num1 = qmasm.symbol_to_number(prefix + self.sym1)
-        num2 = qmasm.symbol_to_number(prefix + self.sym2)
+    def update_qmi(self, prefix, next_prefix, problem):
+        num1 = qmasm.symbol_to_number(prefix + self.sym1, prefix, next_prefix)
+        num2 = qmasm.symbol_to_number(prefix + self.sym2, prefix, next_prefix)
         if num1 == num2:
             self.error_in_line("A chain cannot connect a spin to itself")
         elif num1 > num2:
@@ -96,8 +96,8 @@ class Pin(Statement):
     def as_str(self, prefix=""):
         return "%s%s := %s" % (prefix, self.sym, self.goal)
 
-    def update_qmi(self, prefix, problem):
-        num = qmasm.symbol_to_number(prefix + self.sym)
+    def update_qmi(self, prefix, next_prefix, problem):
+        num = qmasm.symbol_to_number(prefix + self.sym, prefix, next_prefix)
         problem.pinned.append((num, self.goal))
 
 class Alias(Statement):
@@ -110,9 +110,11 @@ class Alias(Statement):
     def as_str(self, prefix=""):
         return "%s%s <-> %s%s" % (prefix, self.sym1, prefix, self.sym2)
 
-    def update_qmi(self, prefix, problem):
+    def update_qmi(self, prefix, next_prefix, problem):
         sym1 = prefix + self.sym1
         sym2 = prefix + self.sym2
+        sym1 = sym1.replace(prefix + "!next.", next_prefix)
+        sym2 = sym2.replace(prefix + "!next.", next_prefix)
         try:
             qmasm.sym2num[sym1] = qmasm.sym2num[sym2]
         except KeyError:
@@ -131,9 +133,9 @@ class Strength(Statement):
     def as_str(self, prefix=""):
         return "%s%s %s%s %s" % (prefix, self.sym1, prefix, self.sym2, self.strength)
 
-    def update_qmi(self, prefix, problem):
-        num1 = qmasm.symbol_to_number(prefix + self.sym1)
-        num2 = qmasm.symbol_to_number(prefix + self.sym2)
+    def update_qmi(self, prefix, next_prefix, problem):
+        num1 = qmasm.symbol_to_number(prefix + self.sym1, prefix, next_prefix)
+        num2 = qmasm.symbol_to_number(prefix + self.sym2, prefix, next_prefix)
         if num1 == num2:
             self.error_in_line("A coupler cannot connect a spin to itself")
         elif num1 > num2:
@@ -165,10 +167,19 @@ class MacroUse(Statement):
                 stmt_strs.append(sstr)
         return "\n".join(stmt_strs)
 
-    def update_qmi(self, prefix, problem):
-        for pfx in self.prefixes:
+    def update_qmi(self, prefix, next_prefix, problem):
+        nprefixes = len(self.prefixes)
+        for p in range(nprefixes):
+            pfx = prefix + self.prefixes[p]
+            if p == nprefixes - 1:
+                next_pfx = None
+            else:
+                next_pfx = prefix + self.prefixes[p + 1]
             for stmt in self.body:
-                stmt.update_qmi(prefix + pfx, problem)
+                try:
+                    stmt.update_qmi(pfx, next_pfx, problem)
+                except qmasm.utils.RemainingNextException:
+                    pass
 
 class FileParser(object):
     "Parse a QMASM file."

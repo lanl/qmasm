@@ -30,7 +30,7 @@ if cl_args.pin != None:
 # Walk the statements in the program, processing each in turn.
 logical_either = qmasm.Problem(cl_args.qubo)
 for stmt in qmasm.program:
-    stmt.update_qmi("", logical_either)
+    stmt.update_qmi("", "<ERROR>", logical_either)
 
 # Store all tallies for later reportage.
 logical_stats = {

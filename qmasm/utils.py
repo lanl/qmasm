@@ -7,9 +7,21 @@ from collections import defaultdict
 import qmasm
 import sys
 
-def symbol_to_number(sym):
+class RemainingNextException(Exception):
+    'This exception is thrown if a "!next." directive can\'t be replaced.'
+    pass
+
+def symbol_to_number(sym, prefix=None, next_prefix=None):
     "Map from a symbol to a number, creating a new association if necessary."
     global sym2num, next_sym_num
+
+    # Replace "!next." by substituting prefixes in the name.
+    if "!next." in sym:
+        if prefix == None or next_prefix == None:
+            raise RemainingNextException
+        sym = sym.replace(prefix + "!next.", next_prefix)
+
+    # Return the symbol's logical qubit number or allocate a new one.
     try:
         return qmasm.sym2num[sym]
     except KeyError:
