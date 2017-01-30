@@ -10,6 +10,8 @@ from dwave_sapi2.local import local_connection
 from dwave_sapi2.remote import RemoteConnection
 from dwave_sapi2.util import get_hardware_adjacency
 import copy
+import hashlib
+import marshal
 import math
 import os
 import qmasm
@@ -46,6 +48,47 @@ def connect_to_dwave():
     except KeyError:
         qmasm.abend("Failed to find solver %s on connection %s" % (qmasm.solver_name, url))
 
+class EmbeddingCache(object):
+    "Read and write an embedding cache file."
+
+    def __init__(self, edges, adj):
+        # Ensure we have a valid cache directory.
+        self.hash = None
+        self.cachedir = os.getenv("QMASMCACHE")
+        if self.cachedir == None:
+            return None
+        if not os.path.isdir(self.cachedir):
+            qmasm.abend("QMASMCACHE is set to %s, which is not an extant directory" % cdir)
+
+        # Compute an MD5 sum of our inputs.
+        sha = hashlib.sha1()
+        sha.update(str(sorted(edges)))
+        sha.update(str(sorted(adj)))
+        self.hash = sha.hexdigest()
+
+    def read(self):
+        "Read an embedding from an embedding cache or None on a cache miss."
+        if self.hash == None:
+            return None
+        try:
+            h = open(os.path.join(self.cachedir, self.hash))
+        except IOError:
+            return None
+        embedding = marshal.load(h)
+        h.close()
+        return embedding
+
+    def write(self, embedding):
+        "Write an embedding to an embedding cache."
+        if self.hash == None:
+            return
+        try:
+            h = open(os.path.join(self.cachedir, self.hash), "w")
+        except IOError:
+            return None
+        marshal.dump(embedding, h)
+        h.close()
+
 def find_dwave_embedding(logical, optimize, verbosity):
     """Find an embedding of a logical problem in the D-Wave's physical topology.
     Store the embedding within the Problem object."""
@@ -55,6 +98,7 @@ def find_dwave_embedding(logical, optimize, verbosity):
     # all zero-strength couplers.
     edges = [e for e in logical.strengths.keys() if logical.strengths[e] != 0.0]
     edges.sort()
+    logical.edges = edges
     try:
         hw_adj = get_hardware_adjacency(qmasm.solver)
     except KeyError:
@@ -96,6 +140,21 @@ def find_dwave_embedding(logical, optimize, verbosity):
                 continue
             alt_hw_adj.append((q1, q2))
         alt_hw_adj = set(alt_hw_adj)
+        logical.hw_adj = alt_hw_adj
+
+        # See if we already have an embedding in the embedding cache.
+        ec = EmbeddingCache(edges, alt_hw_adj)
+        if verbosity >= 2 and ec.cachedir != None:
+            sys.stderr.write("  Using %s as the embedding cache directory ...\n" % ec.cachedir)
+        embedding = ec.read()
+        if embedding != None:
+            # Cache hit!
+            if verbosity >= 2:
+                sys.stderr.write("  Found %s in the embedding cache.\n\n" % ec.hash)
+            logical.embedding = embedding
+            return
+        if verbosity >= 2:
+            sys.stderr.write("  No existing embedding found in the embedding cache.\n")
 
         # Try to find an embedding.
         if verbosity >= 2:
@@ -129,11 +188,8 @@ def find_dwave_embedding(logical, optimize, verbosity):
             edgey += 1
     if not(edgex <= M and edgey <= N):
         qmasm.abend("Failed to embed the problem")
-
-    # Store in the logical problem additional information about the embedding.
+    ec.write(embedding)
     logical.embedding = embedding
-    logical.hw_adj = alt_hw_adj
-    logical.edges = edges
 
 def embed_problem_on_dwave(logical, optimize, verbosity):
     """Embed a logical problem in the D-Wave's physical topology.  Return a
