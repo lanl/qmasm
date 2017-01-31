@@ -144,8 +144,11 @@ def find_dwave_embedding(logical, optimize, verbosity):
 
         # See if we already have an embedding in the embedding cache.
         ec = EmbeddingCache(edges, alt_hw_adj)
-        if verbosity >= 2 and ec.cachedir != None:
-            sys.stderr.write("  Using %s as the embedding cache directory ...\n" % ec.cachedir)
+        if verbosity >= 2:
+            if ec.cachedir == None:
+                sys.stderr.write("  No embedding cache directory was specified ($QMASMCACHE).\n")
+            else:
+                sys.stderr.write("  Using %s as the embedding cache directory ...\n" % ec.cachedir)
         embedding = ec.read()
         if embedding != None:
             # Cache hit!
@@ -153,7 +156,7 @@ def find_dwave_embedding(logical, optimize, verbosity):
                 sys.stderr.write("  Found %s in the embedding cache.\n\n" % ec.hash)
             logical.embedding = embedding
             return
-        if verbosity >= 2:
+        if verbosity >= 2 and ec.cachedir != None:
             sys.stderr.write("  No existing embedding found in the embedding cache.\n")
 
         # Try to find an embedding.
