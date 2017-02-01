@@ -65,6 +65,69 @@ Solution #5 (energy = -21.12):
 
 Try experimenting with the `--pin` option.  If a variable is pinned to *true*, QMASM will output the single solution that honors that constraint.  If a variable is pinned to *false*, QMASM will output the four solutions.  If *two* variables are pinned to *true*, a situation `1of5.qmasm` does not include in its ground state, QMASM may return no solutions or it may return one or more *incorrect* solutions—whatever exhibits the lowest total energy and doesn't break any chains or pins.
 
+Macro chaining
+--------------
+
+* Main file: [`and4.qmasm`](and4.qmasm)
+
+* Command line: `qmasm --run and4.qmasm`
+
+This is a demonstration of QMASM's multi-instantiation form of `!use_macro`.  The program defines a 2-input AND gate (*Y* = *A* AND *B*) called `and_chain` that chains its output (`Y`) to the next macro instance's `A` input.  The program then defines a macro called `big_and` that instantiates `and_chain` three times, as `$and1`, `$and2`, and `$and3`, then names its overall inputs (`A`, `B`, `C`, and `D`) and output (`Y`) in terms of its constituent macros' inputs and outputs.  The result is a 4-input AND gate.
+
+```
+Solution #1 (energy = -21.25, tally = 236):
+
+    Name(s)       Spin  Boolean
+    ------------  ----  --------
+    big_and.A       -1  False
+    big_and.B       -1  False
+    big_and.C       -1  False
+    big_and.D       -1  False
+    big_and.Y       -1  False
+
+Solution #2 (energy = -21.25, tally = 138):
+
+    Name(s)       Spin  Boolean
+    ------------  ----  --------
+    big_and.A       -1  False
+    big_and.B       -1  False
+    big_and.C       -1  False
+    big_and.D       +1  True
+    big_and.Y       -1  False
+
+Solution #3 (energy = -21.25, tally = 131):
+
+    Name(s)       Spin  Boolean
+    ------------  ----  --------
+    big_and.A       -1  False
+    big_and.B       -1  False
+    big_and.C       +1  True
+    big_and.D       -1  False
+    big_and.Y       -1  False
+```
+<p style="text-align: center">⋮</p>
+```
+Solution #15 (energy = -21.25, tally = 7):
+
+    Name(s)       Spin  Boolean
+    ------------  ----  --------
+    big_and.A       +1  True
+    big_and.B       +1  True
+    big_and.C       +1  True
+    big_and.D       -1  False
+    big_and.Y       -1  False
+
+Solution #16 (energy = -21.25, tally = 3):
+
+    Name(s)       Spin  Boolean
+    ------------  ----  --------
+    big_and.A       +1  True
+    big_and.B       +1  True
+    big_and.C       +1  True
+    big_and.D       +1  True
+    big_and.Y       +1  True
+```
+
 Circuit satisfiability
 ----------------------
 

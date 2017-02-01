@@ -1,0 +1,28 @@
+#################################################
+# QMASM example: Chain 2-input AND gates        #
+# into a 4-input AND gate                       #
+#                                               #
+# By Scott Pakin <pakin@lanl.gov>               #
+#################################################
+
+!begin_macro and_chain
+A -0.5
+B -0.5
+Y 1
+
+A B 0.5
+A Y -1
+B Y -1
+Y !next.A -1   # Connect our output to the subsequent A input
+!end_macro and_chain
+
+!begin_macro big_and
+!use_macro and_chain $and1 $and2 $and3
+A = $and1.A
+B = $and1.B
+C = $and2.B
+D = $and3.B
+Y = $and3.Y
+!end_macro big_and
+
+!use_macro big_and big_and
