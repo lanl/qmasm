@@ -54,11 +54,12 @@ class EmbeddingCache(object):
     def __init__(self, edges, adj):
         # Ensure we have a valid cache directory.
         self.hash = None
-        self.cachedir = os.getenv("QMASMCACHE")
-        if self.cachedir == None:
+        try:
+            self.cachedir = os.environ["QMASMCACHE"]
+        except KeyError:
             return None
         if not os.path.isdir(self.cachedir):
-            qmasm.abend("QMASMCACHE is set to %s, which is not an extant directory" % cdir)
+            qmasm.abend("QMASMCACHE is set to %s, which is not an extant directory" % self.cachedir)
 
         # Compute an MD5 sum of our inputs.
         sha = hashlib.sha1()
