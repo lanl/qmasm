@@ -133,15 +133,22 @@ qmasm.connect_to_dwave()
 
 # Output most or all solver properties.
 if cl_args.verbose >= 1:
-    # Determine the width of the widest key.
-    max_key_len = len("Parameter")
+    # Introduce a few extra solver properties.
     ext_solver_properties = {}
     try:
         L, M, N = qmasm.chimera_topology(qmasm.solver)
         ext_solver_properties["chimera_toplogy_M_N_L"] = [M, N, L]
     except KeyError:
         pass
+    ext_solver_properties["solver_name"] = qmasm.solver_name
+    try:
+        ext_solver_properties["connection_name"] = os.environ["DW_INTERNAL__CONNECTION"]
+    except KeyError:
+        pass
     ext_solver_properties.update(qmasm.solver.properties)
+
+    # Determine the width of the widest key.
+    max_key_len = len("Parameter")
     solver_props = ext_solver_properties.keys()
     solver_props.sort()
     for k in solver_props:
