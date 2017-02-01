@@ -4,11 +4,14 @@
 #########################################
 
 from collections import defaultdict
-from dwave_sapi2.core import solve_ising
-from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
-from dwave_sapi2.local import local_connection
-from dwave_sapi2.remote import RemoteConnection
-from dwave_sapi2.util import get_hardware_adjacency
+try:
+    from dwave_sapi2.core import solve_ising
+    from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
+    from dwave_sapi2.local import local_connection
+    from dwave_sapi2.remote import RemoteConnection
+    from dwave_sapi2.util import get_hardware_adjacency
+except ImportError:
+    from fake_dwave import *
 import copy
 import hashlib
 import marshal

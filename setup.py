@@ -13,7 +13,7 @@ script_list = ["qmasm", "qb2qmasm", "qmasm-ground-state", "qmasm-qbsolv"]
 
 class install(_install):
     def run(self):
-        # Install, then remove qmasm.py, keeping only qmasm.
+        # Install, then remove <script>.py, keeping only <script>.
         _install.run(self)
         for scr in script_list:
             pyscript = os.path.join(self.install_scripts, scr + ".py")
@@ -26,7 +26,7 @@ setup(name = "QMASM",
       author = "Scott Pakin",
       author_email = "pakin@lanl.gov",
       classifiers = ["Topic :: Software Development :: Compilers"],
-      url = "https://github.com/losalamos/qmasm",
+      url = "https://github.com/lanl/qmasm",
       license = "BSD",
       keywords = "quantum assembler d-wave",
       packages = find_packages(),

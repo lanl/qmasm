@@ -6,7 +6,10 @@
 import qmasm
 import re
 import sys
-from dwave_sapi2.util import ising_to_qubo, linear_index_to_chimera
+try:
+    from dwave_sapi2.util import ising_to_qubo, linear_index_to_chimera
+except ImportError:
+    from fake_dwave import *
 
 def open_output_file(oname):
     "Open a file or standard output."

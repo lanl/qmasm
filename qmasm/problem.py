@@ -4,7 +4,10 @@
 ###################################
 
 from collections import defaultdict
-from dwave_sapi2.util import ising_to_qubo, qubo_to_ising
+try:
+    from dwave_sapi2.util import ising_to_qubo, qubo_to_ising
+except ImportError:
+    from fake_dwave import *
 import copy
 import qmasm
 import random
