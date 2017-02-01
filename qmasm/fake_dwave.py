@@ -8,7 +8,7 @@ import qmasm
 class FakeSolver(object):
     properties = {}
 
-class FakeLocalConnection(object):
+class FakeConnection(object):
     def solver_names(self):
         return ["phony"]
 
@@ -18,7 +18,10 @@ class FakeLocalConnection(object):
         else:
             raise KeyError
 
-local_connection = FakeLocalConnection()
+local_connection = FakeConnection()
+
+def RemoteConnection(url, token, proxy=None):
+    qmasm.abend("In the absence of D-Wave's libraries, remote connections are unavailable")
 
 def ising_to_qubo(hs, js):
     "Convert a list of hs and a dictionary of Js to a dictionary of Qs."
@@ -78,4 +81,4 @@ def qubo_to_ising(qs):
     return hs, js, None
 
 def get_hardware_adjacency(solver):
-    qmasm.abend("Without D-Wave's libraries, QMASM can do little more than output qbsolv files")
+    qmasm.abend("Without D-Wave's libraries, QMASM can do little more than output qbsolv and flattened QMASM files")
