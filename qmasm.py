@@ -333,7 +333,10 @@ if cl_args.verbose >= 1:
 # Output energy tallies.  We first recompute these because some entries seem to
 # be multiply listed.
 if cl_args.verbose >= 2:
-    tallies = answer["num_occurrences"]
+    try:
+        tallies = answer["num_occurrences"]
+    except KeyError:
+        tallies = [1] * len(energies)
     new_energy_tallies = {}
     for i in range(len(energies)):
         e = float(energies[i])
