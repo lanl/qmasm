@@ -157,7 +157,7 @@ def output_minizinc(outfile, problem):
     # Write some header information.
     outfile.write("""% Use MiniZinc to minimize a given Hamiltonian.
 %
-% Producer:     QMASM (https://github.com/losalamos/qmasm/)
+% Producer:     QMASM (https://github.com/lanl/qmasm/)
 % Author:       Scott Pakin (pakin@lanl.gov)
 """)
     outfile.write("%% Command line: %s\n\n" % " ".join([quote(a) for a in sys.argv]))

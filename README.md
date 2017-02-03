@@ -24,7 +24,7 @@ to install elsewhere.
 Documentation
 -------------
 
-Documentation for QMASM can be found on the [QMASM wiki](https://github.com/losalamos/qmasm/wiki).
+Documentation for QMASM can be found on the [QMASM wiki](https://github.com/lanl/qmasm/wiki).
 
 QMASM (then known as QASM) is discussed in the following publication:
 
@@ -34,7 +34,7 @@ QMASM (then known as QASM) is discussed in the following publication:
 License
 -------
 
-QMASM is provided under a BSD-ish license with a "modifications must be indicated" clause.  See [the LICENSE file](http://github.com/losalamos/qmasm/blob/master/LICENSE.md) for the full text.
+QMASM is provided under a BSD-ish license with a "modifications must be indicated" clause.  See [the LICENSE file](http://github.com/lanl/qmasm/blob/master/LICENSE.md) for the full text.
 
 This package is part of the Hybrid Quantum-Classical Computing suite, known internally as LA-CC-16-032.
 
