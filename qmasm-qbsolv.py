@@ -84,3 +84,4 @@ for name in sorted(name2qubit.keys()):
     num = name2qubit[name]
     spin = bits[num]*2 - 1
     print("    %-*s  %+4d  %s" % (max_name_width, name, spin, str(spin == +1)))
+print("")
