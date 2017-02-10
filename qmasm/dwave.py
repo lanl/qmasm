@@ -60,6 +60,7 @@ class EmbeddingCache(object):
         try:
             self.cachedir = os.environ["QMASMCACHE"]
         except KeyError:
+            self.cachedir = None
             return None
         if not os.path.isdir(self.cachedir):
             qmasm.abend("QMASMCACHE is set to %s, which is not an extant directory" % self.cachedir)
