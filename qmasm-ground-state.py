@@ -21,8 +21,9 @@ if cl_args.macro == "":
     qmasm.abend("A macro must be specified with --macro")
 
 # Parse the original input file(s) into an internal representation.
-qmasm.parse_files(cl_args.input)
-if cl_args.macro not in qmasm.macros:
+fparse = qmasm.FileParser()
+fparse.parse_files(cl_args.input)
+if cl_args.macro not in fparse.macros:
     qmasm.abend('Macro "%s" not found' % cl_args.macro)
 
 def macro_to_coeffs(macro):
@@ -106,5 +107,5 @@ def output_ground_state(syms, h, J):
 # Process each macro in turn.
 print "=== MACRO: %s ===" % cl_args.macro
 print ""
-syms, h, J = macro_to_coeffs(qmasm.macros[cl_args.macro])
+syms, h, J = macro_to_coeffs(fparse.macros[cl_args.macro])
 output_ground_state(syms, h, J)
