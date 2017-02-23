@@ -245,6 +245,8 @@ solve minimize energy;
             phys = problem.embedding[n][0]
         except IndexError:
             continue
+        except AttributeError:
+            phys = n
         syms = " ".join(num2syms[n])
         line = ""
         line += '"    %-*s  ", ' % (max_sym_name_len, syms)
