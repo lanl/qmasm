@@ -51,6 +51,7 @@ def similar(a, b):
 def output_ground_state(syms, h, J):
     "Exhaustively evaluate the ground states of a truth table."
     width = max([len(s) for s in syms])
+    width = max (width, 2)  # Need room for "+1" and "-1"
     ncols = len(syms)
     table = []   # List of {spins, energy} tuples
     min_energy = 2**30
