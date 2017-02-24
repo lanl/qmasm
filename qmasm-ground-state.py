@@ -14,8 +14,8 @@ cl_parser.add_argument("input", nargs="*", default=[],
                            help="file from which to read a symbolic Hamiltonian")
 cl_parser.add_argument("-m", "--macro", metavar="MACRO", default="",
                        help="name of a macro whose ground state should be reported")
-cl_parser.add_argument("-v", "--verbose", action="count", default=0,
-                       help="increase output verbosity (can be specified repeatedly)")
+cl_parser.add_argument("-a", "--all", action="store_true",
+                       help="output all states, not just the ground state")
 cl_args = cl_parser.parse_args()
 if cl_args.macro == "":
     qmasm.abend("A macro must be specified with --macro")
@@ -80,9 +80,9 @@ def output_ground_state(syms, h, J):
         all_energies.add(energy)
         if energy < min_energy:
             min_energy = energy
-            if cl_args.verbose == 0:
+            if not cl_args.all:
                 table = []    # We don't need excited states unless we're outputting them.
-        if similar(energy, min_energy) or cl_args.verbose > 0:
+        if similar(energy, min_energy) or cl_args.all:
             table.append((spins, energy))
 
     # Output the ground-state rows (or all rows if verbosity is enabled).
