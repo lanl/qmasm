@@ -155,48 +155,54 @@ def find_dwave_embedding(logical, optimize, verbosity):
             else:
                 sys.stderr.write("  Using %s as the embedding cache directory ...\n" % ec.cachedir)
         embedding = ec.read()
-        if embedding != None:
-            # Cache hit!
+        if embedding == []:
+            # Cache hit, but embedding had failed
             if verbosity >= 2:
-                sys.stderr.write("  Found %s in the embedding cache.\n\n" % ec.hash)
+                sys.stderr.write("  Found failed embedding %s in the embedding cache.\n\n" % ec.hash)
+        elif embedding != None:
+            # Successful cache hit!
+            if verbosity >= 2:
+                sys.stderr.write("  Found successful embedding %s in the embedding cache.\n\n" % ec.hash)
             logical.embedding = embedding
             return
         if verbosity >= 2 and ec.cachedir != None:
             sys.stderr.write("  No existing embedding found in the embedding cache.\n")
 
-        # Try to find an embedding.
-        if verbosity >= 2:
-            sys.stderr.write("  Trying a %dx%d unit-cell embedding ... " % (edgex, edgey))
-            status_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
-            stdout_fd = os.dup(sys.stdout.fileno())
-            os.dup2(status_file.fileno(), sys.stdout.fileno())
-            embedding = find_embedding(edges, alt_hw_adj, verbose=1)
-            sys.stdout.flush()
-            os.dup2(stdout_fd, sys.stdout.fileno())
-            status_file.close()
-            if len(embedding) > 0:
-                sys.stderr.write("succeeded\n\n")
+        # Try to find an embedding, unless we previously determined that it had
+        # failed.
+        if embedding != []:
+            if verbosity >= 2:
+                sys.stderr.write("  Trying a %dx%d unit-cell embedding ... " % (edgex, edgey))
+                status_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+                stdout_fd = os.dup(sys.stdout.fileno())
+                os.dup2(status_file.fileno(), sys.stdout.fileno())
+                embedding = find_embedding(edges, alt_hw_adj, verbose=1)
+                sys.stdout.flush()
+                os.dup2(stdout_fd, sys.stdout.fileno())
+                status_file.close()
+                if len(embedding) > 0:
+                    sys.stderr.write("succeeded\n\n")
+                else:
+                    sys.stderr.write("failed\n\n")
+                with open(status_file.name, "r") as status:
+                    for line in status:
+                        sys.stderr.write("    %s" % line)
+                sys.stderr.write("\n")
+                os.remove(status_file.name)
             else:
-                sys.stderr.write("failed\n\n")
-            with open(status_file.name, "r") as status:
-                for line in status:
-                    sys.stderr.write("    %s" % line)
-            sys.stderr.write("\n")
-            os.remove(status_file.name)
-        else:
-            embedding = find_embedding(edges, alt_hw_adj, verbose=0)
-        if len(embedding) > 0:
-            # Success!
-            break
+                embedding = find_embedding(edges, alt_hw_adj, verbose=0)
+            ec.write(embedding)
+            if len(embedding) > 0:
+                # Success!
+                break
 
-        # Failure -- increase edgex or edgey and try again.
+        # Continued failure -- increase edgex or edgey and try again.
         if edgex < edgey:
             edgex += 1
         else:
             edgey += 1
     if not(edgex <= M and edgey <= N):
         qmasm.abend("Failed to embed the problem")
-    ec.write(embedding)
     logical.embedding = embedding
 
 def embed_problem_on_dwave(logical, optimize, verbosity):
