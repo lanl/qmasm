@@ -4,6 +4,7 @@
 ###################################
 
 from collections import defaultdict
+import math
 import qmasm
 import sys
 
@@ -74,3 +75,50 @@ def chimera_topology(solver):
             break
     N = (nominal_qubits + 2*L*M - 1) // (2*L*M)
     return L, M, N
+
+def edges_to_neighbor_list(pairs):
+    "Return a mapping from each node to every node it touches."
+    nodes = {}
+    for n1, n2 in pairs:
+        try:
+            nodes[n1].add(n2)
+        except KeyError:
+            nodes[n1] = set([n2])
+        try:
+            nodes[n2].add(n1)
+        except KeyError:
+            nodes[n2] = set([n1])
+    return nodes
+
+# Thanks to Carleton Coffrin for proposing the embeddability metric
+# used in the following function.
+def maybe_embeddable(edges, adj):
+    """Return (among other data) False if a QUBO cannot be embedded, True
+    if there's a chance it can be embedded."""
+    # Determine what we have and what we need in terms of graph connectivity.
+    graph_needed = edges_to_neighbor_list(edges)
+    num_edges_needed = len(edges)
+    num_nodes_needed = len(graph_needed)
+    graph_avail = edges_to_neighbor_list(adj)
+    num_edges_avail = len(adj)
+    num_nodes_avail = len(graph_avail)
+    max_degree_avail = max([len(peers) for peers in graph_avail.values()])
+
+    # Compute the minimum number of extra nodes/edges needed to map
+    # the graph we need to the graph we have available.
+    extras = 0
+    for peers in graph_needed.values():
+        deg = len(peers)
+        if deg > max_degree_avail:
+            extras += math.ceil(deg/max_degree_avail) - 1
+
+    # If we need more nodes/edges that are available, the graph can't
+    # be embedded.
+    embed = True
+    if num_nodes_needed + extras > num_nodes_avail:
+        embed = False
+    if num_edges_needed + extras > num_edges_avail:
+        embed = False
+
+    # Return a set of useful information.
+    return embed, extras, (num_nodes_needed, num_nodes_avail), (num_edges_needed, num_edges_avail)

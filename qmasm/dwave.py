@@ -94,7 +94,23 @@ class EmbeddingCache(object):
         marshal.dump(embedding, h)
         h.close()
 
+def report_embeddability(edges, adj):
+    """Output some metrics on how likely a set of edges can be embedded in
+    a given adjacency graph."""
+    embed, extras, (nvars, nqubits), (nstrs, ncouplers) = qmasm.maybe_embeddable(edges, adj)
+    sys.stderr.write("Embeddability metrics:\n\n")
+    sys.stderr.write("    Qubit usage:             (%5d + %5d) / %5d = %8.2f%%\n" % \
+                     (nvars, extras, nqubits, (nvars + extras)*100.0/nqubits))
+    sys.stderr.write("    Coupler usage:           (%5d + %5d) / %5d = %8.2f%%\n" % \
+                     (nstrs, extras, ncouplers, (nstrs + extras)*100.0/ncouplers))
+    if embed:
+        sys.stderr.write("    Embedding is impossible: NO\n")
+    else:
+        sys.stderr.write("    Embedding is impossible: YES\n")
+    sys.stderr.write("\n")
+
 def find_dwave_embedding(logical, optimize, verbosity):
+
     """Find an embedding of a logical problem in the D-Wave's physical topology.
     Store the embedding within the Problem object."""
     # SAPI tends to choke when embed_problem is told to embed a problem
@@ -112,6 +128,10 @@ def find_dwave_embedding(logical, optimize, verbosity):
         # is an all-to-all network that connects every node to every other node.
         endpoints = set([a for a, b in edges] + [b for a, b in edges])
         hw_adj = [(a, b) for a in endpoints for b in endpoints if a != b]
+
+    # Tell the user if we have any hope at all of embedding the problem.
+    if verbosity >= 2:
+        report_embeddability(edges, hw_adj)
 
     # Determine the edges of a rectangle of cells we want to use.
     L, M, N = qmasm.chimera_topology(qmasm.solver)
