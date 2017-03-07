@@ -113,8 +113,9 @@ class Alias(Statement):
     def update_qmi(self, prefix, next_prefix, problem):
         sym1 = prefix + self.sym1
         sym2 = prefix + self.sym2
-        sym1 = sym1.replace(prefix + "!next.", next_prefix)
-        sym2 = sym2.replace(prefix + "!next.", next_prefix)
+        if next_prefix != None:
+            sym1 = sym1.replace(prefix + "!next.", next_prefix)
+            sym2 = sym2.replace(prefix + "!next.", next_prefix)
         try:
             qmasm.sym2num[sym1] = qmasm.sym2num[sym2]
         except KeyError:
@@ -272,7 +273,7 @@ class FileParser(object):
             error_in_line(filename, lineno, "Internal error in parse_line_pin")
         self.target.extend(process_pin(filename, lineno, " ".join(fields[:3])))
 
-    def parse_line_alias(filename, lineno, fields):
+    def parse_line_alias(self, filename, lineno, fields):
         "Parse a qubit alias."
         # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of <symbol_2>.
         if len(fields) < 3 or fields[1] != "<->":
