@@ -306,7 +306,7 @@ def solution_is_intact(physical, soln):
     # The solution looks good!
     return True
 
-def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, postproc):
+def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, postproc, discard):
     "Submit a QMI to the D-Wave."
     # Map abbreviated to full names for postprocessing types.
     postproc = {"": "", "opt": "optimization", "sample": "sampling"}[postproc]
@@ -362,7 +362,11 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
     except KeyError:
         num_occurrences = {tuple(a): 1 for a in semifinal_answer}
 
-    # Discard solutions with broken pins or broken chains.
+    # Discard solutions with broken pins or broken chains unless instructed not to.
     valid_solns = [s for s in solutions if solution_is_intact(physical, s)]
-    final_answer = unembed_answer(valid_solns, physical.embedding, broken_chains="discard")
-    return answer, final_answer, num_occurrences
+    num_not_broken = len(valid_solns)
+    if discard in ["yes", "maybe"]:
+        final_answer = unembed_answer(valid_solns, physical.embedding, broken_chains="discard")
+    if discard == "no" or (discard == "maybe" and len(final_answer) == 0):
+        final_answer = unembed_answer(solutions, physical.embedding, broken_chains="minimize_energy")
+    return answer, final_answer, num_occurrences, num_not_broken

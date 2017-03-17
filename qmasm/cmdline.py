@@ -21,9 +21,11 @@ def parse_command_line():
     cl_parser.add_argument("-f", "--format", choices=["qubist", "dw", "qbsolv", "qmasm", "minizinc"], default="qubist",
                            help="output-file format")
     cl_parser.add_argument("-O", action="store_true",
-                           help="Optimize the layout (i.e., use fewer unit cells)")
+                           help="optimize the layout (i.e., use fewer unit cells)")
     cl_parser.add_argument("-p", "--pin", action="append",
                            help="pin a set of qubits to a set of true or false values")
+    cl_parser.add_argument("-d", "--discard", choices=["yes", "no", "maybe"], default="yes",
+                           help="always, never, or if otherwise no solutions, discard solutions with broken chains or broken pins (default: yes)")
     cl_parser.add_argument("-a", "--all-solns", action="store_true",
                            help='output all solutions, not just those at the minimal energy level (implied by "-v -v"')
     cl_parser.add_argument("-C", "--chain-strength", metavar="NEG_NUM", type=float,

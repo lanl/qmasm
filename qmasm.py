@@ -271,12 +271,14 @@ if not cl_args.run:
 # Submit the problem to the D-Wave.
 if cl_args.verbose >= 1:
     sys.stderr.write("Submitting the problem to the %s solver.\n\n" % qmasm.solver_name)
-answer, final_answer, num_occurrences = qmasm.submit_dwave_problem(cl_args.verbose,
-                                                                   physical,
-                                                                   cl_args.samples,
-                                                                   cl_args.anneal_time,
-                                                                   cl_args.spin_revs,
-                                                                   cl_args.postproc)
+dwave_response = qmasm.submit_dwave_problem(cl_args.verbose,
+                                            physical,
+                                            cl_args.samples,
+                                            cl_args.anneal_time,
+                                            cl_args.spin_revs,
+                                            cl_args.postproc,
+                                            cl_args.discard)
+answer, final_answer, num_occurrences, num_not_broken = dwave_response
 
 # Output solver timing information.
 if cl_args.verbose >= 1:
@@ -326,7 +328,7 @@ for snum in range(n_solns_to_output):
 if cl_args.verbose >= 1:
     sys.stderr.write("Number of solutions found:\n\n")
     sys.stderr.write("    %6d total\n" % len(energies))
-    sys.stderr.write("    %6d with no broken chains or broken pins\n" % len(final_answer))
+    sys.stderr.write("    %6d with no broken chains or broken pins\n" % num_not_broken)
     sys.stderr.write("    %6d at minimal energy\n" % n_low_energies)
     sys.stderr.write("    %6d excluding duplicate variable assignments\n" % len(id2solution))
     sys.stderr.write("\n")
