@@ -355,7 +355,9 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
 
     # Tally the occurrences of each solution
     solutions = answer["solutions"]
-    semifinal_answer = unembed_answer(solutions, physical.embedding, broken_chains="vote")
+    semifinal_answer = unembed_answer(solutions, physical.embedding,
+                                      broken_chains="minimize_energy",
+                                      h=physical.weights, j=physical.strengths)
     try:
         num_occurrences = {tuple(k): v
                            for k, v in zip(semifinal_answer, answer["num_occurrences"])}
@@ -366,7 +368,9 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
     valid_solns = [s for s in solutions if solution_is_intact(physical, s)]
     num_not_broken = len(valid_solns)
     if discard in ["yes", "maybe"]:
-        final_answer = unembed_answer(valid_solns, physical.embedding, broken_chains="discard")
+        final_answer = unembed_answer(valid_solns, physical.embedding,
+                                      broken_chains="discard",
+                                      h=physical.weights, j=physical.strengths)
     if discard == "no" or (discard == "maybe" and len(final_answer) == 0):
-        final_answer = unembed_answer(solutions, physical.embedding, broken_chains="minimize_energy")
+        final_answer = semifinal_answer
     return answer, final_answer, num_occurrences, num_not_broken
