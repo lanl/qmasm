@@ -97,11 +97,19 @@ class EmbeddingCache(object):
 def report_embeddability(edges, adj):
     """Output some metrics on how likely a set of edges can be embedded in
     a given adjacency graph."""
-    embed, extras, (nvars, nqubits), (nstrs, ncouplers) = qmasm.maybe_embeddable(edges, adj)
+    # Output a histogram of node degrees.
+    embed, extras, (nvars, nqubits), (nstrs, ncouplers), deg_hist = qmasm.maybe_embeddable(edges, adj)
     sys.stderr.write("Embeddability metrics:\n\n")
-    sys.stderr.write("    Qubit usage:             (%5d + %5d) / %5d = %8.2f%%\n" % \
+    sys.stderr.write("    Degree  Tally\n")
+    sys.stderr.write("    ------  -----\n")
+    for d_h in deg_hist:
+        sys.stderr.write("    %6d  %5d\n" % d_h)
+    sys.stderr.write("\n")
+
+    # Report whether embedding is impossible.
+    sys.stderr.write("    Minimum qubit usage:     (%5d + %5d) / %5d = %8.2f%%\n" % \
                      (nvars, extras, nqubits, (nvars + extras)*100.0/nqubits))
-    sys.stderr.write("    Coupler usage:           (%5d + %5d) / %5d = %8.2f%%\n" % \
+    sys.stderr.write("    Minimum coupler usage:   (%5d + %5d) / %5d = %8.2f%%\n" % \
                      (nstrs, extras, ncouplers, (nstrs + extras)*100.0/ncouplers))
     if embed:
         sys.stderr.write("    Embedding is impossible: NO\n")

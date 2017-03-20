@@ -110,7 +110,7 @@ def maybe_embeddable(edges, adj):
     for peers in graph_needed.values():
         deg = len(peers)
         if deg > max_degree_avail:
-            extras += math.ceil(deg/max_degree_avail) - 1
+            extras += math.ceil(float(deg)/float(max_degree_avail)) - 1
 
     # If we need more nodes/edges that are available, the graph can't
     # be embedded.
@@ -120,5 +120,14 @@ def maybe_embeddable(edges, adj):
     if num_edges_needed + extras > num_edges_avail:
         embed = False
 
+    # Compute a histogram of node degrees.
+    hist = {}
+    for peers in graph_needed.values():
+        deg = len(peers)
+        try:
+            hist[deg] += 1
+        except KeyError:
+            hist[deg] = 1
+
     # Return a set of useful information.
-    return embed, extras, (num_nodes_needed, num_nodes_avail), (num_edges_needed, num_edges_avail)
+    return embed, extras, (num_nodes_needed, num_nodes_avail), (num_edges_needed, num_edges_avail), sorted(hist.items())
