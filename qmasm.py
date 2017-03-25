@@ -314,7 +314,7 @@ class ValidSolution:
 # Determine the set of solutions to output.
 energies = answer["energies"]
 n_low_energies = len([e for e in energies if abs(e - energies[0]) < min_energy_delta])
-if cl_args.verbose >= 2 or cl_args.all_solns:
+if cl_args.all_solns:
     n_solns_to_output = len(final_answer)
 else:
     n_solns_to_output = min(n_low_energies, len(final_answer))
