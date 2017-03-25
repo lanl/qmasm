@@ -281,3 +281,33 @@ def write_output(problem, oname, oformat, as_qubo):
     # Close the output file.
     if oname != "<stdout>":
         outfile.close()
+
+def output_solution(id2solution, num_occurrences, max_sym_name_len):
+    "Output a user-readable solution to the standard output device."
+    bool_str = {-1: "False", +1: "True", 0: "[unused]"}
+    sorted_solns = [id2solution[s] for s in sorted(id2solution.keys())]
+    for snum in range(len(sorted_solns)):
+        soln = sorted_solns[snum]
+        try:
+            num_seen = "%d" % num_occurrences[tuple(soln.solution)]
+        except KeyError:
+            num_seen = "?"
+        print "Solution #%d (energy = %.2f, tally = %s):\n" % (snum + 1, soln.energy, num_seen)
+        print "    %-*s  Spin  Boolean" % (max_sym_name_len, "Name(s)")
+        print "    %s  ----  --------" % ("-" * max_sym_name_len)
+        output_lines = []
+        for q in range(len(soln.spins)):
+            names = soln.names[q]
+            spin = soln.spins[q]
+            if spin == 3:
+                # A spin of +3 is too weird to represent an unused qubit.
+                spin = 0
+                spin_str = "   0"
+            else:
+                spin_str = "%+4d" % spin
+            output_lines.append("    %-*s  %s  %-7s" % (max_sym_name_len, names, spin_str, bool_str[spin]))
+        output_lines.sort()
+        print "\n".join(output_lines), "\n"
+    if len(sorted_solns) == 0:
+        print "No valid solutions found,"
+        sys.exit(0)
