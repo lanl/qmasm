@@ -282,10 +282,97 @@ def write_output(problem, oname, oformat, as_qubo):
     if oname != "<stdout>":
         outfile.close()
 
-def output_solution(id2solution, num_occurrences, max_sym_name_len):
-    "Output a user-readable solution to the standard output device."
+def _numeric_solution(soln):
+    "Convert single- and multi-bit values to numbers."
+    # Map each name to a number and to the number of bits required.
+    idx_re = re.compile(r'^([^\[\]]+)\[(\d+)\]$')
+    name2num = {}
+    name2nbits = {}
+    for q in range(len(soln.spins)):
+        names = soln.names[q]
+        spin = soln.spins[q]
+        if spin == 3:
+            continue
+        for nm in names.split():
+            # Parse the name into a prefix and array index.
+            match = idx_re.search(nm)
+            if match == None:
+                # No array index: Treat as a 1-bit number.
+                name2num[nm] = (spin + 1)/2
+                name2nbits[nm] = 1
+                continue
+
+            # Integrate the current spin into the overall number.
+            array, idx = match.groups()
+            b = ((spin + 1)/2) << int(idx)
+            try:
+                name2num[array] += b
+                name2nbits[array] = max(name2nbits[array], int(idx) + 1)
+            except KeyError:
+                name2num[array] = b
+                name2nbits[array] = int(idx) + 1
+
+    # Merge the two maps.
+    return {nm: (name2num[nm], name2nbits[nm]) for nm in name2num.keys()}
+
+def _output_solution_int(soln):
+    "Helper function for output_solution that outputs integers."
+    # Convert each value to a decimal and a binary string.  Along the way, find
+    # the width of the longest name and the largest number.
+    name2info = _numeric_solution(soln)
+    max_sym_name_len = max([len(s) for s in name2info.keys() + ["Name"]])
+    max_decimal_len = 7
+    max_binary_len = 6
+    name2strs = {}
+    for name, info in name2info.items():
+        bstr = ("{0:0" + str(info[1]) + "b}").format(info[0])
+        dstr = str(info[0])
+        max_binary_len = max(max_binary_len, len(bstr))
+        max_decimal_len = max(max_decimal_len, len(dstr))
+        name2strs[name] = (bstr, dstr)
+
+    # Output one name per line.
+    print "    %-*s  %-*s  Decimal" % (max_sym_name_len, "Name", max_binary_len, "Binary")
+    print "    %s  %s  %s" % ("-" * max_sym_name_len, "-" * max_binary_len, "-" * max_decimal_len)
+    for name, (bstr, dstr) in sorted(name2strs.items()):
+        print "    %-*s  %*s  %*s" % (max_sym_name_len, name, max_binary_len, bstr, max_decimal_len, dstr)
+
+def _output_solution_bool(soln):
+    "Helper function for output_solution that outputs Booleans."
+    # Split names that refer to the same qubit.  Along the way, determine
+    # the width of the longest name.
+    max_sym_name_len = 4   # "Name"
+    name_spin = []
+    for q in range(len(soln.spins)):
+        names = soln.names[q]
+        spin = soln.spins[q]
+        for nm in names.split():
+            name_spin.append((nm, spin))
+            if len(nm) > max_sym_name_len:
+                max_sym_name_len = len(nm)
+
+    # Output one name per line.
+    print "    %-*s  Spin  Boolean" % (max_sym_name_len, "Name")
+    print "    %s  ----  --------" % ("-" * max_sym_name_len)
     bool_str = {-1: "False", +1: "True", 0: "[unused]"}
+    output_lines = []
+    for name, spin in name_spin:
+        if spin == 3:
+            # A spin of +3 is too weird to represent an unused qubit.
+            spin = 0
+            spin_str = "   0"
+        else:
+            spin_str = "%+4d" % spin
+        output_lines.append("    %-*s  %s  %-7s" % (max_sym_name_len, name, spin_str, bool_str[spin]))
+    output_lines.sort()
+    print "\n".join(output_lines), "\n"
+
+def output_solution(id2solution, num_occurrences, style):
+    "Output a user-readable solution to the standard output device."
     sorted_solns = [id2solution[s] for s in sorted(id2solution.keys())]
+    if len(sorted_solns) == 0:
+        print "No valid solutions found,"
+        sys.exit(0)
     for snum in range(len(sorted_solns)):
         soln = sorted_solns[snum]
         try:
@@ -293,21 +380,9 @@ def output_solution(id2solution, num_occurrences, max_sym_name_len):
         except KeyError:
             num_seen = "?"
         print "Solution #%d (energy = %.2f, tally = %s):\n" % (snum + 1, soln.energy, num_seen)
-        print "    %-*s  Spin  Boolean" % (max_sym_name_len, "Name(s)")
-        print "    %s  ----  --------" % ("-" * max_sym_name_len)
-        output_lines = []
-        for q in range(len(soln.spins)):
-            names = soln.names[q]
-            spin = soln.spins[q]
-            if spin == 3:
-                # A spin of +3 is too weird to represent an unused qubit.
-                spin = 0
-                spin_str = "   0"
-            else:
-                spin_str = "%+4d" % spin
-            output_lines.append("    %-*s  %s  %-7s" % (max_sym_name_len, names, spin_str, bool_str[spin]))
-        output_lines.sort()
-        print "\n".join(output_lines), "\n"
-    if len(sorted_solns) == 0:
-        print "No valid solutions found,"
-        sys.exit(0)
+        if style == "bools":
+            _output_solution_bool(soln)
+        elif style == "ints":
+            _output_solution_int(soln)
+        else:
+            raise Exception('Output style "%s" not recognized' % style)

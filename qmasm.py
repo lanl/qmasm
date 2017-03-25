@@ -359,4 +359,4 @@ if cl_args.verbose >= 2:
     sys.stderr.write("\n")
 
 # Output the solution to the standard output device.
-qmasm.output_solution(id2solution, num_occurrences, max_sym_name_len)
+qmasm.output_solution(id2solution, num_occurrences, cl_args.values)
