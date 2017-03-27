@@ -106,6 +106,16 @@ def report_embeddability(edges, adj):
         sys.stderr.write("    %6d  %5d\n" % d_h)
     sys.stderr.write("\n")
 
+    # Output the largest possible clique.
+    max_d_h = None
+    for d, h in deg_hist:
+        if h > d:
+            max_d_h = (d, h)
+    if max_d_h == None:
+        sys.stderr.write("    Largest possible clique: none\n\n")
+    else:
+        sys.stderr.write("    Largest possible clique: K_%d\n\n" % max_d_h[0])
+
     # Report whether embedding is impossible.
     sys.stderr.write("    Minimum qubit usage:     (%5d + %5d) / %5d = %8.2f%%\n" % \
                      (nvars, extras, nqubits, (nvars + extras)*100.0/nqubits))
