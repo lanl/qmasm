@@ -369,7 +369,8 @@ def _output_solution_bool(soln):
 
 def output_solution(id2solution, num_occurrences, style):
     "Output a user-readable solution to the standard output device."
-    sorted_solns = [id2solution[s] for s in sorted(id2solution.keys())]
+    soln_key = lambda s: (id2solution[s].energy, s)
+    sorted_solns = [id2solution[s] for s in sorted(id2solution.keys(), key=soln_key)]
     if len(sorted_solns) == 0:
         print "No valid solutions found,"
         sys.exit(0)
