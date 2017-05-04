@@ -8,6 +8,7 @@
 import qmasm
 import os
 import os.path
+import shlex
 import string
 import sys
 
@@ -170,7 +171,7 @@ if cl_args.verbose >= 1:
 # pre-embedded version of the problem then exit.
 if cl_args.format == "qbsolv":
     if cl_args.run:
-        qmasm.run_qbsolv(logical_ising, cl_args.output, [])
+        qmasm.run_qbsolv(logical_ising, cl_args.output, shlex.split(cl_args.extra_args))
     else:
         qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
     sys.exit(0)
@@ -179,7 +180,7 @@ if cl_args.format == "qbsolv":
 # pre-embedded version of the problem then exit.
 if cl_args.format == "minizinc":
     if cl_args.run:
-        qmasm.run_minizinc(logical_ising, cl_args.output, [])
+        qmasm.run_minizinc(logical_ising, cl_args.output, shlex.split(cl_args.extra_args))
     else:
         qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
     sys.exit(0)

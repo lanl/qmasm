@@ -42,6 +42,8 @@ def parse_command_line():
                            help="specify the annealing time in microseconds (default: 20)")
     cl_parser.add_argument("--spin-revs", metavar="POS_INT", type=int, default=0,
                            help="specify the number of spin-reversal transforms to perform (default: 0)")
+    cl_parser.add_argument("--extra-args", default="",
+                           help="specify extra arguments to pass to a solver command (default: none)")
     cl_parser.add_argument("--postproc", choices=["", "sample", "opt"],
                            default="",
                            help="specify the type of postprocessing to perform (default: none)")
