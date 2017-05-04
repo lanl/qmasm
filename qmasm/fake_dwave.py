@@ -81,4 +81,4 @@ def qubo_to_ising(qs):
     return hs, js, None
 
 def get_hardware_adjacency(solver):
-    qmasm.abend("Without D-Wave's libraries, QMASM can do little more than output qbsolv and flattened QMASM files")
+    qmasm.abend("Without D-Wave's libraries, QMASM can do little more than output qbsolv, MiniZinc, and flattened QMASM files")
