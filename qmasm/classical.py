@@ -51,16 +51,16 @@ def run_minizinc(logical_ising, oname, extra_args, verbosity):
     tfile.close()
     qmasm.write_output(logical_ising, mzn_fname, "minizinc", False)
 
-    # Run mzn-chuffed on the .mzn file.
-    args = ["mzn-chuffed"] + extra_args + [mzn_fname]
+    # Run MiniZinc on the .mzn file.
+    args = ["minizinc", "-b", "mip"] + extra_args + [mzn_fname]
     if verbosity >= 1:
-        sys.stderr.write("Submitting the problem to MiniZinc (specifically, mzn-chuffed).\n\n")
+        sys.stderr.write("Submitting the problem to MiniZinc.\n\n")
         if verbosity >= 2:
             sys.stderr.write("    Command line: %s\n" % str(" ".join(args)))
     try:
         mzn_output = subprocess.check_output(args, stderr=sys.stderr, universal_newlines=True)
     except Exception as e:
-        qmasm.abend("Failed to run mzn-chuffed (%s)" % str(e))
+        qmasm.abend("Failed to run MiniZinc (%s)" % str(e))
 
     # Extract the energy value.
     match = re.search(r'\benergy = (-?\d+),', mzn_output)
@@ -74,8 +74,8 @@ def run_minizinc(logical_ising, oname, extra_args, verbosity):
     qmasm.output_minizinc(tfile, logical_ising, energy)
     tfile.close()
 
-    # Run mzn-chuffed on the .mzn file.
-    args = ["mzn-chuffed"]
+    # Run MiniZinc on the modified .mzn file.
+    args = ["minizinc", "--flatzinc-cmd=fzn-chuffed"]
     args += ["--all-solutions", "--solution-separator= ", "--search-complete-msg="]
     args += extra_args + [mzn_fname]
     if verbosity >= 2:
@@ -83,7 +83,7 @@ def run_minizinc(logical_ising, oname, extra_args, verbosity):
     try:
         mzn_output = subprocess.check_output(args, stderr=sys.stderr, universal_newlines=True)
     except Exception as e:
-        qmasm.abend("Failed to run mzn-chuffed (%s)" % str(e))
+        qmasm.abend("Failed to run MiniZinc (%s)" % str(e))
     if verbosity >= 2:
         sys.stderr.write("\n")
 
