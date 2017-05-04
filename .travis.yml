@@ -1,0 +1,27 @@
+sudo: false
+
+language: python
+
+python:
+  - 2.7
+
+install:
+  - python setup.py install
+
+# For each output format, for each verbosity level, run qmasm on each
+# top-level QMASM file in the examples directory.
+script:
+  - (set -x &&
+     cd examples &&
+     for solver in qbsolv minizinc qmasm ; do
+         for verbosity in "" "-v" "-v -v" ; do
+             read -r -a vs <<< "$verbosity" ;
+             for opt in "" "-O" ; do
+                 for no_args in 1of5 and4 maze6x6 ; do
+                     qmasm -f $solver "${vs[@]}" $opt $no_args.qmasm > /dev/null 2>&1 ;
+                 done ;
+                 qmasm -f $solver "${vs[@]}" $opt --pin="x10 := true" circsat.qmasm > /dev/null 2>&1 ;
+                 qmasm -f $solver "${vs[@]}" $opt --pin="in[1:4] := 0110" sort4.qmasm > /dev/null 2>&1 ;
+             done ;
+         done ;
+     done)
