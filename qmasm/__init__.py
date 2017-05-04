@@ -1,3 +1,4 @@
+from classical import *
 from cmdline import *
 from dwave import *
 from globals import *

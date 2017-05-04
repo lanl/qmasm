@@ -166,11 +166,19 @@ if cl_args.verbose >= 1:
             sys.stderr.write("    %-*s  %s\n" % (max_key_len, k, val_str))
     sys.stderr.write("\n")
 
-# As a special case, if the user requested either qbsolv or MiniZinc
-# output we output the pre-embedded version of the problem then exit.
-# (We already aborted with an error message if the user specified both
-# --run and --format={qbsolv, minizinc}.)
-if cl_args.format in ["qbsolv", "minizinc"]:
+# As a special case, if the user specified --format=qbsolv we work with the
+# pre-embedded version of the problem then exit.
+if cl_args.format == "qbsolv":
+    if cl_args.run:
+        qmasm.run_qbsolv(logical_ising, cl_args.output, [])
+    else:
+        qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
+    sys.exit(0)
+
+# As a special case, if the user requested either MiniZinc output we output the
+# pre-embedded version of the problem then exit.  (We already aborted with an
+# error message if the user specified both --run and --format=minizinc.)
+if cl_args.format in ["minizinc"]:
     qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
     sys.exit(0)
 
