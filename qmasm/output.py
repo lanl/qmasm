@@ -168,12 +168,31 @@ def output_minizinc(outfile, problem, energy=None):
     else:
         qprob = problem.convert_to_qubo()
 
+    # Map each logical qubit to one or more symbols.
+    num2syms = [[] for _ in range(len(qmasm.sym2num))]
+    max_sym_name_len = 7
+    for s, n in qmasm.sym2num.items():
+        num2syms[n].append(s)
+        max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
+    def compare_syms(a, b):
+        "Compare with internal variables appearing after external variables."
+        if "$" in a and "$" in b:
+            return cmp(a, b)   # Both contain "$"
+        elif "$" in a:
+            return +1          # Only a contains "$"
+        elif "$" in b:
+            return -1          # Only b contains "$"
+        else:
+            return cmp(a, b)   # Neither contains "$"
+    for n in range(len(num2syms)):
+        num2syms[n].sort(cmp=compare_syms)
+
     # Output all QMASM variables as MiniZinc variables.
     all_weights = set(qprob.weights.keys())
     all_weights.update([qs[0] for qs in qprob.strengths.keys()])
     all_weights.update([qs[1] for qs in qprob.strengths.keys()])
     for q in sorted(all_weights):
-        outfile.write("var 0..1: q%d;\n" % q)
+        outfile.write("var 0..1: q%d;  %% %s\n" % (q, " ".join(num2syms[q])))
     outfile.write("\n")
 
     # Define variables representing products of QMASM variables.  Constrain the
@@ -230,25 +249,6 @@ solve satisfy;
 
 """ % energy)
 
-    # Map each logical qubit to one or more symbols.
-    num2syms = [[] for _ in range(len(qmasm.sym2num))]
-    max_sym_name_len = 7
-    for s, n in qmasm.sym2num.items():
-        num2syms[n].append(s)
-        max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
-    def compare_syms(a, b):
-        "Compare with internal variables appearing after external variables."
-        if "$" in a and "$" in b:
-            return cmp(a, b)   # Both contain "$"
-        elif "$" in a:
-            return +1          # Only a contains "$"
-        elif "$" in b:
-            return -1          # Only b contains "$"
-        else:
-            return cmp(a, b)   # Neither contains "$"
-    for n in range(len(num2syms)):
-        num2syms[n].sort(cmp=compare_syms)
-
     # Output code to show the results symbolically.  We output in the same
     # format as QMASM normally does.  Unfortunately, I don't know how to get
     # MiniZinc to output the current solution number explicitly so I had to
@@ -265,6 +265,8 @@ solve satisfy;
             continue
         except AttributeError:
             phys = n
+        if num2syms[n] == []:
+            continue
         syms = " ".join(num2syms[n])
         line = ""
         line += '"    %-*s  ", ' % (max_sym_name_len, syms)

@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 
-def run_qbsolv(logical_ising, oname, extra_args):
+def run_qbsolv(logical_ising, oname, extra_args, verbosity):
     "Run qmasm-qbsolv on the problem and report the result."
     # Use the specified file name if provided.  Otherwise, write to a temporary
     # file."
@@ -26,6 +26,10 @@ def run_qbsolv(logical_ising, oname, extra_args):
 
     # Run qmasm-qbsolv on the .qubo file.
     args = ["qmasm-qbsolv", "-i", qubo_fname] + extra_args
+    if verbosity >= 1:
+        sys.stderr.write("Submitting the problem to qbsolv via qmasm-qbsolv.\n\n")
+        if verbosity >= 2:
+            sys.stderr.write("    Command line: %s\n\n" % str(" ".join(args)))
     try:
         subprocess.call(args, stdout=sys.stdout, stderr=sys.stderr)
     except OSError as e:
@@ -35,7 +39,7 @@ def run_qbsolv(logical_ising, oname, extra_args):
     if oname == "<stdout>":
         os.remove(qubo_fname)
 
-def run_minizinc(logical_ising, oname, extra_args):
+def run_minizinc(logical_ising, oname, extra_args, verbosity):
     "Run mzn-chuffed on the problem and report the result."
     # If the user specified a file, create that first.
     if oname != "<stdout>":
@@ -49,15 +53,19 @@ def run_minizinc(logical_ising, oname, extra_args):
 
     # Run mzn-chuffed on the .mzn file.
     args = ["mzn-chuffed"] + extra_args + [mzn_fname]
+    if verbosity >= 1:
+        sys.stderr.write("Submitting the problem to MiniZinc (specifically, mzn-chuffed).\n\n")
+        if verbosity >= 2:
+            sys.stderr.write("    Command line: %s\n" % str(" ".join(args)))
     try:
         mzn_output = subprocess.check_output(args, stderr=sys.stderr, universal_newlines=True)
-    except OSError as e:
-        qmasm.abend("Failed to run mzn-chuffed (%s)" % str(e.args[1]))
+    except Exception as e:
+        qmasm.abend("Failed to run mzn-chuffed (%s)" % str(e))
 
     # Extract the energy value.
-    match = re.search(r'\benergy = (\d+),', mzn_output)
+    match = re.search(r'\benergy = (-?\d+),', mzn_output)
     if match == None:
-        abend("Failed to find an energy level in MiniZinc output")
+        qmasm.abend("Failed to find an energy level in MiniZinc output")
     energy = int(match.group(1))
 
     # Regenerate the MiniZinc input as a satisfaction problem instead of a
@@ -70,10 +78,14 @@ def run_minizinc(logical_ising, oname, extra_args):
     args = ["mzn-chuffed"]
     args += ["--all-solutions", "--solution-separator= ", "--search-complete-msg="]
     args += extra_args + [mzn_fname]
+    if verbosity >= 2:
+        sys.stderr.write("    Command line: %s\n" % str(" ".join(args)))
     try:
         mzn_output = subprocess.check_output(args, stderr=sys.stderr, universal_newlines=True)
-    except OSError as e:
-        qmasm.abend("Failed to run mzn-chuffed (%s)" % str(e.args[1]))
+    except Exception as e:
+        qmasm.abend("Failed to run mzn-chuffed (%s)" % str(e))
+    if verbosity >= 2:
+        sys.stderr.write("\n")
 
     # Renumber the solutions.  Our MiniZinc code outputs them all as "Solution
     # #1" because I don't know how to get MiniZinc to number outputs itself.
