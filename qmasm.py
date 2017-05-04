@@ -106,14 +106,14 @@ if cl_args.verbose >= 2:
 
     # Strengths (those that are not chains)
     for qs in sorted(logical_ising.strengths.keys()):
-        if not logical_ising.chains.has_key(qs):
+        if qs not in logical_ising.chains:
             sys.stderr.write("    q%d q%d %.20g\n" % (qs[0] + 1, qs[1] + 1, logical_ising.strengths[qs]))
     sys.stderr.write("\n")
 
     # Map each canonicalized name to one or more original symbols.
     canon2syms = [[] for _ in range(len(qmasm.sym2num))]
     max_sym_name_len = 8
-    for s, n in qmasm.sym2num.items():
+    for s, n in list(qmasm.sym2num.items()):
         canon2syms[n].append(s)
         max_sym_name_len = max(max_sym_name_len, len(repr(canon2syms[n])) - 1)
 
@@ -124,7 +124,7 @@ if cl_args.verbose >= 2:
     for i in range(len(canon2syms)):
         if canon2syms[i] == []:
             continue
-        name_list = string.join(sorted(canon2syms[i]))
+        name_list = " ".join(sorted(canon2syms[i]))
         sys.stderr.write("    q%-8d  %s\n" % (i + 1, name_list))
     sys.stderr.write("\n")
 
@@ -150,7 +150,7 @@ if cl_args.verbose >= 1:
 
     # Determine the width of the widest key.
     max_key_len = len("Parameter")
-    solver_props = ext_solver_properties.keys()
+    solver_props = list(ext_solver_properties.keys())
     solver_props.sort()
     for k in solver_props:
         max_key_len = max(max_key_len, len(k))
@@ -215,7 +215,7 @@ if cl_args.verbose >= 2:
 # Map each logical qubit to one or more symbols.
 num2syms = [[] for _ in range(len(qmasm.sym2num))]
 max_sym_name_len = 7
-for s, n in qmasm.sym2num.items():
+for s, n in list(qmasm.sym2num.items()):
     if cl_args.verbose >= 2 or "$" not in s:
         num2syms[n].append(s)
     max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
@@ -228,8 +228,8 @@ if cl_args.verbose >= 1:
     for i in range(len(physical.embedding)):
         if num2syms[i] == []:
             continue
-        name_list = string.join(sorted(num2syms[i]))
-        phys_list = string.join(["%4d" % e for e in sorted(physical.embedding[i])])
+        name_list = " ".join(sorted(num2syms[i]))
+        phys_list = " ".join(["%4d" % e for e in sorted(physical.embedding[i])])
         sys.stderr.write("    %7d  %-*s  %s\n" % (i, max_sym_name_len, name_list, phys_list))
     sys.stderr.write("\n")
 else:
@@ -238,8 +238,8 @@ else:
     for i in range(len(physical.embedding)):
         if num2syms[i] == []:
             continue
-        name_list = string.join(num2syms[i])
-        phys_list = string.join(["%d" % e for e in sorted(physical.embedding[i])])
+        name_list = " ".join(num2syms[i])
+        phys_list = " ".join(["%d" % e for e in sorted(physical.embedding[i])])
         log2phys_comments.append("# %s --> %s" % (name_list, phys_list))
     log2phys_comments.sort()
     sys.stderr.write("\n".join(log2phys_comments) + "\n")
@@ -295,7 +295,7 @@ answer, final_answer, num_occurrences, num_not_broken = dwave_response
 # Output solver timing information.
 if cl_args.verbose >= 1:
     try:
-        timing_info = answer["timing"].items()
+        timing_info = list(answer["timing"].items())
         sys.stderr.write("Timing information:\n\n")
         sys.stderr.write("    %-30s %-10s\n" % ("Measurement", "Value (us)"))
         sys.stderr.write("    %s %s\n" % ("-" * 30, "-" * 10))
@@ -319,7 +319,7 @@ class ValidSolution:
         for q in range(len(soln)):
             if num2syms[q] == []:
                 continue
-            self.names.append(string.join(num2syms[q]))
+            self.names.append(" ".join(num2syms[q]))
             self.spins.append(soln[q])
             self.id = self.id*2 + soln[q]
 
@@ -333,7 +333,7 @@ else:
 id2solution = {}   # Map from an int to a solution
 for snum in range(n_solns_to_output):
     soln = ValidSolution(final_answer[snum], energies[snum])
-    if not id2solution.has_key(soln.id):
+    if soln.id not in id2solution:
         id2solution[soln.id] = soln
 
 # Output information about the raw solutions.
@@ -360,9 +360,9 @@ if cl_args.verbose >= 2:
             new_energy_tallies[e] += t
         except KeyError:
             new_energy_tallies[e] = t
-    new_energies = new_energy_tallies.keys()
+    new_energies = list(new_energy_tallies.keys())
     new_energies.sort()
-    min_energy_possible = -sum([abs(w) for w in physical.weights] + [abs(s) for s in physical.strengths.values()])
+    min_energy_possible = -sum([abs(w) for w in physical.weights] + [abs(s) for s in list(physical.strengths.values())])
     sys.stderr.write("Energy histogram (theoretical minimum = %.4f):\n\n" % min_energy_possible)
     sys.stderr.write("    Energy      Tally\n")
     sys.stderr.write("    ----------  ------\n")

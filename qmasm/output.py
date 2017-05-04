@@ -9,7 +9,7 @@ import sys
 try:
     from dwave_sapi2.util import ising_to_qubo, linear_index_to_chimera
 except ImportError:
-    from fake_dwave import *
+    from .fake_dwave import *
 
 def open_output_file(oname):
     "Open a file or standard output."
@@ -90,7 +90,7 @@ def output_dw(outfile, problem):
             wdata.append("Q%0d <== %.25g" % (q, output_weights[q]))
     wdata.sort()
     sdata = []
-    for sp, str in output_strengths.items():
+    for sp, str in list(output_strengths.items()):
         if str != 0.0:
             coupler = coupler_number(M, N, L, sp[0], sp[1])
             sdata.append("C%04d <== %.25g" % (coupler, str))
@@ -102,7 +102,7 @@ def output_qbsolv(outfile, problem):
     key_width = 0
     val_width = 0
     items = []
-    for s, n in qmasm.sym2num.items():
+    for s, n in list(qmasm.sym2num.items()):
         if "$" in s:
             continue
         if len(s) > key_width:
@@ -121,10 +121,10 @@ def output_qbsolv(outfile, problem):
         output_weights = problem.weights
         output_strengths = problem.strengths
     num_output_weights = len(output_weights)
-    for q1, q2 in output_strengths.keys():
+    for q1, q2 in list(output_strengths.keys()):
         # A large-numbered qubit might have zero weight but nonzero strength.
         num_output_weights = max(num_output_weights, q1 + 1, q2 + 1)
-    nonzero_strengths = [s for s in output_strengths.values() if s != 0.0]
+    nonzero_strengths = [s for s in list(output_strengths.values()) if s != 0.0]
     outfile.write("p qubo 0 %d %d %d\n" % (num_output_weights, num_output_weights, len(nonzero_strengths)))
     for q in range(num_output_weights):
         outfile.write("%d %d %.10g\n" % (q, q, output_weights[q]))
@@ -171,26 +171,16 @@ def output_minizinc(outfile, problem, energy=None):
     # Map each logical qubit to one or more symbols.
     num2syms = [[] for _ in range(len(qmasm.sym2num))]
     max_sym_name_len = 7
-    for s, n in qmasm.sym2num.items():
+    for s, n in list(qmasm.sym2num.items()):
         num2syms[n].append(s)
         max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
-    def compare_syms(a, b):
-        "Compare with internal variables appearing after external variables."
-        if "$" in a and "$" in b:
-            return cmp(a, b)   # Both contain "$"
-        elif "$" in a:
-            return +1          # Only a contains "$"
-        elif "$" in b:
-            return -1          # Only b contains "$"
-        else:
-            return cmp(a, b)   # Neither contains "$"
     for n in range(len(num2syms)):
-        num2syms[n].sort(cmp=compare_syms)
+        num2syms[n].sort(key=lambda s: ("$" in s, s))
 
     # Output all QMASM variables as MiniZinc variables.
     all_weights = set(qprob.weights.keys())
-    all_weights.update([qs[0] for qs in qprob.strengths.keys()])
-    all_weights.update([qs[1] for qs in qprob.strengths.keys()])
+    all_weights.update([qs[0] for qs in list(qprob.strengths.keys())])
+    all_weights.update([qs[1] for qs in list(qprob.strengths.keys())])
     for q in sorted(all_weights):
         outfile.write("var 0..1: q%d;  %% %s\n" % (q, " ".join(num2syms[q])))
     outfile.write("\n")
@@ -333,18 +323,18 @@ def _numeric_solution(soln):
                 name2nbits[array] = int(idx) + 1
 
     # Merge the two maps.
-    return {nm: (name2num[nm], name2nbits[nm]) for nm in name2num.keys()}
+    return {nm: (name2num[nm], name2nbits[nm]) for nm in list(name2num.keys())}
 
 def _output_solution_int(soln):
     "Helper function for output_solution that outputs integers."
     # Convert each value to a decimal and a binary string.  Along the way, find
     # the width of the longest name and the largest number.
     name2info = _numeric_solution(soln)
-    max_sym_name_len = max([len(s) for s in name2info.keys() + ["Name"]])
+    max_sym_name_len = max([len(s) for s in list(name2info.keys()) + ["Name"]])
     max_decimal_len = 7
     max_binary_len = 6
     name2strs = {}
-    for name, info in name2info.items():
+    for name, info in list(name2info.items()):
         bstr = ("{0:0" + str(info[1]) + "b}").format(info[0])
         dstr = str(info[0])
         max_binary_len = max(max_binary_len, len(bstr))
@@ -352,10 +342,10 @@ def _output_solution_int(soln):
         name2strs[name] = (bstr, dstr)
 
     # Output one name per line.
-    print "    %-*s  %-*s  Decimal" % (max_sym_name_len, "Name", max_binary_len, "Binary")
-    print "    %s  %s  %s" % ("-" * max_sym_name_len, "-" * max_binary_len, "-" * max_decimal_len)
+    print("    %-*s  %-*s  Decimal" % (max_sym_name_len, "Name", max_binary_len, "Binary"))
+    print("    %s  %s  %s" % ("-" * max_sym_name_len, "-" * max_binary_len, "-" * max_decimal_len))
     for name, (bstr, dstr) in sorted(name2strs.items()):
-        print "    %-*s  %*s  %*s" % (max_sym_name_len, name, max_binary_len, bstr, max_decimal_len, dstr)
+        print("    %-*s  %*s  %*s" % (max_sym_name_len, name, max_binary_len, bstr, max_decimal_len, dstr))
 
 def _output_solution_bool(soln):
     "Helper function for output_solution that outputs Booleans."
@@ -372,8 +362,8 @@ def _output_solution_bool(soln):
                 max_sym_name_len = len(nm)
 
     # Output one name per line.
-    print "    %-*s  Spin  Boolean" % (max_sym_name_len, "Name")
-    print "    %s  ----  --------" % ("-" * max_sym_name_len)
+    print("    %-*s  Spin  Boolean" % (max_sym_name_len, "Name"))
+    print("    %s  ----  --------" % ("-" * max_sym_name_len))
     bool_str = {-1: "False", +1: "True", 0: "[unused]"}
     output_lines = []
     for name, spin in name_spin:
@@ -385,14 +375,14 @@ def _output_solution_bool(soln):
             spin_str = "%+4d" % spin
         output_lines.append("    %-*s  %s  %-7s" % (max_sym_name_len, name, spin_str, bool_str[spin]))
     output_lines.sort()
-    print "\n".join(output_lines), "\n"
+    print("\n".join(output_lines) + "\n")
 
 def output_solution(id2solution, num_occurrences, style):
     "Output a user-readable solution to the standard output device."
     soln_key = lambda s: (id2solution[s].energy, s)
-    sorted_solns = [id2solution[s] for s in sorted(id2solution.keys(), key=soln_key)]
+    sorted_solns = [id2solution[s] for s in sorted(list(id2solution.keys()), key=soln_key)]
     if len(sorted_solns) == 0:
-        print "No valid solutions found,"
+        print("No valid solutions found,")
         sys.exit(0)
     for snum in range(len(sorted_solns)):
         soln = sorted_solns[snum]
@@ -400,7 +390,7 @@ def output_solution(id2solution, num_occurrences, style):
             num_seen = "%d" % num_occurrences[tuple(soln.solution)]
         except KeyError:
             num_seen = "?"
-        print "Solution #%d (energy = %.2f, tally = %s):\n" % (snum + 1, soln.energy, num_seen)
+        print("Solution #%d (energy = %.2f, tally = %s):\n" % (snum + 1, soln.energy, num_seen))
         if style == "bools":
             _output_solution_bool(soln)
         elif style == "ints":

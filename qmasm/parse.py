@@ -196,12 +196,12 @@ class FileParser(object):
         # "!include" "<filename>" -- process a named auxiliary file.
         if len(fields) < 2:
             error_in_line(filename, lineno, "Expected a filename to follow !include")
-        incname = string.join(fields[1:], " ")
+        incname = " ".join(fields[1:])
         if len(incname) >= 2 and incname[0] == "<" and incname[-1] == ">":
             # Search QMASMPATH for the filename.
             incname = incname[1:-1]
             try:
-                qmasmpath = string.split(os.environ["QMASMPATH"], ":")
+                qmasmpath = os.environ["QMASMPATH"].split(":")
                 qmasmpath.append(".")
             except KeyError:
                 qmasmpath = ["."]
@@ -226,7 +226,7 @@ class FileParser(object):
         if len(fields) < 2:
             error_in_line(filename, lineno, "Expected a macro name to follow !begin_macro")
         name = fields[1]
-        if self.macros.has_key(name):
+        if name in self.macros:
             error_in_line(self, filename, lineno, "Macro %s is multiply defined" % name)
         if self.current_macro[0] != None:
             error_in_line(filename, lineno, "Nested macros are not supported")

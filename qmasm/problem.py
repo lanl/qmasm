@@ -7,7 +7,7 @@ from collections import defaultdict
 try:
     from dwave_sapi2.util import ising_to_qubo, qubo_to_ising
 except ImportError:
-    from fake_dwave import *
+    from .fake_dwave import *
 import copy
 import qmasm
 import random
@@ -18,8 +18,8 @@ def new_internal_sym():
     while True:
         sym = "$"
         for i in range(5):
-            sym += random.choice(string.lowercase)
-        if not qmasm.sym2num.has_key(sym):
+            sym += random.choice(string.ascii_lowercase)
+        if sym not in qmasm.sym2num:
             return sym
 
 class Problem(object):
@@ -40,11 +40,11 @@ class Problem(object):
         if chain_strength == None:
             # Chain strength defaults to twice the maximum strength in the data.
             try:
-                chain_strength = -2*max([abs(w) for w in self.strengths.values()])
+                chain_strength = -2*max([abs(w) for w in list(self.strengths.values())])
             except ValueError:
                 # No strengths -- use weights instead.
                 try:
-                    chain_strength = -2*max([abs(w) for w in self.weights.values()])
+                    chain_strength = -2*max([abs(w) for w in list(self.weights.values())])
                 except ValueError:
                     # No weights or strengths -- arbitrarily choose -1.
                     chain_strength = -1.0
@@ -52,7 +52,7 @@ class Problem(object):
             # With QUBO input we need to divide the chain strength by 4 for
             # consistency with the other coupler strengths.
             chain_strength /= 4.0
-        for c in self.chains.keys():
+        for c in list(self.chains.keys()):
             self.strengths[c] += chain_strength
         return chain_strength
 
@@ -88,7 +88,7 @@ class Problem(object):
         if not self.qubo:
             raise TypeError("Can convert only QUBO problems to Ising problems")
         new_obj = copy.deepcopy(self)
-        qmatrix = {(q, q): w for q, w in new_obj.weights.items()}
+        qmatrix = {(q, q): w for q, w in list(new_obj.weights.items())}
         qmatrix.update(new_obj.strengths)
         hvals, new_obj.strengths, _ = qubo_to_ising(qmatrix)
         new_obj.strengths = defaultdict(lambda: 0.0, new_obj.strengths)
@@ -105,11 +105,11 @@ class Problem(object):
         qmatrix, _ = ising_to_qubo(qmasm.dict_to_list(self.weights), self.strengths)
         new_obj.weights = defaultdict(lambda: 0.0,
                                       {q1: wt
-                                       for (q1, q2), wt in qmatrix.items()
+                                       for (q1, q2), wt in list(qmatrix.items())
                                        if q1 == q2})
         new_obj.strengths = defaultdict(lambda: 0.0,
                                         {(q1, q2): wt
-                                         for (q1, q2), wt in qmatrix.items()
+                                         for (q1, q2), wt in list(qmatrix.items())
                                          if q1 != q2})
         new_obj.qubo = True
         return new_obj
@@ -120,7 +120,7 @@ class Problem(object):
         # convertible if the qubits on either end have the same point weight
         # applied to them.
         num2allsyms = [[] for _ in range(len(qmasm.sym2num))]
-        for s, n in qmasm.sym2num.items():
+        for s, n in list(qmasm.sym2num.items()):
             num2allsyms[n].append(s)
         make_aliases = []
         for q1, q2 in self.chains:
@@ -134,7 +134,7 @@ class Problem(object):
             # Map q2's symbolic names to q1's.  Shift everything above q2
             # downwards.
             alias_sym2num = {}
-            for s, sq in qmasm.sym2num.items():
+            for s, sq in list(qmasm.sym2num.items()):
                 if sq == q2:
                     sq = q1
                 elif sq > q2:
@@ -144,7 +144,7 @@ class Problem(object):
 
             # Elide q2 from the list of weights.
             alias_weights = defaultdict(lambda: 0.0)
-            for wq, wt in self.weights.items():
+            for wq, wt in list(self.weights.items()):
                 if wq == q2:
                     continue
                 if wq > q2:
@@ -157,7 +157,7 @@ class Problem(object):
             # Replace q2 with q1 in all strengths.  Shift everything above q2
             # downwards.
             alias_strengths = defaultdict(lambda: 0.0)
-            for (sq1, sq2), wt in self.strengths.items():
+            for (sq1, sq2), wt in list(self.strengths.items()):
                 if sq1 == q2:
                     sq1 = q1
                 if sq1 > q2:
@@ -173,7 +173,7 @@ class Problem(object):
             # Replace q2 with q1 in all strengths.  Shift everything above q2
             # downwards.
             alias_chains = {}
-            for cq1, cq2 in self.chains.keys():
+            for cq1, cq2 in list(self.chains.keys()):
                 if cq1 == q2:
                     cq1 = q1
                 if cq1 > q2:
@@ -205,14 +205,14 @@ class Problem(object):
         other variable."""
         # Construct a set of valid qubit numbers.
         valid_nums = set()
-        for (a, b), str in self.strengths.items():
+        for (a, b), str in list(self.strengths.items()):
             if str != 0.0:
                 valid_nums.add(a)
                 valid_nums.add(b)
 
         # Complain about any variable whose number is not in the valid set.
         invalid_syms = set()
-        for sym, num in qmasm.sym2num.items():
+        for sym, num in list(qmasm.sym2num.items()):
             if num not in valid_nums:
                 invalid_syms.add(sym)
         return invalid_syms

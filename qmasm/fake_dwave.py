@@ -28,7 +28,7 @@ def ising_to_qubo(hs, js):
     qs = {}
 
     # Compute the new point weights along the diagonal.
-    for (i, j), s in js.items():
+    for (i, j), s in list(js.items()):
         qs[(i, i)] = 0.0
         qs[(j, j)] = 0.0
         qs[(i, j)] = 0.0
@@ -36,13 +36,13 @@ def ising_to_qubo(hs, js):
         qs[(i, i)] = hs[i]*2
 
     # Compute the new strengths off the diagonal.
-    for (i, j), s in js.items():
+    for (i, j), s in list(js.items()):
         qs[(i, i)] -= 2.0*s
         qs[(j, j)] -= 2.0*s
         qs[(i, j)] += 4.0*s
 
     # Discard zeroes.
-    qs = {k: v for k, v in qs.items() if v != 0.0}
+    qs = {k: v for k, v in list(qs.items()) if v != 0.0}
 
     # QMASM doesn't use an offset so ignore it.
     return qs, None
@@ -52,7 +52,7 @@ def qubo_to_ising(qs):
     # Initialize the hs and js dictionaries.
     hs = {}  # We'll convert to a list later.
     js = {}
-    for (i, j), s in qs.items():
+    for (i, j), s in list(qs.items()):
         if i == j:
             hs[i] = 0.0
             hs[j] = 0.0
@@ -60,7 +60,7 @@ def qubo_to_ising(qs):
             js[(i, j)] = 0.0
 
     # Peform an initial conversion.
-    for (i, j), s in qs.items():
+    for (i, j), s in list(qs.items()):
         if i == j:
             # Point weight
             hs[i] += s/2.0
@@ -73,9 +73,9 @@ def qubo_to_ising(qs):
     # Convert hs to a list and elide zeroes from js.
     mh = max(hs.keys())
     hlist = [0] * (mh + 1)
-    for i, s in hs.items():
+    for i, s in list(hs.items()):
         hlist[i] = s
-    js = {k: v for k, v in js.items() if v != 0.0}
+    js = {k: v for k, v in list(js.items()) if v != 0.0}
 
     # QMASM doesn't use an offset so ignore it.
     return hs, js, None

@@ -55,7 +55,7 @@ qnums = sorted(qnums)
 
 # Map old qubit numbers to new qubit numbers.
 if cl_args.renumber_from != None:
-    newq = dict(zip(qnums, range(cl_args.renumber_from, cl_args.renumber_from + len(qnums))))
+    newq = dict(list(zip(qnums, list(range(cl_args.renumber_from, cl_args.renumber_from + len(qnums))))))
 else:
     newq = {q: q for q in qnums}
 

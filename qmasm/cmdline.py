@@ -12,7 +12,7 @@ def parse_command_line():
     cl_parser = argparse.ArgumentParser(description="Assemble a symbolic Hamiltonian into a numeric one")
     cl_parser.add_argument("input", nargs="*",
                            help="file from which to read a symbolic Hamiltonian")
-    cl_parser.add_argument("-v", "--verbose", action="count",
+    cl_parser.add_argument("-v", "--verbose", action="count", default=0,
                            help="increase output verbosity (can be specified repeatedly)")
     cl_parser.add_argument("-r", "--run", action="store_true",
                            help="run the program on the current solver")
@@ -48,8 +48,8 @@ def parse_command_line():
                            default="",
                            help="specify the type of postprocessing to perform (default: none)")
     cl_args = cl_parser.parse_args()
-    if cl_args.chain_strength >= 0.0:
+    if cl_args.chain_strength != None and cl_args.chain_strength >= 0.0:
         sys.stderr.write("%s: Warning: A non-negative chain strength (%.20g) was specified\n" % (qmasm.progname, cl_args.chain_strength))
-    if cl_args.pin_strength >= 0.0:
+    if cl_args.pin_strength != None and cl_args.pin_strength >= 0.0:
         sys.stderr.write("%s: Warning: A non-negative pin strength (%.20g) was specified\n" % (qmasm.progname, cl_args.pin_strength))
     return cl_args

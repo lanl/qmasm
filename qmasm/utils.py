@@ -41,7 +41,7 @@ def dict_to_list(d):
         return []
     llen = max(d.keys()) + 1
     lst = [0] * llen
-    for k, v in d.items():
+    for k, v in list(d.items()):
         lst[k] = v
     return lst
 
@@ -66,7 +66,7 @@ def chimera_topology(solver):
     delta_tallies = {d: 0 for d in deltas}
     for d in deltas:
         delta_tallies[d] += 1
-        sorted_tallies = sorted(delta_tallies.items(), key=lambda dt: dt[1], reverse=True)
+        sorted_tallies = sorted(list(delta_tallies.items()), key=lambda dt: dt[1], reverse=True)
     L = sorted_tallies[0][0]
     M = 1
     for d, t in sorted_tallies[1:]:
@@ -102,12 +102,12 @@ def maybe_embeddable(edges, adj):
     graph_avail = edges_to_neighbor_list(adj)
     num_edges_avail = len(adj)
     num_nodes_avail = len(graph_avail)
-    max_degree_avail = max([len(peers) for peers in graph_avail.values()])
+    max_degree_avail = max([len(peers) for peers in list(graph_avail.values())])
 
     # Compute the minimum number of extra nodes/edges needed to map
     # the graph we need to the graph we have available.
     extras = 0
-    for peers in graph_needed.values():
+    for peers in list(graph_needed.values()):
         deg = len(peers)
         if deg > max_degree_avail:
             extras += math.ceil(float(deg)/float(max_degree_avail)) - 1
@@ -122,7 +122,7 @@ def maybe_embeddable(edges, adj):
 
     # Compute a histogram of node degrees.
     hist = {}
-    for peers in graph_needed.values():
+    for peers in list(graph_needed.values()):
         deg = len(peers)
         try:
             hist[deg] += 1

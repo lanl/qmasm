@@ -24,7 +24,7 @@ if infile == None:
     # No input file: Let qbsolv issue the error message.
     try:
         proc = subprocess.Popen(["qbsolv"] + sys.argv[1:])
-    except OSError, e:
+    except OSError as e:
         sys.stderr.write("qbsolv: %s\n" % str(e))
         sys.exit(1)
     retcode = proc.wait()
@@ -47,7 +47,7 @@ if len(name2qubit) == 0:
 # Run qbsolv and store its output bits.
 try:
     proc = subprocess.Popen(["qbsolv"] + sys.argv[1:], stdout=subprocess.PIPE)
-except OSError, e:
+except OSError as e:
     sys.stderr.write("qbsolv: %s\n" % str(e))
     sys.exit(1)
 pout, perr = proc.communicate()
@@ -75,7 +75,7 @@ for line in output:
 sys.stderr.write("\n")
 
 # Report the output bits symbolically in QMASM style.
-max_name_width = max([len(nm) for nm in name2qubit.keys()])
+max_name_width = max([len(nm) for nm in list(name2qubit.keys())])
 max_name_width = max(max_name_width, 7)
 print("Solution #1 (energy = %.2f, tally = 1):\n" % energy)
 print("    %-*s  Spin  Boolean" % (max_name_width, "Name(s)"))

@@ -86,8 +86,8 @@ def output_ground_state(syms, h, J):
             table.append((spins, energy))
 
     # Output the ground-state rows (or all rows if verbosity is enabled).
-    print " ".join(["%*s" % (width, s) for s in syms]), "    Energy", "GS"
-    print " ".join(["-"*width for s in syms]), "-"*10, "--"
+    print(" ".join(["%*s" % (width, s) for s in syms]) + "    Energy  GS")
+    print(" ".join(["-"*width for s in syms]) + " " + "-"*10 + " --")
     for t in table:
         spins, energy = t
         spin_str = " ".join(["%+*d" % (width, s) for s in spins])
@@ -95,18 +95,18 @@ def output_ground_state(syms, h, J):
         gs_str = " N"
         if similar(energy, min_energy):
             gs_str = " Y"
-        print spin_str, energy_str, gs_str
-    print ""
+        print("%s %s %s" % (spin_str, energy_str, gs_str))
+    print("")
 
     # Also output the gap between the ground state and first excited state.
     all_energies = sorted(all_energies)
     if len(all_energies) == 1:
-        print "=== GAP: N/A ==="
+        print("=== GAP: N/A ===")
     else:
-        print "=== GAP:", all_energies[1] - all_energies[0], "==="
+        print("=== GAP: %.2f ===" % (all_energies[1] - all_energies[0]))
 
 # Process each macro in turn.
-print "=== MACRO: %s ===" % cl_args.macro
-print ""
+print("=== MACRO: %s ===" % cl_args.macro)
+print("")
 syms, h, J = macro_to_coeffs(fparse.macros[cl_args.macro])
 output_ground_state(syms, h, J)
