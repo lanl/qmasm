@@ -152,7 +152,7 @@ def quote(s):
     # the string $'b is then quoted as '$'"'"'b'.
     return "'" + s.replace("'", "'\"'\"'") + "'"
 
-def output_minizinc(outfile, problem):
+def output_minizinc(outfile, problem, energy=None):
     "Output weights and strengths as a MiniZinc constraint problem."
     # Write some header information.
     outfile.write("""% Use MiniZinc to minimize a given Hamiltonian.
@@ -195,9 +195,12 @@ def output_minizinc(outfile, problem):
     all_terms = weight_terms + strength_terms
     outfile.write("  %s;\n" % " +\n  ".join(all_terms))
 
-    # Because we can't both minimize and enumerate all solutions, we do only
-    # the former with instructions for the user on how to switch to the latter.
-    outfile.write("""
+    # Because we can't both minimize and enumerate all solutions, we normally
+    # do only the former with instructions for the user on how to switch to the
+    # latter.  However, if an energy was specified, comment out the
+    # minimization step and uncomment the enumeration step.
+    if energy == None:
+        outfile.write("""
 % First pass: Compute the minimum energy.
 solve minimize energy;
 
@@ -211,6 +214,21 @@ solve minimize energy;
 %solve satisfy;
 
 """)
+    else:
+        outfile.write("""
+%% First pass: Compute the minimum energy.
+%%solve minimize energy;
+
+%% Second pass: Find all minimum-energy solutions.
+%%
+%% Once you've solved for minimum energy, comment out the "solve minimize
+%% energy" line, plug the minimal energy value into the following line,
+%% uncomment it and the "solve satisfy" line, and re-run MiniZinc, requesting
+%% all solutions this time.
+constraint energy = %d;
+solve satisfy;
+
+""" % energy)
 
     # Map each logical qubit to one or more symbols.
     num2syms = [[] for _ in range(len(qmasm.sym2num))]

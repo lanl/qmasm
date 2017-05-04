@@ -5,6 +5,7 @@
 
 import os
 import qmasm
+import re
 import subprocess
 import sys
 import tempfile
@@ -13,11 +14,12 @@ def run_qbsolv(logical_ising, oname, extra_args):
     "Run qmasm-qbsolv on the problem and report the result."
     # Use the specified file name if provided.  Otherwise, write to a temporary
     # file."
-    qubo_fname = oname
-    if qubo_fname == "<stdout>":
+    if oname == "<stdout>":
         tfile = tempfile.NamedTemporaryFile(suffix=".qubo", prefix="qmasm-", mode="w+")
         qubo_fname = tfile.name
         tfile.close()
+    else:
+        qubo_fname = oname
 
     # Create the .qubo file.
     qmasm.write_output(logical_ising, qubo_fname, "qbsolv", False)
@@ -32,3 +34,60 @@ def run_qbsolv(logical_ising, oname, extra_args):
     # Delete the .qubo file if it's considered temporary.
     if oname == "<stdout>":
         os.remove(qubo_fname)
+
+def run_minizinc(logical_ising, oname, extra_args):
+    "Run mzn-chuffed on the problem and report the result."
+    # If the user specified a file, create that first.
+    if oname != "<stdout>":
+        qmasm.write_output(logical_ising, oname, "minizinc", False)
+
+    # Always create a temporary file because we need something we can overwrite.
+    tfile = tempfile.NamedTemporaryFile(suffix=".mzn", prefix="qmasm-", mode="w+")
+    mzn_fname = tfile.name
+    tfile.close()
+    qmasm.write_output(logical_ising, mzn_fname, "minizinc", False)
+
+    # Run mzn-chuffed on the .mzn file.
+    args = ["mzn-chuffed"] + extra_args + [mzn_fname]
+    try:
+        mzn_output = subprocess.check_output(args, stderr=sys.stderr, universal_newlines=True)
+    except OSError as e:
+        qmasm.abend("Failed to run mzn-chuffed (%s)" % str(e.args[1]))
+
+    # Extract the energy value.
+    match = re.search(r'\benergy = (\d+),', mzn_output)
+    if match == None:
+        abend("Failed to find an energy level in MiniZinc output")
+    energy = int(match.group(1))
+
+    # Regenerate the MiniZinc input as a satisfaction problem instead of a
+    # minimization problem.
+    tfile = open(mzn_fname, "w")
+    qmasm.output_minizinc(tfile, logical_ising, energy)
+    tfile.close()
+
+    # Run mzn-chuffed on the .mzn file.
+    args = ["mzn-chuffed"]
+    args += ["--all-solutions", "--solution-separator= ", "--search-complete-msg="]
+    args += extra_args + [mzn_fname]
+    try:
+        mzn_output = subprocess.check_output(args, stderr=sys.stderr, universal_newlines=True)
+    except OSError as e:
+        qmasm.abend("Failed to run mzn-chuffed (%s)" % str(e.args[1]))
+
+    # Renumber the solutions.  Our MiniZinc code outputs them all as "Solution
+    # #1" because I don't know how to get MiniZinc to number outputs itself.
+    soln_re = re.compile(r'^Solution #(\d+)', re.MULTILINE)
+    sn = 1
+    sn_str = "Solution #%d" % sn
+    for line in mzn_output.strip("\n").split("\n"):
+        line, nsubs = soln_re.subn(sn_str, line)
+        if nsubs > 0:
+            sn += 1
+            sn_str = "Solution #%d" % sn
+        if line == " ":
+            line = ""
+        print(line)
+
+    # Delete the .mzn file.
+    os.remove(mzn_fname)
