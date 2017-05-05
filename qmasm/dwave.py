@@ -329,6 +329,20 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
     # Map abbreviated to full names for postprocessing types.
     postproc = {"": "", "opt": "optimization", "sample": "sampling"}[postproc]
 
+    # Determine the annealing time to use.
+    if anneal_time == None:
+        try:
+            # Use the default value.
+            anneal_time = qmasm.solver.properties["default_annealing_time"]
+        except KeyError:
+            try:
+                # If the default value is undefined, use the minimum allowed
+                # value.
+                anneal_time = qmasm.solver.properties["annealing_time_range"][0]
+            except KeyError:
+                # If all else fails, use 20 as a reasonable default.
+                annealing_time = 20
+
     # Submit a QMI to the D-Wave and get back a list of solution vectors.
     solver_params = dict(chains=physical.embedding,
                          num_reads=samples,

@@ -38,8 +38,8 @@ def parse_command_line():
                            help="treat inputs as QUBOs rather than Ising systems")
     cl_parser.add_argument("-s", "--samples", metavar="POS_INT", type=int, default=1000,
                            help="specify the number of samples to take (default: 1000)")
-    cl_parser.add_argument("--anneal-time", metavar="POS_INT", type=int, default=20,
-                           help="specify the annealing time in microseconds (default: 20)")
+    cl_parser.add_argument("--anneal-time", metavar="POS_INT", type=int, default=None,
+                           help="specify the annealing time in microseconds (default: automatic)")
     cl_parser.add_argument("--spin-revs", metavar="POS_INT", type=int, default=0,
                            help="specify the number of spin-reversal transforms to perform (default: 0)")
     cl_parser.add_argument("--extra-args", default="",
