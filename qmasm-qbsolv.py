@@ -23,7 +23,7 @@ for i in range(1, nargs):
 if infile == None:
     # No input file: Let qbsolv issue the error message.
     try:
-        proc = subprocess.Popen(["qbsolv"] + sys.argv[1:])
+        proc = subprocess.Popen(["qbsolv"] + sys.argv[1:], stderr=sys.stderr, stdout=sys.stdout)
     except OSError as e:
         sys.stderr.write("qbsolv: %s\n" % str(e))
         sys.exit(1)
@@ -46,20 +46,23 @@ if len(name2qubit) == 0:
 
 # Run qbsolv and store its output bits.
 try:
-    proc = subprocess.Popen(["qbsolv"] + sys.argv[1:], stdout=subprocess.PIPE)
+    proc = subprocess.Popen(["qbsolv"] + sys.argv[1:], stdout=subprocess.PIPE, stderr=sys.stderr)
 except OSError as e:
     sys.stderr.write("qbsolv: %s\n" % str(e))
     sys.exit(1)
 pout, perr = proc.communicate()
+output = pout.split("\n")
+output = output[:-1]   # Skip empty final line.
 retcode = proc.wait()
 if retcode < 0:
     os.kill(os.getpid(), -retcode)
 elif retcode > 0:
+    # Some qbsolv errors go to stdout, not stderr.
+    for line in output:
+        sys.stderr.write("qbsolv: %s\n" % line)
     sys.exit(retcode)
 if perr != None:
     sys.stderr.write(perr)
-output = pout.split("\n")
-output = output[:-1]   # Skip empty final line.
 bits = []
 next_is_bits = False
 energy = "?"
