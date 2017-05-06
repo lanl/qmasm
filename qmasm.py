@@ -12,6 +12,7 @@ import shlex
 import string
 import sys
 
+
 # Parse the command line.
 cl_args = qmasm.parse_command_line()
 
