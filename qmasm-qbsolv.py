@@ -51,7 +51,7 @@ except OSError as e:
     sys.stderr.write("qbsolv: %s\n" % str(e))
     sys.exit(1)
 pout, perr = proc.communicate()
-output = pout.split("\n")
+output = pout.split(b"\n")
 output = output[:-1]   # Skip empty final line.
 retcode = proc.wait()
 if retcode < 0:
@@ -68,12 +68,12 @@ next_is_bits = False
 energy = "?"
 for line in output:
     sys.stderr.write("# %s\n" % line)
-    if "Number of bits in solution" in line:
+    if b"Number of bits in solution" in line:
         next_is_bits = True
     elif next_is_bits:
         bits = [int(b) for b in list(line)]
         next_is_bits = False
-    elif "Energy of solution" in line:
+    elif b"Energy of solution" in line:
         energy = float(line.split()[0])
 sys.stderr.write("\n")
 
