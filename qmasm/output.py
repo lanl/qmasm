@@ -382,7 +382,7 @@ def output_solution(id2solution, num_occurrences, style):
     soln_key = lambda s: (id2solution[s].energy, s)
     sorted_solns = [id2solution[s] for s in sorted(list(id2solution.keys()), key=soln_key)]
     if len(sorted_solns) == 0:
-        print("No valid solutions found,")
+        print("No valid solutions found.")
         sys.exit(0)
     for snum in range(len(sorted_solns)):
         soln = sorted_solns[snum]

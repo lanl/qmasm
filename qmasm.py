@@ -14,6 +14,7 @@ import sys
 
 # Parse the command line.
 cl_args = qmasm.parse_command_line()
+qmasm.report_command_line(cl_args)
 
 # Specify the minimum distinguishable difference between energy readings.
 min_energy_delta = 0.005
