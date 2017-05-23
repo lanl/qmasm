@@ -121,6 +121,7 @@ def output_qbsolv(outfile, problem):
         output_weights = problem.weights
         output_strengths = problem.strengths
     num_output_weights = len(output_weights)
+    output_strengths = {(min(qs), max(qs)):s for qs, s in output_strengths.items()}
     for q1, q2 in list(output_strengths.keys()):
         # A large-numbered qubit might have zero weight but nonzero strength.
         num_output_weights = max(num_output_weights, q1 + 1, q2 + 1)
