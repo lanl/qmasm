@@ -91,7 +91,7 @@ class Problem(object):
         qmatrix = {(q, q): w for q, w in list(new_obj.weights.items())}
         qmatrix.update(new_obj.strengths)
         hvals, new_obj.strengths, _ = qubo_to_ising(qmatrix)
-        new_obj.strengths = defaultdict(lambda: 0.0, new_obj.strengths)
+        new_obj.strengths = qmasm.canonicalize_strengths(new_obj.strengths)
         new_obj.weights.update({i: hvals[i] for i in range(len(hvals))})
         new_obj.qubo = False
         return new_obj
@@ -107,10 +107,9 @@ class Problem(object):
                                       {q1: wt
                                        for (q1, q2), wt in list(qmatrix.items())
                                        if q1 == q2})
-        new_obj.strengths = defaultdict(lambda: 0.0,
-                                        {(q1, q2): wt
-                                         for (q1, q2), wt in list(qmatrix.items())
-                                         if q1 != q2})
+        new_obj.strengths = qmasm.canonicalize_strengths({(q1, q2): wt
+                                                          for (q1, q2), wt in list(qmatrix.items())
+                                                          if q1 != q2})
         new_obj.qubo = True
         return new_obj
 

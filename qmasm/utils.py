@@ -131,3 +131,16 @@ def maybe_embeddable(edges, adj):
 
     # Return a set of useful information.
     return embed, extras, (num_nodes_needed, num_nodes_avail), (num_edges_needed, num_edges_avail), sorted(hist.items())
+
+def canonicalize_strengths(strs):
+    "Combine edges (A, B) and (B, A) into (A, B) with A < B."
+    new_strs = defaultdict(lambda: 0.0)
+    for (q1, q2), wt in strs.items():
+        if q1 == q2:
+            continue          # Discard vertex weights.
+        if wt == 0.0:
+            continue          # Discard zero weights.
+        if q1 > q2:
+            q1, q2 = q2, q1   # Canonicalize vertex order.
+        new_strs[(q1, q2)] += wt
+    return new_strs
