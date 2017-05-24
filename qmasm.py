@@ -147,6 +147,11 @@ if cl_args.verbose >= 1:
         ext_solver_properties["connection_name"] = os.environ["DW_INTERNAL__CONNECTION"]
     except KeyError:
         pass
+    for what in ["couplers", "qubits"]:
+        try:
+            ext_solver_properties["num_active_" + what] = len(qmasm.solver.properties[what])
+        except KeyError:
+            pass
     ext_solver_properties.update(qmasm.solver.properties)
 
     # Determine the width of the widest key.
