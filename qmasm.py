@@ -81,6 +81,9 @@ if cl_args.O:
 
 # This is a good time to update our logical statistics.
 logical_stats["vars"] = qmasm.next_sym_num + 1
+logical_stats["strengths"] = len(logical_ising.strengths)
+logical_stats["eqs"] = len(logical_ising.chains)
+logical_stats["pins"] = len(logical_ising.pinned)
 
 # Complain if we have no weights and no strengths.
 if len(logical_ising.weights) == 0 and len(logical_ising.strengths) == 0:

@@ -22,6 +22,35 @@ def new_internal_sym():
         if sym not in qmasm.sym2num:
             return sym
 
+
+class DisjointSet(object):
+    "Set in a disjoint-set forest"
+
+    def __init__(self, val=None):
+        self.parent = self
+        self.rank = 0
+        self.contents = val
+
+    def find(self):
+        "Return an arbitrary element in the same set as us."
+        if self.parent == self:
+            return self
+        else:
+            self.parent = self.parent.find()
+            return self.parent
+
+    def union(self, other):
+        "Destructively join two sets."
+        self_root = self.find()
+        other_root = other.find()
+        if self_root.rank > other_root.rank:
+            other_root.parent = self_root
+        elif self_root.rank < other_root.rank:
+            self_root.parent = other_root
+        elif self_root != other_root:
+            other_root.parent = self_root
+            self_root.rank = self_root.rank + 1
+
 class Problem(object):
     "Represent either an Ising or QUBO problem."
 
@@ -114,90 +143,96 @@ class Problem(object):
         return new_obj
 
     def convert_chains_to_aliases(self):
-        "Convert chains to aliases where possible."
-        # Identify all chains that can be converted to aliases.  A chain is
-        # convertible if the qubits on either end have the same point weight
-        # applied to them.
-        num2allsyms = [[] for _ in range(len(qmasm.sym2num))]
-        for s, n in list(qmasm.sym2num.items()):
-            num2allsyms[n].append(s)
-        make_aliases = []
+        """Convert chains to aliases where possible.  A chain is
+        convertible if the qubits on either end have the same point weight
+        applied to them."""
+
+        # Group qubits that can be aliased.
+        num2alias = {}  # Map from a qubit number to a disjoint set (which maps to a qubit number)
         for q1, q2 in self.chains:
             if self.weights[q1] == self.weights[q2]:
-                make_aliases.append((q1, q2))
-        make_aliases.sort(reverse=True, key=lambda qs: (qs[1], qs[0]))
+                if q1 not in num2alias:
+                    num2alias[q1] = DisjointSet(q1)
+                if q2 not in num2alias:
+                    num2alias[q2] = DisjointSet(q2)
+                num2alias[q1].union(num2alias[q2])
 
-        # Replace each chain in make_aliases with an alias.  Work in reverse
-        # order of qubit number and shift all greater qubit numbers downward.
-        for q1, q2 in make_aliases:
-            # Map q2's symbolic names to q1's.  Shift everything above q2
-            # downwards.
-            alias_sym2num = {}
-            for s, sq in list(qmasm.sym2num.items()):
-                if sq == q2:
-                    sq = q1
-                elif sq > q2:
-                    sq -= 1
-                alias_sym2num[s] = sq
-            qmasm.sym2num = alias_sym2num
+        # Regenerate our chains, discarding any that have been merged into a
+        # single qubit.
+        new_chains = {}
+        for q1, q2 in self.chains:
+            try:
+                new_q1 = num2alias[q1].find().contents
+            except KeyError:
+                new_q1 = q1
+            try:
+                new_q2 = num2alias[q2].find().contents
+            except KeyError:
+                new_q2 = q2
+            if new_q1 == new_q2:
+                continue
+            if new_q1 > new_q2:
+                new_q1, new_q2 = new_q2, new_q1
+            new_chains[(new_q1, new_q2)] = None
+        self.chains = new_chains
 
-            # Elide q2 from the list of weights.
-            alias_weights = defaultdict(lambda: 0.0)
-            for wq, wt in list(self.weights.items()):
-                if wq == q2:
-                    continue
-                if wq > q2:
-                    wq -= 1
-                if wt != 0.0:
-                    alias_weights[wq] = wt
-            alias_weights[q1] += self.weights[q2]   # Conserve overall energy.
-            self.weights = alias_weights
+        # Regenerate our weights.
+        new_weights = defaultdict(lambda: 0.0)
+        for q, wt in list(self.weights.items()):
+            try:
+                new_q = num2alias[q].find().contents
+            except KeyError:
+                new_q = q
+            new_weights[new_q] += wt
+        self.weights = new_weights
 
-            # Replace q2 with q1 in all strengths.  Shift everything above q2
-            # downwards.
-            alias_strengths = defaultdict(lambda: 0.0)
-            for (sq1, sq2), wt in list(self.strengths.items()):
-                if sq1 == q2:
-                    sq1 = q1
-                if sq1 > q2:
-                    sq1 -= 1
-                if sq2 == q2:
-                    sq2 = q1
-                if sq2 > q2:
-                    sq2 -= 1
-                if sq1 != sq2:
-                    alias_strengths[(sq1, sq2)] = wt
-            self.strengths = alias_strengths
+        # Regenerate our strengths.
+        new_strengths = defaultdict(lambda: 0.0)
+        for (q1, q2), wt in list(self.strengths.items()):
+            try:
+                new_q1 = num2alias[q1].find().contents
+            except KeyError:
+                new_q1 = q1
+            try:
+                new_q2 = num2alias[q2].find().contents
+            except KeyError:
+                new_q2 = q2
+            if new_q1 == new_q2:
+                continue
+            if new_q1 > new_q2:
+                new_q1, new_q2 = new_q2, new_q1
+            new_strengths[(new_q1, new_q2)] += wt
+        self.strengths = new_strengths
 
-            # Replace q2 with q1 in all strengths.  Shift everything above q2
-            # downwards.
-            alias_chains = {}
-            for cq1, cq2 in list(self.chains.keys()):
-                if cq1 == q2:
-                    cq1 = q1
-                if cq1 > q2:
-                    cq1 -= 1
-                if cq2 == q2:
-                    cq2 = q1
-                if cq2 > q2:
-                    cq2 -= 1
-                if cq1 != cq2:
-                    alias_chains[(cq1, cq2)] = None
-            self.chains = alias_chains
+        # Regenerate our pinned values.
+        new_pinned = {}
+        for q, b in self.pinned:
+            try:
+                new_q = num2alias[q].find().contents
+            except KeyError:
+                new_q = q
+            new_pinned[new_q] = b
+        self.pinned = sorted(new_pinned.items())
 
-            # Replace q2 with q1 in all pinned qubits.  Shift everything above
-            # q2 downwards.
-            alias_pinned = []
-            for pq, b in self.pinned:
-                if pq == q2:
-                    pq = q1
-                if pq > q2:
-                    pq -= 1
-                alias_pinned.append((pq, b))
-            self.pinned = alias_pinned
+        # Regenerate the global symbol table.
+        new_sym2num = {}
+        for s, q in list(qmasm.sym2num.items()):
+            try:
+                new_q = num2alias[q].find().contents
+            except KeyError:
+                new_q = q
+            new_sym2num[s] = new_q
+        qmasm.sym2num = new_sym2num
 
-            # We now have one fewer symbol.
-            qmasm.next_sym_num -= 1
+        # Renumber all of the above to compact the qubit numbers.
+        qmap = dict(zip(self.weights.keys(), range(len(self.weights))))
+        self.chains = {(qmap[q1], qmap[q2]): None for q1, q2 in self.chains.keys()}
+        self.weights = defaultdict(lambda: 0.0,
+                                   {qmap[q]: wt for q, wt in self.weights.items()})
+        self.strengths = qmasm.canonicalize_strengths({(qmap[q1], qmap[q2]): wt for (q1, q2), wt in self.strengths.items()})
+        self.pinned = [(qmap[q], b) for q, b in self.pinned]
+        qmasm.sym2num = {s: qmap[q] for s, q in qmasm.sym2num.items()}
+        qmasm.next_sym_num = max(qmasm.sym2num.values())
 
     def find_disconnected_variables(self):
         """Return a list of variables that are named but not coupled to any
