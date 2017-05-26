@@ -135,7 +135,7 @@ def find_dwave_embedding(logical, optimize, verbosity):
     # containing a zero-weight node whose adjacent couplers all have zero
     # strength.  (Tested with SAPI 2.4.)  To help out SAPI, we simply remove
     # all zero-strength couplers.
-    edges = [e for e in list(logical.strengths.keys()) if logical.strengths[e] != 0.0]
+    edges = [e for e in logical.strengths.keys() if logical.strengths[e] != 0.0]
     edges.sort()
     logical.edges = edges
     try:
@@ -255,7 +255,7 @@ def embed_problem_on_dwave(logical, optimize, verbosity):
         h_range = [-1.0, 1.0]
         j_range = [-1.0, 1.0]
     weight_list = qmasm.dict_to_list(logical.weights)
-    smearable = any([s != 0.0 for s in list(logical.strengths.values())])
+    smearable = any([s != 0.0 for s in logical.strengths.values()])
     try:
         [new_weights, new_strengths, new_chains, new_embedding] = embed_problem(
             weight_list, logical.strengths, logical.embedding, logical.hw_adj,
@@ -283,7 +283,7 @@ def update_strengths_from_chains(physical):
     """Update strengths using the chains introduced by embedding.  Return a new
     physical Problem object."""
     new_physical = copy.deepcopy(physical)
-    new_physical.chains = {c: qmasm.chain_strength for c in list(physical.chains.keys())}
+    new_physical.chains = {c: qmasm.chain_strength for c in physical.chains.keys()}
     new_physical.strengths = physical.strengths.copy()
     new_physical.strengths.update(new_physical.chains)
     return new_physical
@@ -299,7 +299,7 @@ def scale_weights_strengths(physical, verbosity):
         # Handle the obscure case of a zero old_cap.
         old_cap = new_cap
     new_weights = qmasm.list_to_dict([w*new_cap/old_cap for w in weight_list])
-    new_strengths = {js: w*new_cap/old_cap for js, w in list(physical.strengths.items())}
+    new_strengths = {js: w*new_cap/old_cap for js, w in physical.strengths.items()}
     if verbosity >= 1 and old_cap != new_cap:
         sys.stderr.write("Scaling weights and strengths from [%.10g, %.10g] to [%.10g, %.10g].\n\n" % (-old_cap, old_cap, -new_cap, new_cap))
     new_physical = copy.deepcopy(physical)
@@ -317,7 +317,7 @@ def solution_is_intact(physical, soln):
             return False
 
     # Reject broken chains.
-    for q1, q2 in list(physical.chains.keys()):
+    for q1, q2 in physical.chains.keys():
         if soln[q1] != soln[q2]:
             return False
 
@@ -372,14 +372,14 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
         # Output parameters we kept and those we discarded
         sys.stderr.write("Parameters accepted by the %s solver:\n" % qmasm.solver_name)
         if len(solver_params) > 0:
-            for k, v in list(solver_params.items()):
+            for k, v in solver_params.items():
                 sys.stderr.write("    %s = %s\n" % (k, v))
         else:
             sys.stderr.write("    [none]\n")
         sys.stderr.write("\n")
         sys.stderr.write("Parameters rejected by the %s solver:\n" % qmasm.solver_name)
         if len(unused_params) > 0:
-            for k, v in list(unused_params.items()):
+            for k, v in unused_params.items():
                 sys.stderr.write("    %s = %s\n" % (k, v))
         else:
             sys.stderr.write("    [none]\n")

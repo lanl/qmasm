@@ -69,11 +69,11 @@ class Problem(object):
         if chain_strength == None:
             # Chain strength defaults to twice the maximum strength in the data.
             try:
-                chain_strength = -2*max([abs(w) for w in list(self.strengths.values())])
+                chain_strength = -2*max([abs(w) for w in self.strengths.values()])
             except ValueError:
                 # No strengths -- use weights instead.
                 try:
-                    chain_strength = -2*max([abs(w) for w in list(self.weights.values())])
+                    chain_strength = -2*max([abs(w) for w in self.weights.values()])
                 except ValueError:
                     # No weights or strengths -- arbitrarily choose -1.
                     chain_strength = -1.0
@@ -81,7 +81,7 @@ class Problem(object):
             # With QUBO input we need to divide the chain strength by 4 for
             # consistency with the other coupler strengths.
             chain_strength /= 4.0
-        for c in list(self.chains.keys()):
+        for c in self.chains.keys():
             self.strengths[c] += chain_strength
         return chain_strength
 
@@ -117,7 +117,7 @@ class Problem(object):
         if not self.qubo:
             raise TypeError("Can convert only QUBO problems to Ising problems")
         new_obj = copy.deepcopy(self)
-        qmatrix = {(q, q): w for q, w in list(new_obj.weights.items())}
+        qmatrix = {(q, q): w for q, w in new_obj.weights.items()}
         qmatrix.update(new_obj.strengths)
         hvals, new_obj.strengths, _ = qubo_to_ising(qmatrix)
         new_obj.strengths = qmasm.canonicalize_strengths(new_obj.strengths)
@@ -134,10 +134,10 @@ class Problem(object):
         qmatrix, _ = ising_to_qubo(qmasm.dict_to_list(self.weights), self.strengths)
         new_obj.weights = defaultdict(lambda: 0.0,
                                       {q1: wt
-                                       for (q1, q2), wt in list(qmatrix.items())
+                                       for (q1, q2), wt in qmatrix.items()
                                        if q1 == q2})
         new_obj.strengths = qmasm.canonicalize_strengths({(q1, q2): wt
-                                                          for (q1, q2), wt in list(qmatrix.items())
+                                                          for (q1, q2), wt in qmatrix.items()
                                                           if q1 != q2})
         new_obj.qubo = True
         return new_obj
@@ -178,7 +178,7 @@ class Problem(object):
 
         # Regenerate our weights.
         new_weights = defaultdict(lambda: 0.0)
-        for q, wt in list(self.weights.items()):
+        for q, wt in self.weights.items():
             try:
                 new_q = num2alias[q].find().contents
             except KeyError:
@@ -188,7 +188,7 @@ class Problem(object):
 
         # Regenerate our strengths.
         new_strengths = defaultdict(lambda: 0.0)
-        for (q1, q2), wt in list(self.strengths.items()):
+        for (q1, q2), wt in self.strengths.items():
             try:
                 new_q1 = num2alias[q1].find().contents
             except KeyError:
@@ -216,7 +216,7 @@ class Problem(object):
 
         # Regenerate the global symbol table.
         new_sym2num = {}
-        for s, q in list(qmasm.sym2num.items()):
+        for s, q in qmasm.sym2num.items():
             try:
                 new_q = num2alias[q].find().contents
             except KeyError:
@@ -239,14 +239,14 @@ class Problem(object):
         other variable."""
         # Construct a set of valid qubit numbers.
         valid_nums = set()
-        for (a, b), str in list(self.strengths.items()):
+        for (a, b), str in self.strengths.items():
             if str != 0.0:
                 valid_nums.add(a)
                 valid_nums.add(b)
 
         # Complain about any variable whose number is not in the valid set.
         invalid_syms = set()
-        for sym, num in list(qmasm.sym2num.items()):
+        for sym, num in qmasm.sym2num.items():
             if num not in valid_nums:
                 invalid_syms.add(sym)
         return invalid_syms

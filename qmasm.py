@@ -117,7 +117,7 @@ if cl_args.verbose >= 2:
     # Map each canonicalized name to one or more original symbols.
     canon2syms = [[] for _ in range(len(qmasm.sym2num))]
     max_sym_name_len = 8
-    for s, n in list(qmasm.sym2num.items()):
+    for s, n in qmasm.sym2num.items():
         canon2syms[n].append(s)
         max_sym_name_len = max(max_sym_name_len, len(repr(canon2syms[n])) - 1)
 
@@ -159,8 +159,7 @@ if cl_args.verbose >= 1:
 
     # Determine the width of the widest key.
     max_key_len = len("Parameter")
-    solver_props = list(ext_solver_properties.keys())
-    solver_props.sort()
+    solver_props = sorted(ext_solver_properties.keys())
     for k in solver_props:
         max_key_len = max(max_key_len, len(k))
 
@@ -224,7 +223,7 @@ if cl_args.verbose >= 2:
 # Map each logical qubit to one or more symbols.
 num2syms = [[] for _ in range(len(qmasm.sym2num))]
 max_sym_name_len = 7
-for s, n in list(qmasm.sym2num.items()):
+for s, n in qmasm.sym2num.items():
     if cl_args.verbose >= 2 or "$" not in s:
         num2syms[n].append(s)
     max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
@@ -369,9 +368,8 @@ if cl_args.verbose >= 2:
             new_energy_tallies[e] += t
         except KeyError:
             new_energy_tallies[e] = t
-    new_energies = list(new_energy_tallies.keys())
-    new_energies.sort()
-    min_energy_possible = -sum([abs(w) for w in physical.weights] + [abs(s) for s in list(physical.strengths.values())])
+    new_energies = sorted(new_energy_tallies.keys())
+    min_energy_possible = -sum([abs(w) for w in physical.weights] + [abs(s) for s in physical.strengths.values()])
     sys.stderr.write("Energy histogram (theoretical minimum = %.4f):\n\n" % min_energy_possible)
     sys.stderr.write("    Energy      Tally\n")
     sys.stderr.write("    ----------  ------\n")
