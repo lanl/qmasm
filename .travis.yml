@@ -21,7 +21,7 @@ script:
   - cd examples
   - qmasm -f qbsolv -v -v -O --pin="in[1:4] := 0110" sort4.qmasm
   - (set -x &&
-     ../extras/qmasm-gen-chimera 10 10 5 > /tmp/chimera-10x10x5.topo
+     ../extras/qmasm-gen-chimera 10 10 5 > /tmp/chimera-10x10x5.topo ;
      for solver in qbsolv minizinc qmasm ; do
          for topo in "" "--topology-file=/tmp/chimera-10x10x5.topo" ; do
              for verbosity in "" "-v" "-v -v" ; do
