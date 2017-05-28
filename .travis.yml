@@ -10,9 +10,10 @@ install:
   - python setup.py install
 
 # Do an initial run in which all output is retained.  Then, for each output
-# format, for each verbosity level, both with and without optimization, run
-# qmasm on each top-level QMASM file in the examples directory.  Finally,
-# perform a couple of tests of qmasm-ground-state.
+# format, both with and without a topology file, for each verbosity level,
+# both with and without optimization, run qmasm on each top-level QMASM
+# file in the examples directory.  Finally, perform a couple of tests of
+# qmasm-ground-state.
 #
 # In all cases, we're merely performing a smoke test.  That is, we merely
 # ensure that the tool runs to completion and exits with a success code.
@@ -20,22 +21,25 @@ script:
   - cd examples
   - qmasm -f qbsolv -v -v -O --pin="in[1:4] := 0110" sort4.qmasm
   - (set -x &&
+     ../extras/qmasm-gen-chimera 10 10 5 > /tmp/chimera-10x10x5.topo
      for solver in qbsolv minizinc qmasm ; do
-         for verbosity in "" "-v" "-v -v" ; do
-             read -r -a vs <<< "$verbosity" ;
-             for opt in "" "-O" ; do
-                 qmasm -f $solver "${vs[@]}" $opt -o 1of5.out 1of5.qmasm ;
-                 if [ "$verbosity" = "-v -v" ] ; then
-                     qmasm -f $solver "${vs[@]}" $opt maze6x6.qmasm > /dev/null 2>&1 ;
-                     qmasm -f $solver "${vs[@]}" $opt and4.qmasm > /dev/null 2>&1 ;
-                     qmasm -f $solver "${vs[@]}" $opt --pin="x10 := true" circsat.qmasm > /dev/null 2>&1 ;
-                     qmasm -f $solver "${vs[@]}" $opt --pin="in[1:4] := 0110" sort4.qmasm > /dev/null 2>&1 ;
-                 else
-                     qmasm -f $solver "${vs[@]}" $opt -o and4.out and4.qmasm ;
-                     qmasm -f $solver "${vs[@]}" $opt -o maze6x6.out maze6x6.qmasm ;
-                     qmasm -f $solver "${vs[@]}" $opt --pin="x10 := true" -o circsat.out circsat.qmasm ;
-                     qmasm -f $solver "${vs[@]}" $opt --pin="in[1:4] := 0110" -o sort4.out sort4.qmasm ;
-                 fi ;
+         for topo in "" "--topology-file=/tmp/chimera-10x10x5.topo" ; do
+             for verbosity in "" "-v" "-v -v" ; do
+                 read -r -a vs <<< "$verbosity" ;
+                 for opt in "" "-O" ; do
+                     qmasm -f $solver "${vs[@]}" $opt $topo -o 1of5.out 1of5.qmasm ;
+                     if [ "$verbosity" = "-v -v" ] ; then
+                         qmasm -f $solver "${vs[@]}" $opt $topo maze6x6.qmasm > /dev/null 2>&1 ;
+                         qmasm -f $solver "${vs[@]}" $opt $topo and4.qmasm > /dev/null 2>&1 ;
+                         qmasm -f $solver "${vs[@]}" $opt $topo --pin="x10 := true" circsat.qmasm > /dev/null 2>&1 ;
+                         qmasm -f $solver "${vs[@]}" $opt $topo --pin="in[1:4] := 0110" sort4.qmasm > /dev/null 2>&1 ;
+                     else
+                         qmasm -f $solver "${vs[@]}" $opt $topo -o and4.out and4.qmasm ;
+                         qmasm -f $solver "${vs[@]}" $opt $topo -o maze6x6.out maze6x6.qmasm ;
+                         qmasm -f $solver "${vs[@]}" $opt $topo --pin="x10 := true" -o circsat.out circsat.qmasm ;
+                         qmasm -f $solver "${vs[@]}" $opt $topo --pin="in[1:4] := 0110" -o sort4.out sort4.qmasm ;
+                     fi ;
+                 done ;
              done ;
          done ;
      done)
