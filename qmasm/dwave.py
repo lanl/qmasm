@@ -127,8 +127,36 @@ def report_embeddability(edges, adj):
         sys.stderr.write("    Embedding is impossible: YES\n")
     sys.stderr.write("\n")
 
-def find_dwave_embedding(logical, optimize, verbosity):
+def read_hardware_adjacency(fname, verbosity):
+    """Read a hardware adjacency list from a file.  Each line must contain
+    a space-separated pair of vertex numbers."""
+    adj = set()
+    lineno = 0
+    if verbosity >= 2:
+        sys.stderr.write("Reading hardware adjacency from %s ... " % fname)
+    with open(fname) as f:
+        for orig_line in f:
+            # Discard comments then parse the line into exactly two vertices.
+            lineno += 1
+            line = orig_line.partition("#")[0]
+            try:
+                verts = [int(v) for v in line.split()]
+            except ValueError:
+                qmasm.abend('Failed to parse line %d of file %s ("%s")' % (lineno, fname, orig_line.strip()))
+            if len(verts) == 0:
+                continue
+            if len(verts) != 2 or verts[0] == verts[1]:
+                qmasm.abend('Failed to parse line %d of file %s ("%s")' % (lineno, fname, orig_line.strip()))
 
+            # Canonicalize the vertex numbers and add the result to the set.
+            if verts[1] > verts[0]:
+                verts[0], verts[1] = verts[1], verts[0]
+            adj.add((verts[0], verts[1]))
+    if verbosity >= 2:
+        sys.stderr.write("%d unique edges found\n\n" % len(adj))
+    return sorted(adj)
+
+def find_dwave_embedding(logical, optimize, verbosity, hw_adj_file):
     """Find an embedding of a logical problem in the D-Wave's physical topology.
     Store the embedding within the Problem object."""
     # SAPI tends to choke when embed_problem is told to embed a problem
@@ -138,29 +166,42 @@ def find_dwave_embedding(logical, optimize, verbosity):
     edges = [e for e in logical.strengths.keys() if logical.strengths[e] != 0.0]
     edges.sort()
     logical.edges = edges
-    try:
-        hw_adj = get_hardware_adjacency(qmasm.solver)
-    except KeyError:
-        # The Ising heuristic solver is an example of a solver that lacks a
-        # fixed hardware representation.  We therefore assert that the hardware
-        # is an all-to-all network that connects every node to every other node.
-        endpoints = set([a for a, b in edges] + [b for a, b in edges])
-        hw_adj = [(a, b) for a in endpoints for b in endpoints if a != b]
+    if hw_adj_file == None:
+        try:
+            hw_adj = get_hardware_adjacency(qmasm.solver)
+        except KeyError:
+            # The Ising heuristic solver is an example of a solver that lacks a
+            # fixed hardware representation.  We therefore assert that the
+            # hardware is an all-to-all network that connects every node to
+            # every other node.
+            endpoints = set([a for a, b in edges] + [b for a, b in edges])
+            hw_adj = [(a, b) for a in endpoints for b in endpoints if a != b]
+    else:
+        hw_adj = read_hardware_adjacency(hw_adj_file, verbosity)
 
     # Tell the user if we have any hope at all of embedding the problem.
     if verbosity >= 2:
         report_embeddability(edges, hw_adj)
 
-    # Determine the edges of a rectangle of cells we want to use.
-    L, M, N = qmasm.chimera_topology(qmasm.solver)
-    L2 = 2*L
-    ncells = (qmasm.next_sym_num + L2) // L2   # Round up the number of cells.
-    if optimize:
-        edgey = max(int(math.sqrt(ncells)), 1)
-        edgex = max((ncells + edgey - 1) // edgey, 1)
+    # Determine the edges of a rectangle of cells we want to use.  If we read
+    # the topology from a file, we call this rectangle 0x0 and force the main
+    # embedding loop to exit after a single iteration because we don't know the
+    # topology is even rectangular.
+    if hw_adj_file == None:
+        L, M, N = qmasm.chimera_topology(qmasm.solver)
+        L2 = 2*L
+        ncells = (qmasm.next_sym_num + L2) // L2   # Round up the number of cells.
+        if optimize:
+            edgey = max(int(math.sqrt(ncells)), 1)
+            edgex = max((ncells + edgey - 1) // edgey, 1)
+        else:
+            edgey = N
+            edgex = M
     else:
-        edgey = N
-        edgex = M
+        edgex = 0
+        edgey = 0
+        M = 0
+        N = 0
 
     # Announce what we're about to do.
     if verbosity >= 2:
@@ -168,21 +209,24 @@ def find_dwave_embedding(logical, optimize, verbosity):
 
     # Repeatedly expand edgex and edgey until the embedding works.
     while edgex <= M and edgey <= N:
-        # Retain adjacencies only within the rectangle.
-        alt_hw_adj = []
-        for q1, q2 in hw_adj:
-            c1 = q1//L2
-            if c1 % M >= edgex:
-                continue
-            if c1 // M >= edgey:
-                continue
-            c2 = q2//L2
-            if c2 % M >= edgex:
-                continue
-            if c2 // M >= edgey:
-                continue
-            alt_hw_adj.append((q1, q2))
-        alt_hw_adj = set(alt_hw_adj)
+        if edgex == M and edgey == N:
+            alt_hw_adj = hw_adj
+        else:
+            # Retain adjacencies only within the rectangle.
+            alt_hw_adj = []
+            for q1, q2 in hw_adj:
+                c1 = q1//L2
+                if c1 % M >= edgex:
+                    continue
+                if c1 // M >= edgey:
+                    continue
+                c2 = q2//L2
+                if c2 % M >= edgex:
+                    continue
+                if c2 // M >= edgey:
+                    continue
+                alt_hw_adj.append((q1, q2))
+            alt_hw_adj = set(alt_hw_adj)
         logical.hw_adj = alt_hw_adj
 
         # See if we already have an embedding in the embedding cache.
@@ -210,7 +254,10 @@ def find_dwave_embedding(logical, optimize, verbosity):
         # failed.
         if embedding != []:
             if verbosity >= 2:
-                sys.stderr.write("  Trying a %dx%d unit-cell embedding ... " % (edgex, edgey))
+                if edgex == 0 and edgey == 0:
+                    sys.stderr.write("  Trying to embed ... ")
+                else:
+                    sys.stderr.write("  Trying a %dx%d unit-cell embedding ... " % (edgex, edgey))
                 status_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
                 stdout_fd = os.dup(sys.stdout.fileno())
                 os.dup2(status_file.fileno(), sys.stdout.fileno())
@@ -243,11 +290,11 @@ def find_dwave_embedding(logical, optimize, verbosity):
         qmasm.abend("Failed to embed the problem")
     logical.embedding = embedding
 
-def embed_problem_on_dwave(logical, optimize, verbosity):
+def embed_problem_on_dwave(logical, optimize, verbosity, hw_adj_file):
     """Embed a logical problem in the D-Wave's physical topology.  Return a
     physical Problem object."""
     # Embed the problem.  Abort on failure.
-    find_dwave_embedding(logical, optimize, verbosity)
+    find_dwave_embedding(logical, optimize, verbosity, hw_adj_file)
     try:
         h_range = qmasm.solver.properties["h_range"]
         j_range = qmasm.solver.properties["j_range"]

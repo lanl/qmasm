@@ -1,0 +1,40 @@
+#! /usr/bin/env python
+
+####################################
+# Generate a connectivity list for #
+# an {M, N, L} Chimera graph       #
+#                                  #
+# By Scott Pakin <pakin@lanl.gov>  #
+####################################
+
+import sys
+
+# Parse the command line.
+if len(sys.argv) != 4:
+    sys.stderr.write("Usage: %s <width> <height> <rows>\n" % sys.argv[0])
+    sys.exit(1)
+width = int(sys.argv[1])    # Width in unit cells
+height = int(sys.argv[2])   # Height in unit cells
+pnodes = int(sys.argv[3])   # Nodes in each of a unit cell's two partitions
+
+# Loop over all unit cells.
+for y in range(height):
+    for x in range(width):
+        # Connect all nodes in the left partition to all nodes in the
+        # right partition.
+        base = (y*width + x)*2*pnodes
+        for r1 in range(pnodes):
+            for r2 in range(pnodes, 2*pnodes):
+                print("%d %d" % (base + r1, base + r2))
+
+        # Connect each node in the right partition to its peer in the
+        # unit cell to the right.
+        if x < width - 1:
+            for r in range(pnodes, 2*pnodes):
+                print("%d %d" % (base + r, base + r + 2*pnodes))
+
+        # Connect each node in the left partition to its peer in the
+        # unit cell below.
+        if y < height - 1:
+            for r in range(0, pnodes):
+                print("%d %d" % (base + r, base + r + 2*pnodes*width))

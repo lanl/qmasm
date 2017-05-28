@@ -136,7 +136,7 @@ if cl_args.verbose >= 2:
 # rely on the qOp infrastructure to set the environment variables properly.
 qmasm.connect_to_dwave()
 
-# Output most or all solver properties.
+# Output either short or all solver properties.
 if cl_args.verbose >= 1:
     # Introduce a few extra solver properties.
     ext_solver_properties = {}
@@ -203,7 +203,8 @@ if cl_args.format == "qmasm":
         sys.exit(0)
 
 # Embed the problem onto the D-Wave.
-physical = qmasm.embed_problem_on_dwave(logical_ising, cl_args.O, cl_args.verbose)
+physical = qmasm.embed_problem_on_dwave(logical_ising, cl_args.O,
+                                        cl_args.verbose, cl_args.topology_file)
 
 # Set all chains to the user-specified strength then combine user-specified
 # chains with embedder-created chains.

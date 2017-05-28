@@ -46,6 +46,8 @@ def parse_command_line():
                            help="number of spin-reversal transforms to perform (default: 0)")
     cl_parser.add_argument("--extra-args", default="",
                            help="extra arguments to pass to a solver command (default: none)")
+    cl_parser.add_argument("--topology-file", default=None, metavar="FILE",
+                           help="name of a file describing the topology (list of vertex pairs)")
     cl_parser.add_argument("--postproc", choices=["", "sample", "opt"],
                            default="",
                            help="type of postprocessing to perform (default: none)")

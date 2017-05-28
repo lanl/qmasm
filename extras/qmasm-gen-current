@@ -1,0 +1,29 @@
+#! /usr/bin/env python
+
+####################################
+# Generate a connectivity list for #
+# the current solver's topology    #
+#                                  #
+# By Scott Pakin <pakin@lanl.gov>  #
+####################################
+
+import qmasm
+import sys
+
+# Acquire the current topology.
+qmasm.connect_to_dwave()
+try:
+    hw_adj = qmasm.get_hardware_adjacency(qmasm.solver)
+except KeyError:
+    qmasm.abend("Failed to query solver %s's topology" % qmasm.solver_name)
+
+# Canonicalize and sort the edge list.
+edges = set()
+for u, v in hw_adj:
+    if u == v:
+        abend("Topology contains a self edge: (%d, %d)" % (u, v))
+    if u > v:
+        u, v = v, u
+    edges.add((u, v))
+for u, v in sorted(edges):
+    print("%d %d" % (u, v))
