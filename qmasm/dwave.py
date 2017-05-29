@@ -374,7 +374,7 @@ def solution_is_intact(physical, soln):
 def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, postproc, discard):
     "Submit a QMI to the D-Wave."
     # Map abbreviated to full names for postprocessing types.
-    postproc = {"": "", "opt": "optimization", "sample": "sampling"}[postproc]
+    postproc = {"none": "", "opt": "optimization", "sample": "sampling"}[postproc]
 
     # Determine the annealing time to use.
     if anneal_time == None:
