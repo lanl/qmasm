@@ -11,6 +11,9 @@ import subprocess
 import sys
 import tempfile
 
+# Define a scale factor for converting floats to ints for MiniZinc's sake.
+qmasm.minizinc_scale_factor = 10000.0
+
 def run_qbsolv(ising, oname, extra_args, verbosity):
     "Run qmasm-qbsolv on the problem and report the result."
     # Use the specified file name if provided.  Otherwise, write to a temporary

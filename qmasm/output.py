@@ -266,7 +266,10 @@ solve satisfy;
     # MiniZinc to output the current solution number explicitly so I had to
     # hard-wire "Solution #1".
     outfile.write("output [\n")
-    outfile.write('  "Solution #1 (energy = ", show(energy), ", tally = 1)\\n\\n",\n')
+    if energy == None:
+        outfile.write('  "Solution #1 (energy = ", show(energy), ", tally = 1)\\n\\n",\n')
+    else:
+        outfile.write('  "Solution #1 (energy = ", show(energy/%.10g), ", tally = 1)\\n\\n",\n' % qmasm.minizinc_scale_factor)
     outfile.write('  "    %-*s  Spin  Boolean\\n",\n' % (max_sym_name_len, "Name(s)"))
     outfile.write('  "    %s  ----  -------\\n",\n' % ("-" * max_sym_name_len))
     outlist = []
