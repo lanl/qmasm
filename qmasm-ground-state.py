@@ -86,7 +86,7 @@ def output_ground_state(syms, h, J):
             table.append((spins, energy))
 
     # Output the ground-state rows (or all rows if verbosity is enabled).
-    print(" ".join(["%*s" % (width, s) for s in syms]) + "    Energy  GS")
+    print(" ".join(["%*s" % (width, s) for s in syms]) + "     Energy GS")
     print(" ".join(["-"*width for s in syms]) + " " + "-"*10 + " --")
     for t in table:
         spins, energy = t
