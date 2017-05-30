@@ -48,6 +48,8 @@ def parse_command_line():
                            help="extra arguments to pass to a solver command (default: none)")
     cl_parser.add_argument("--topology-file", default=None, metavar="FILE",
                            help="name of a file describing the topology (list of vertex pairs)")
+    cl_parser.add_argument("-E", "--always-embed", action="store_true",
+                           help="embed the problem in the physical topology even when not required (default: false)")
     cl_parser.add_argument("--postproc", choices=["none", "sample", "opt"],
                            default="none",
                            help='type of postprocessing to perform (default: "none")')

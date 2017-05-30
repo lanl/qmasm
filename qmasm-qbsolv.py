@@ -38,7 +38,7 @@ name2qubit = {}     # Map from a QMASM name to a qubit number
 with open(infile) as f:
     for line in f:
         fields = line.split()
-        if len(fields) == 4 and fields[0] == "c" and fields[2] == "-->":
+        if len(fields) >= 4 and fields[0] == "c" and fields[2] == "-->":
             name2qubit[fields[1]] = int(fields[3])
 if len(name2qubit) == 0:
     sys.stderr.write("%s: No QMASM comments found in %s.  Aborting.\n" % (sys.argv[0], infile))

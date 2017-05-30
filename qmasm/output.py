@@ -99,6 +99,7 @@ def output_dw(outfile, problem):
 
 def output_qbsolv(outfile, problem):
     "Output weights and strengths in qbsolv format."
+    # Output a name-to-number map as header comments.
     key_width = 0
     val_width = 0
     items = []
@@ -107,31 +108,39 @@ def output_qbsolv(outfile, problem):
             continue
         if len(s) > key_width:
             key_width = len(s)
-        nstr = str(n)
+
+        # Map logical to physical if possible.
+        try:
+            nstr = " ".join([str(n) for n in sorted(problem.embedding[n])])
+        except AttributeError:
+            nstr = str(n)
         if len(nstr) > val_width:
             val_width = len(nstr)
         items.append((s, nstr))
     items.sort()
     for s, nstr in items:
         outfile.write("c %-*s --> %-*s\n" % (key_width, s, val_width, nstr))
+
+    # Determine the list of nonzero weights and strengths and write a
+    # header line.
     if not problem.qubo:
         qprob = problem.convert_to_qubo()
         output_weights, output_strengths = qprob.weights, qprob.strengths
     else:
         output_weights = problem.weights
         output_strengths = problem.strengths
-    num_output_weights = len(output_weights)
-    for q1, q2 in output_strengths.keys():
-        # A large-numbered qubit might have zero weight but nonzero strength.
-        num_output_weights = max(num_output_weights, q1 + 1, q2 + 1)
-    nonzero_strengths = [s for s in output_strengths.values() if s != 0.0]
-    outfile.write("p qubo 0 %d %d %d\n" % (num_output_weights, num_output_weights, len(nonzero_strengths)))
-    for q in range(num_output_weights):
-        outfile.write("%d %d %.10g\n" % (q, q, output_weights[q]))
-    for qs in sorted(output_strengths.keys()):
-        s = output_strengths[qs]
-        if s != 0.0:
-            outfile.write("%d %d %.10g\n" % (qs[0], qs[1], s))
+    max_node = max(list(output_weights.keys()) + [max(qs) for qs in output_strengths.keys()])
+    num_nonzero_weights = len([q for q, wt in output_weights.items() if wt != 0.0])
+    num_nonzero_strengths = len([qs for qs, wt in output_strengths.items() if wt != 0.0])
+    outfile.write("p qubo 0 %d %d %d\n" % (max_node + 1, num_nonzero_weights, num_nonzero_strengths))
+
+    # Output all nonzero weights and strengths.
+    for q, wt in sorted(output_weights.items()):
+        if wt != 0.0:
+            outfile.write("%d %d %.10g\n" % (q, q, wt))
+    for qs, wt in sorted(output_strengths.items()):
+        if wt != 0.0:
+            outfile.write("%d %d %.10g\n" % (qs[0], qs[1], wt))
 
 def output_qmasm(outfile):
     "Output weights and strengths as a flattened QMASM source file."
@@ -168,20 +177,33 @@ def output_minizinc(outfile, problem, energy=None):
     else:
         qprob = problem.convert_to_qubo()
 
-    # Map each logical qubit to one or more symbols.
-    num2syms = [[] for _ in range(len(qmasm.sym2num))]
-    max_sym_name_len = 7
+    # Map each qubit to one or more symbols.
+    num2syms = {}
     for s, n in qmasm.sym2num.items():
-        num2syms[n].append(s)
-        max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
-    for n in range(len(num2syms)):
+        try:
+            # Physical problem
+            for pn in problem.embedding[n]:
+                try:
+                    num2syms[pn].append(s)
+                except KeyError:
+                    num2syms[pn] = [s]
+        except AttributeError:
+            # Logical problem
+            try:
+                num2syms[n].append(s)
+            except KeyError:
+                num2syms[n] = [s]
+    for n in num2syms.keys():
         num2syms[n].sort(key=lambda s: ("$" in s, s))
 
+    # Find the character width of the longest list of symbol names.
+    max_sym_name_len = max([len(repr(ss)) - 1 for ss in num2syms.values()] + [7])
+
     # Output all QMASM variables as MiniZinc variables.
-    all_weights = set(qprob.weights.keys())
-    all_weights.update([qs[0] for qs in qprob.strengths.keys()])
-    all_weights.update([qs[1] for qs in qprob.strengths.keys()])
-    for q in sorted(all_weights):
+    qubits_used = set(qprob.weights.keys())
+    qubits_used.update([qs[0] for qs in qprob.strengths.keys()])
+    qubits_used.update([qs[1] for qs in qprob.strengths.keys()])
+    for q in sorted(qubits_used):
         outfile.write("var 0..1: q%d;  %% %s\n" % (q, " ".join(num2syms[q])))
     outfile.write("\n")
 
@@ -248,23 +270,17 @@ solve satisfy;
     outfile.write('  "    %-*s  Spin  Boolean\\n",\n' % (max_sym_name_len, "Name(s)"))
     outfile.write('  "    %s  ----  -------\\n",\n' % ("-" * max_sym_name_len))
     outlist = []
-    for n in range(len(num2syms)):
-        try:
-            phys = problem.embedding[n][0]
-        except IndexError:
+    for n, ss in num2syms.items():
+        if ss == []:
             continue
-        except AttributeError:
-            phys = n
-        if num2syms[n] == []:
-            continue
-        syms = " ".join(num2syms[n])
+        syms = " ".join(ss)
         line = ""
         line += '"    %-*s  ", ' % (max_sym_name_len, syms)
         if problem.qubo:
-            line += 'show_int(4, q%d), ' % phys
+            line += 'show_int(4, q%d), ' % n
         else:
-            line += 'show_int(4, 2*q%d - 1), ' % phys
-        line += '"  ", if show(q%d) == "1" then "True" else "False" endif, ' % phys
+            line += 'show_int(4, 2*q%d - 1), ' % n
+        line += '"  ", if show(q%d) == "1" then "True" else "False" endif, ' % n
         line += '"\\n"'
         outlist.append(line)
     outlist.sort()

@@ -8,16 +8,18 @@
 import qmasm
 import os
 import os.path
-import shlex
 import string
 import sys
+
+# Specify the minimum distinguishable difference between energy readings.
+min_energy_delta = 0.005
+
+# Define the set of classical solvers we support.
+classical_solvers = ["qbsolv", "minizinc"]
 
 # Parse the command line.
 cl_args = qmasm.parse_command_line()
 qmasm.report_command_line(cl_args)
-
-# Specify the minimum distinguishable difference between energy readings.
-min_energy_delta = 0.005
 
 # Parse the original input file(s) into an internal representation.
 fparse = qmasm.FileParser()
@@ -175,46 +177,37 @@ if cl_args.verbose >= 1:
             sys.stderr.write("    %-*s  %s\n" % (max_key_len, k, val_str))
     sys.stderr.write("\n")
 
-# As a special case, if the user specified --format=qbsolv we work with the
-# pre-embedded version of the problem then exit.
-if cl_args.format == "qbsolv":
-    if cl_args.run:
-        qmasm.run_qbsolv(logical_ising, cl_args.output,
-                         shlex.split(cl_args.extra_args), cl_args.verbose)
-    else:
-        qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
-    sys.exit(0)
+# Determine if we're expected to write an output file.  If --run was specified,
+# we write a file only if --output was also specified.
+write_output_file = not (cl_args.output == "<stdout>" and cl_args.run)
 
-# As a special case, if the user specified --format=minizinc we work with the
-# pre-embedded version of the problem then exit.
-if cl_args.format == "minizinc":
-    if cl_args.run:
-        qmasm.run_minizinc(logical_ising, cl_args.output, shlex.split(cl_args.extra_args), cl_args.verbose)
-    else:
-        qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
-    sys.exit(0)
-
-# As a special case, if the user requested QMASM output we output the
-# pre-embedded version of the problem.  If we weren't asked to run, we can stop
-# here.
-if cl_args.format == "qmasm":
+# If the user requested QMASM output, output it here.
+if write_output_file and cl_args.format == "qmasm":
     qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
     if not cl_args.run:
         sys.exit(0)
 
+# Process all classical solvers unless we were told to do so post-embedding.
+if not cl_args.always_embed and cl_args.format in classical_solvers:
+    qmasm.process_classical(logical_ising, cl_args.format, cl_args.output,
+                            cl_args.run, cl_args.extra_args, cl_args.qubo,
+                            cl_args.verbose)
+    sys.exit(0)
+
 # Embed the problem onto the D-Wave.
-physical = qmasm.embed_problem_on_dwave(logical_ising, cl_args.O,
-                                        cl_args.verbose, cl_args.topology_file)
+physical_ising = qmasm.embed_problem_on_dwave(logical_ising, cl_args.O,
+                                              cl_args.verbose,
+                                              cl_args.topology_file)
 
 # Set all chains to the user-specified strength then combine user-specified
 # chains with embedder-created chains.
-physical = qmasm.update_strengths_from_chains(physical)
+physical_ising = qmasm.update_strengths_from_chains(physical_ising)
 if cl_args.verbose >= 2:
     sys.stderr.write("Introduced the following new chains:\n\n")
-    if len(physical.chains) == 0:
+    if len(physical_ising.chains) == 0:
         sys.stderr.write("    [none]\n")
     else:
-        for c in physical.chains:
+        for c in physical_ising.chains:
             num1, num2 = c
             if num1 > num2:
                 num1, num2 = num2, num1
@@ -234,21 +227,21 @@ if cl_args.verbose >= 1:
     sys.stderr.write("Established a mapping from logical to physical qubits:\n\n")
     sys.stderr.write("    Logical  %-*s  Physical\n" % (max_sym_name_len, "Name(s)"))
     sys.stderr.write("    -------  %s  --------\n" % ("-" * max_sym_name_len))
-    for i in range(len(physical.embedding)):
+    for i in range(len(physical_ising.embedding)):
         if num2syms[i] == []:
             continue
         name_list = " ".join(sorted(num2syms[i]))
-        phys_list = " ".join(["%4d" % e for e in sorted(physical.embedding[i])])
+        phys_list = " ".join(["%4d" % e for e in sorted(physical_ising.embedding[i])])
         sys.stderr.write("    %7d  %-*s  %s\n" % (i, max_sym_name_len, name_list, phys_list))
     sys.stderr.write("\n")
 else:
     # Even at zero verbosity, we still note the logical-to-physical mapping.
     log2phys_comments = []
-    for i in range(len(physical.embedding)):
+    for i in range(len(physical_ising.embedding)):
         if num2syms[i] == []:
             continue
         name_list = " ".join(num2syms[i])
-        phys_list = " ".join(["%d" % e for e in sorted(physical.embedding[i])])
+        phys_list = " ".join(["%d" % e for e in sorted(physical_ising.embedding[i])])
         log2phys_comments.append("# %s --> %s" % (name_list, phys_list))
     log2phys_comments.sort()
     sys.stderr.write("\n".join(log2phys_comments) + "\n")
@@ -256,7 +249,7 @@ else:
 # Output some statistics about the embedding.
 if cl_args.verbose >= 1:
     # Output a table.
-    phys_wts = [elt for lst in physical.embedding for elt in lst]
+    phys_wts = [elt for lst in physical_ising.embedding for elt in lst]
     sys.stderr.write("Computed the following statistics of the logical-to-physical mapping:\n\n")
     sys.stderr.write("    Type      Metric          Value\n")
     sys.stderr.write("    --------  --------------  -----\n")
@@ -265,12 +258,12 @@ if cl_args.verbose >= 1:
     sys.stderr.write("    Logical     Equivalences  %5d\n" % logical_stats["eqs"])
     sys.stderr.write("    Logical     Pins          %5d\n" % logical_stats["pins"])
     sys.stderr.write("    Physical  Qubits          %5d\n" % len(phys_wts))
-    sys.stderr.write("    Physical  Couplers        %5d\n" % len(physical.strengths))
-    sys.stderr.write("    Physical    Chains        %5d\n" % len(physical.chains))
+    sys.stderr.write("    Physical  Couplers        %5d\n" % len(physical_ising.strengths))
+    sys.stderr.write("    Physical    Chains        %5d\n" % len(physical_ising.chains))
     sys.stderr.write("\n")
 
     # Output some additional chain statistics.
-    chain_lens = [len(c) for c in physical.embedding]
+    chain_lens = [len(c) for c in physical_ising.embedding]
     max_chain_len = 0
     if chain_lens != []:
         max_chain_len = max(chain_lens)
@@ -278,12 +271,24 @@ if cl_args.verbose >= 1:
     sys.stderr.write("    Maximum chain length = %d (occurrences = %d)\n\n" % (max_chain_len, num_max_chains))
 
 # Manually scale the weights and strengths so Qubist doesn't complain.
-physical = qmasm.scale_weights_strengths(physical, cl_args.verbose)
+physical_ising = qmasm.scale_weights_strengths(physical_ising, cl_args.verbose)
 
-# Output a file in any of a variety of formats.  Note that we've already
-# handled qbsolv output and QMASM output as special cases.
-if cl_args.format != "qmasm" and (cl_args.output != "<stdout>" or not cl_args.run):
-    qmasm.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo)
+# Process all classical solvers.  If we're here and the solver is classical,
+# then always_embed must be False.
+if cl_args.format in classical_solvers:
+    qmasm.process_classical(physical_ising, cl_args.format, cl_args.output,
+                            cl_args.run, cl_args.extra_args, cl_args.qubo,
+                            cl_args.verbose)
+    sys.exit(0)
+
+# Output a file in any of a variety of formats.  Note that a few cases
+# were handled above by process_classical.
+if write_output_file:
+    if cl_args.format == "qmasm":
+        # Don't write a QMASM file if we already did so before embedding.
+        pass
+    else:
+        qmasm.write_output(physical_ising, cl_args.output, cl_args.format, cl_args.qubo)
 
 # If we weren't told to run anything we can exit now.
 if not cl_args.run:
@@ -293,7 +298,7 @@ if not cl_args.run:
 if cl_args.verbose >= 1:
     sys.stderr.write("Submitting the problem to the %s solver.\n\n" % qmasm.solver_name)
 dwave_response = qmasm.submit_dwave_problem(cl_args.verbose,
-                                            physical,
+                                            physical_ising,
                                             cl_args.samples,
                                             cl_args.anneal_time,
                                             cl_args.spin_revs,
@@ -370,7 +375,7 @@ if cl_args.verbose >= 2:
         except KeyError:
             new_energy_tallies[e] = t
     new_energies = sorted(new_energy_tallies.keys())
-    min_energy_possible = -sum([abs(w) for w in physical.weights] + [abs(s) for s in physical.strengths.values()])
+    min_energy_possible = -sum([abs(w) for w in physical_ising.weights] + [abs(s) for s in physical_ising.strengths.values()])
     sys.stderr.write("Energy histogram (theoretical minimum = %.4f):\n\n" % min_energy_possible)
     sys.stderr.write("    Energy      Tally\n")
     sys.stderr.write("    ----------  ------\n")

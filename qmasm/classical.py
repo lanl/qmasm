@@ -6,11 +6,12 @@
 import os
 import qmasm
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
 
-def run_qbsolv(logical_ising, oname, extra_args, verbosity):
+def run_qbsolv(ising, oname, extra_args, verbosity):
     "Run qmasm-qbsolv on the problem and report the result."
     # Use the specified file name if provided.  Otherwise, write to a temporary
     # file."
@@ -22,7 +23,7 @@ def run_qbsolv(logical_ising, oname, extra_args, verbosity):
         qubo_fname = oname
 
     # Create the .qubo file.
-    qmasm.write_output(logical_ising, qubo_fname, "qbsolv", False)
+    qmasm.write_output(ising, qubo_fname, "qbsolv", False)
 
     # Run qmasm-qbsolv on the .qubo file.
     args = ["qmasm-qbsolv", "-i", qubo_fname] + extra_args
@@ -39,17 +40,17 @@ def run_qbsolv(logical_ising, oname, extra_args, verbosity):
     if oname == "<stdout>":
         os.remove(qubo_fname)
 
-def run_minizinc(logical_ising, oname, extra_args, verbosity):
+def run_minizinc(ising, oname, extra_args, verbosity):
     "Run mzn-chuffed on the problem and report the result."
     # If the user specified a file, create that first.
     if oname != "<stdout>":
-        qmasm.write_output(logical_ising, oname, "minizinc", False)
+        qmasm.write_output(ising, oname, "minizinc", False)
 
     # Always create a temporary file because we need something we can overwrite.
     tfile = tempfile.NamedTemporaryFile(suffix=".mzn", prefix="qmasm-", mode="w+")
     mzn_fname = tfile.name
     tfile.close()
-    qmasm.write_output(logical_ising, mzn_fname, "minizinc", False)
+    qmasm.write_output(ising, mzn_fname, "minizinc", False)
 
     # Run MiniZinc on the .mzn file.
     args = ["minizinc", "-b", "mip"] + extra_args + [mzn_fname]
@@ -71,7 +72,7 @@ def run_minizinc(logical_ising, oname, extra_args, verbosity):
     # Regenerate the MiniZinc input as a satisfaction problem instead of a
     # minimization problem.
     tfile = open(mzn_fname, "w")
-    qmasm.output_minizinc(tfile, logical_ising, energy)
+    qmasm.output_minizinc(tfile, ising, energy)
     tfile.close()
 
     # Run MiniZinc on the modified .mzn file.
@@ -103,3 +104,16 @@ def run_minizinc(logical_ising, oname, extra_args, verbosity):
 
     # Delete the .mzn file.
     os.remove(mzn_fname)
+
+def process_classical(ising, format, oname, run, extra_args, as_qubo, verbosity):
+    "Write a file for classical solution and optionally run it."
+    if format == "qbsolv":
+        if run:
+            qmasm.run_qbsolv(ising, oname, shlex.split(extra_args), verbosity)
+        else:
+            qmasm.write_output(ising, oname, format, as_qubo)
+    elif format == "minizinc":
+        if run:
+            qmasm.run_minizinc(ising, oname, shlex.split(extra_args), verbosity)
+        else:
+            qmasm.write_output(ising, oname, format, as_qubo)
