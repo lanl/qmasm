@@ -225,7 +225,11 @@ class Problem(object):
         qmasm.sym2num = new_sym2num
 
         # Renumber all of the above to compact the qubit numbers.
-        qmap = dict(zip(self.weights.keys(), range(len(self.weights))))
+        qubits_used = set(self.weights.keys())
+        for q1, q2 in self.strengths.keys():
+            qubits_used.add(q1)
+            qubits_used.add(q2)
+        qmap = dict(zip(sorted(qubits_used), range(len(qubits_used))))
         self.chains = {(qmap[q1], qmap[q2]): None for q1, q2 in self.chains.keys()}
         self.weights = defaultdict(lambda: 0.0,
                                    {qmap[q]: wt for q, wt in self.weights.items()})
