@@ -60,6 +60,7 @@ class Problem(object):
         self.strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
         self.chains = {}     # Subset of strengths keys that represents chains
         self.pinned = []     # Pairs of {unique number, Boolean} to pin
+        self.offset = 0.0    # Value to add to QUBO energy to convert to Ising energy or vice versa
 
     def assign_chain_strength(self, ch_str):
         """Define a strength for each user-specified and automatically generated
@@ -119,9 +120,10 @@ class Problem(object):
         new_obj = copy.deepcopy(self)
         qmatrix = {(q, q): w for q, w in new_obj.weights.items()}
         qmatrix.update(new_obj.strengths)
-        hvals, new_obj.strengths, _ = qubo_to_ising(qmatrix)
+        hvals, new_obj.strengths, qoffset = qubo_to_ising(qmatrix)
         new_obj.strengths = qmasm.canonicalize_strengths(new_obj.strengths)
         new_obj.weights.update({i: hvals[i] for i in range(len(hvals))})
+        new_obj.offset = qoffset
         new_obj.qubo = False
         return new_obj
 
@@ -131,7 +133,8 @@ class Problem(object):
         if self.qubo:
             raise TypeError("Can convert only Ising problems to QUBO problems")
         new_obj = copy.deepcopy(self)
-        qmatrix, _ = ising_to_qubo(qmasm.dict_to_list(self.weights), self.strengths)
+        qmatrix, qoffset = ising_to_qubo(qmasm.dict_to_list(self.weights), self.strengths)
+        new_obj.offset = qoffset
         new_obj.weights = defaultdict(lambda: 0.0,
                                       {q1: wt
                                        for (q1, q2), wt in qmatrix.items()

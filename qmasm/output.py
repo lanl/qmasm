@@ -182,7 +182,7 @@ def output_minizinc(outfile, problem, energy=None):
     for s, n in qmasm.sym2num.items():
         try:
             # Physical problem
-            for pn in problem.embedding[n]:
+            for pn in qprob.embedding[n]:
                 try:
                     num2syms[pn].append(s)
                 except KeyError:
@@ -269,7 +269,7 @@ solve satisfy;
     if energy == None:
         outfile.write('  "Solution #1 (energy = ", show(energy), ", tally = 1)\\n\\n",\n')
     else:
-        outfile.write('  "Solution #1 (energy = ", show(energy/%.10g), ", tally = 1)\\n\\n",\n' % qmasm.minizinc_scale_factor)
+        outfile.write('  "Solution #1 (energy = ", show(energy/%.10g + %.10g), ", tally = 1)\\n\\n",\n' % (qmasm.minizinc_scale_factor, qprob.offset))
     outfile.write('  "    %-*s  Spin  Boolean\\n",\n' % (max_sym_name_len, "Name(s)"))
     outfile.write('  "    %s  ----  -------\\n",\n' % ("-" * max_sym_name_len))
     outlist = []
