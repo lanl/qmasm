@@ -5,8 +5,10 @@
 # By Scott Pakin <pakin@lanl.gov>          #
 ############################################
 
-import qmasm
 import argparse
+import multiprocessing
+import qmasm
+import threading
 
 # Parse the command line.
 cl_parser = argparse.ArgumentParser(description="Compute the ground state of a QMASM macro")
@@ -21,6 +23,7 @@ cl_parser.add_argument("-p", "--precision", type=float, default=0.005,
 cl_args = cl_parser.parse_args()
 if cl_args.macro == "":
     qmasm.abend("A macro must be specified with --macro")
+prec = cl_args.precision
 
 # Parse the original input file(s) into an internal representation.
 fparse = qmasm.FileParser()
@@ -48,46 +51,100 @@ def macro_to_coeffs(macro):
 
 def similar(a, b):
     "Return True if two floating-point numbers are nearly equal."
-    return abs(a - b) < cl_args.precision
+    return abs(a - b) < prec
+
+class FindGroundState(threading.Thread):
+    "FindGroundState uses a team of threads to find a truth table's ground states."
+    # Define state that is shared among threads.
+    class SharedState(object):
+        def __init__(self):
+            self.min_energy = 2**30    # Minimum energy observed
+            self.all_energies = set()  # All energies, rounded to the given precision
+            self.table = []            # List of {spins, energy} tuples
+            self.lock = threading.Lock()
+
+        def update(self, min_energy, all_energies, table):
+            "Update all of our state at once."
+            self.lock.acquire()
+            self.all_energies.update(all_energies)
+            if min_energy < self.min_energy:
+                if not cl_args.all and not similar(self.min_energy, min_energy):
+                    # New minimum -- clear the table.
+                    self.table = []
+                self.min_energy = min_energy
+            if cl_args.all or similar(self.min_energy, min_energy):
+                self.table.extend(table)
+            self.lock.release()
+
+    state = SharedState()
+
+    def __init__(self, ncols, begin, end, step):
+        threading.Thread.__init__(self)
+        self.ncols = ncols
+        self.begin = begin
+        self.end = end
+        self.step = step
+
+    def run(self):
+        "Find the ground state by exhaustively examining a range of rows."
+        # In our thread, we locally examine 1/Nth of the rows.
+        min_energy = 2**30
+        all_energies = set()
+        table = []
+        ncols = self.ncols
+        for row in range(self.begin, self.end, self.step):
+            # Precompute a vector of spins.
+            spins = [(row>>(ncols - i - 1)&1)*2 - 1 for i in range(ncols)]
+
+            # Compute the current row's energy
+            energy = 0.0
+            for i in range(ncols):
+                try:
+                    hi = h[syms[i]]
+                    energy += hi*spins[i]
+                except KeyError:
+                    pass
+            for i in range(ncols - 1):
+                for j in range(i + 1, ncols):
+                    try:
+                        Jij = J[(syms[i], syms[j])]
+                        energy += Jij*spins[i]*spins[j]
+                    except KeyError:
+                        pass
+
+            # Keep track of minimum energy, within precision limits.
+            all_energies.add(round(energy/prec)*prec)
+            if energy < min_energy:
+                min_energy = energy
+                if not cl_args.all:
+                    table = []    # We don't need excited states unless we're outputting them.
+            if cl_args.all or similar(energy, min_energy):
+                table.append((spins, energy))
+
+        # Merge our findings into the global state.
+        self.state.update(min_energy, all_energies, table)
 
 def output_ground_state(syms, h, J):
     "Exhaustively evaluate the ground states of a truth table."
-    width = max([len(s) for s in syms])
-    width = max (width, 2)  # Need room for "+1" and "-1"
+    # Compute the ground states using multiple threads, one per
+    # hardware thread.
     ncols = len(syms)
-    table = []   # List of {spins, energy} tuples
-    min_energy = 2**30
-    all_energies = set()
-    for row in range(2**ncols):
-        # Precompute a vector of spins.
-        spins = [(row>>(ncols - i - 1)&1)*2 - 1 for i in range(ncols)]
-
-        # Compute the current row's energy
-        energy = 0.0
-        for i in range(ncols):
-            try:
-                hi = h[syms[i]]
-                energy += hi*spins[i]
-            except KeyError:
-                pass
-        for i in range(ncols - 1):
-            for j in range(i + 1, ncols):
-                try:
-                    Jij = J[(syms[i], syms[j])]
-                    energy += Jij*spins[i]*spins[j]
-                except KeyError:
-                    pass
-
-        # Keep track of minimum energy, within precision limits.
-        all_energies.add(energy)
-        if energy < min_energy:
-            min_energy = energy
-            if not cl_args.all:
-                table = []    # We don't need excited states unless we're outputting them.
-        if similar(energy, min_energy) or cl_args.all:
-            table.append((spins, energy))
+    nrows = 2**ncols
+    nthreads = min(multiprocessing.cpu_count(), nrows)
+    tobjs = []
+    for i in range(nthreads):
+        tobjs.append(FindGroundState(ncols, i, nrows, nthreads))
+        tobjs[i].start()
+    for t in tobjs:
+        t.join()
+    min_energy = FindGroundState.state.min_energy
+    all_energies = FindGroundState.state.all_energies
+    table = FindGroundState.state.table
+    table.sort()
 
     # Output the ground-state rows (or all rows if verbosity is enabled).
+    width = max([len(s) for s in syms])
+    width = max (width, 2)  # Need room for "+1" and "-1"
     print(" ".join(["%*s" % (width, s) for s in syms]) + "     Energy GS")
     print(" ".join(["-"*width for s in syms]) + " " + "-"*10 + " --")
     for t in table:
@@ -101,11 +158,11 @@ def output_ground_state(syms, h, J):
     print("")
 
     # Also output the gap between the ground state and first excited state.
-    all_energies = sorted(all_energies)
+    all_energies = sorted(set([round(e/prec)*prec for e in all_energies]))
     if len(all_energies) == 1:
         print("=== GAP: N/A ===")
     else:
-        print("=== GAP: %.2f ===" % (all_energies[1] - all_energies[0]))
+        print("=== GAP: %.5g ===" % (all_energies[1] - all_energies[0]))
 
 # Process each macro in turn.
 print("=== MACRO: %s ===" % cl_args.macro)
