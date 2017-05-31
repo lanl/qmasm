@@ -7,7 +7,7 @@ import qmasm
 import re
 import sys
 try:
-    from dwave_sapi2.util import ising_to_qubo, linear_index_to_chimera
+    from dwave_sapi2.util import linear_index_to_chimera
 except ImportError:
     from .fake_dwave import *
 
