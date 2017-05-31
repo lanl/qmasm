@@ -331,7 +331,6 @@ def update_strengths_from_chains(physical):
     physical Problem object."""
     new_physical = copy.deepcopy(physical)
     new_physical.chains = {c: qmasm.chain_strength for c in physical.chains.keys()}
-    new_physical.strengths = physical.strengths.copy()
     new_physical.strengths.update(new_physical.chains)
     return new_physical
 
@@ -443,7 +442,8 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
     except KeyError:
         num_occurrences = {tuple(a): 1 for a in semifinal_answer}
 
-    # Discard solutions with broken pins or broken chains unless instructed not to.
+    # Discard solutions with broken pins or broken chains unless instructed
+    # not to.
     valid_solns = [s for s in solutions if solution_is_intact(physical, s)]
     num_not_broken = len(valid_solns)
     if discard in ["yes", "maybe"]:

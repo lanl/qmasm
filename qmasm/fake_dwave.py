@@ -44,8 +44,11 @@ def ising_to_qubo(hs, js):
     # Discard zeroes.
     qs = {k: v for k, v in qs.items() if v != 0.0}
 
-    # QMASM doesn't use an offset so ignore it.
-    return qs, None
+    # Compute an energy offset.
+    qoffset = sum(hs) + sum(js.values())
+
+    # Return the QUBO matrix and energy offset.
+    return qs, qoffset
 
 def qubo_to_ising(qs):
     "Convert a dictionary of Qs to a list of hs and a dictionary of Js."

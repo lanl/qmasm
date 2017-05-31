@@ -182,7 +182,7 @@ def output_minizinc(outfile, problem, energy=None):
     for s, n in qmasm.sym2num.items():
         try:
             # Physical problem
-            for pn in problem.embedding[n]:
+            for pn in qprob.embedding[n]:
                 try:
                     num2syms[pn].append(s)
                 except KeyError:
@@ -230,46 +230,35 @@ def output_minizinc(outfile, problem, energy=None):
     # do only the former with instructions for the user on how to switch to the
     # latter.  However, if an energy was specified, comment out the
     # minimization step and uncomment the enumeration step.
+    outfile.write("\n")
+    outfile.write("% First pass: Compute the minimum energy.\n")
     if energy == None:
-        outfile.write("""
-% First pass: Compute the minimum energy.
-solve minimize energy;
-
-% Second pass: Find all minimum-energy solutions.
-%
-% Once you've solved for minimum energy, comment out the "solve minimize
-% energy" line, plug the minimal energy value into the following line,
-% uncomment it and the "solve satisfy" line, and re-run MiniZinc, requesting
-% all solutions this time.
-%constraint energy = -12345;
-%solve satisfy;
-
-""")
+        outfile.write("solve minimize energy;\n")
     else:
-        outfile.write("""
-%% First pass: Compute the minimum energy.
-%%solve minimize energy;
-
+        outfile.write("% solve minimize energy;\n")
+    outfile.write("""
 %% Second pass: Find all minimum-energy solutions.
 %%
 %% Once you've solved for minimum energy, comment out the "solve minimize
 %% energy" line, plug the minimal energy value into the following line,
 %% uncomment it and the "solve satisfy" line, and re-run MiniZinc, requesting
-%% all solutions this time.
-constraint energy = %d;
-solve satisfy;
-
-""" % energy)
+%% all solutions this time.  The catch is that you need to use the raw
+%% energy value so be sure to modify the output block to show(energy)
+%% instead of show(energy/%.10g + %.10g).
+""" % (qmasm.minizinc_scale_factor, qprob.offset))
+    if energy == None:
+        outfile.write("%constraint energy = -12345;\n")
+        outfile.write("%solve satisfy;\n\n")
+    else:
+        outfile.write("constraint energy = %d;\n" % energy)
+        outfile.write("solve satisfy;\n\n")
 
     # Output code to show the results symbolically.  We output in the same
     # format as QMASM normally does.  Unfortunately, I don't know how to get
     # MiniZinc to output the current solution number explicitly so I had to
     # hard-wire "Solution #1".
     outfile.write("output [\n")
-    if energy == None:
-        outfile.write('  "Solution #1 (energy = ", show(energy), ", tally = 1)\\n\\n",\n')
-    else:
-        outfile.write('  "Solution #1 (energy = ", show(energy/%.10g), ", tally = 1)\\n\\n",\n' % qmasm.minizinc_scale_factor)
+    outfile.write('  "Solution #1 (energy = ", show(energy/%.10g + %.10g), ", tally = 1)\\n\\n",\n' % (qmasm.minizinc_scale_factor, qprob.offset))
     outfile.write('  "    %-*s  Spin  Boolean\\n",\n' % (max_sym_name_len, "Name(s)"))
     outfile.write('  "    %s  ----  -------\\n",\n' % ("-" * max_sym_name_len))
     outlist = []

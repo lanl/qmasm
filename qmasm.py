@@ -274,7 +274,7 @@ if cl_args.verbose >= 1:
 physical_ising = qmasm.scale_weights_strengths(physical_ising, cl_args.verbose)
 
 # Process all classical solvers.  If we're here and the solver is classical,
-# then always_embed must be False.
+# then always_embed must be True.
 if cl_args.format in classical_solvers:
     qmasm.process_classical(physical_ising, cl_args.format, cl_args.output,
                             cl_args.run, cl_args.extra_args, cl_args.qubo,

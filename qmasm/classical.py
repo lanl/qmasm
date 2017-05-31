@@ -45,18 +45,21 @@ def run_qbsolv(ising, oname, extra_args, verbosity):
 
 def run_minizinc(ising, oname, extra_args, verbosity):
     "Run mzn-chuffed on the problem and report the result."
-    # If the user specified a file, create that first.
-    if oname != "<stdout>":
-        qmasm.write_output(ising, oname, "minizinc", False)
-
     # Always create a temporary file because we need something we can overwrite.
     tfile = tempfile.NamedTemporaryFile(suffix=".mzn", prefix="qmasm-", mode="w+")
     mzn_fname = tfile.name
     tfile.close()
     qmasm.write_output(ising, mzn_fname, "minizinc", False)
 
+    # Patch the energy output to show the raw (integer) value.
+    with open(mzn_fname) as tfile:
+        code = re.sub(r'show\(energy.*?\)', "show(energy)", tfile.read())
+    tfile = open(mzn_fname, "w")
+    tfile.write(code)
+    tfile.close()
+
     # Run MiniZinc on the .mzn file.
-    args = ["minizinc", "-b", "mip"] + extra_args + [mzn_fname]
+    args = ["minizinc", "--flatzinc-cmd=fzn-chuffed"] + extra_args + [mzn_fname]
     if verbosity >= 1:
         sys.stderr.write("Submitting the problem to MiniZinc.\n\n")
         if verbosity >= 2:
@@ -77,6 +80,12 @@ def run_minizinc(ising, oname, extra_args, verbosity):
     tfile = open(mzn_fname, "w")
     qmasm.output_minizinc(tfile, ising, energy)
     tfile.close()
+
+    # If the user specified a file, write that, too.
+    if oname != "<stdout>":
+        tfile = open(oname, "w")
+        qmasm.output_minizinc(tfile, ising, energy)
+        tfile.close()
 
     # Run MiniZinc on the modified .mzn file.
     args = ["minizinc", "--flatzinc-cmd=fzn-chuffed"]
