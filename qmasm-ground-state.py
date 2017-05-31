@@ -16,6 +16,8 @@ cl_parser.add_argument("-m", "--macro", metavar="MACRO", default="",
                        help="name of a macro whose ground state should be reported")
 cl_parser.add_argument("-a", "--all", action="store_true",
                        help="output all states, not just the ground state")
+cl_parser.add_argument("-p", "--precision", type=float, default=0.005,
+                       help="minimum difference between two floating-point values to be considered different")
 cl_args = cl_parser.parse_args()
 if cl_args.macro == "":
     qmasm.abend("A macro must be specified with --macro")
@@ -46,7 +48,7 @@ def macro_to_coeffs(macro):
 
 def similar(a, b):
     "Return True if two floating-point numbers are nearly equal."
-    return abs(a - b) < 0.01
+    return abs(a - b) < cl_args.precision
 
 def output_ground_state(syms, h, J):
     "Exhaustively evaluate the ground states of a truth table."
