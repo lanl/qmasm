@@ -156,7 +156,7 @@ def read_hardware_adjacency(fname, verbosity):
         sys.stderr.write("%d unique edges found\n\n" % len(adj))
     return sorted(adj)
 
-def find_dwave_embedding(logical, optimize, verbosity, hw_adj_file):
+def find_dwave_embedding(logical, optimization, verbosity, hw_adj_file):
     """Find an embedding of a logical problem in the D-Wave's physical topology.
     Store the embedding within the Problem object."""
     # SAPI tends to choke when embed_problem is told to embed a problem
@@ -191,7 +191,7 @@ def find_dwave_embedding(logical, optimize, verbosity, hw_adj_file):
         L, M, N = qmasm.chimera_topology(qmasm.solver)
         L2 = 2*L
         ncells = (qmasm.next_sym_num + L2) // L2   # Round up the number of cells.
-        if optimize:
+        if optimization >= 2:
             edgey = max(int(math.sqrt(ncells)), 1)
             edgex = max((ncells + edgey - 1) // edgey, 1)
         else:
@@ -290,11 +290,11 @@ def find_dwave_embedding(logical, optimize, verbosity, hw_adj_file):
         qmasm.abend("Failed to embed the problem")
     logical.embedding = embedding
 
-def embed_problem_on_dwave(logical, optimize, verbosity, hw_adj_file):
+def embed_problem_on_dwave(logical, optimization, verbosity, hw_adj_file):
     """Embed a logical problem in the D-Wave's physical topology.  Return a
     physical Problem object."""
     # Embed the problem.  Abort on failure.
-    find_dwave_embedding(logical, optimize, verbosity, hw_adj_file)
+    find_dwave_embedding(logical, optimization, verbosity, hw_adj_file)
     try:
         h_range = qmasm.solver.properties["h_range"]
         j_range = qmasm.solver.properties["j_range"]

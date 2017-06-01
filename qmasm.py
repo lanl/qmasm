@@ -68,7 +68,7 @@ if cl_args.verbose >= 1:
 logical_ising.pin_qubits(qmasm.pin_strength, qmasm.chain_strength)
 
 # Convert chains to aliases where possible.
-if cl_args.O:
+if cl_args.O >= 1:
     # Say what we're about to do
     if cl_args.verbose >= 2:
         sys.stderr.write("Replaced chains of equally weighted qubits with aliases:\n\n")

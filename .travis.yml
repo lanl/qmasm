@@ -21,7 +21,7 @@ install:
 # ensure that the tool runs to completion and exits with a success code.
 script:
   - cd examples
-  - qmasm -f qbsolv -v -v -O --pin="in[1:4] := 0110" sort4.qmasm
+  - qmasm -f qbsolv -v -v -O2 --pin="in[1:4] := 0110" sort4.qmasm
   - (set -x &&
      for solver in qbsolv minizinc qmasm ; do
          for always_embed in "" "--always-embed" ; do
