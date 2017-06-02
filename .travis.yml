@@ -23,7 +23,7 @@ script:
   - cd examples
   - qmasm -f qbsolv -v -v -O2 --pin="in[1:4] := 0110" sort4.qmasm
   - (set -x &&
-     for solver in qbsolv minizinc qmasm ; do
+     for solver in qbsolv minizinc bqpjson qmasm ; do
          for always_embed in "" "--always-embed" ; do
              for verbosity in "" "-v" "-v -v" ; do
                  read -r -a vs <<< "$verbosity" ;

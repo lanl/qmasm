@@ -181,8 +181,15 @@ if cl_args.verbose >= 1:
 # we write a file only if --output was also specified.
 write_output_file = not (cl_args.output == "<stdout>" and cl_args.run)
 
-# If the user requested QMASM output, output it here.
+# If the user requested QMASM output, always output it here.
 if write_output_file and cl_args.format == "qmasm":
+    qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
+    if not cl_args.run:
+        sys.exit(0)
+
+# If the user requested bqpjson output, output it here unless --always-embed
+# was specified.
+if write_output_file and cl_args.format == "bqpjson" and not cl_args.always_embed:
     qmasm.write_output(logical_ising, cl_args.output, cl_args.format, cl_args.qubo)
     if not cl_args.run:
         sys.exit(0)

@@ -3,7 +3,11 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
+import datetime
+import json
+import os
 import qmasm
+import random
 import re
 import sys
 try:
@@ -278,6 +282,65 @@ def output_minizinc(outfile, problem, energy=None):
     outlist.sort()
     outfile.write("  %s\n];\n" % ",\n  ".join(outlist))
 
+def output_bqpjson(outfile, as_qubo, problem):
+    "Output weights and strengths in bqpjson format, either Ising or QUBO."
+    # Prepare the "easy" fields.
+    bqp = {}
+    bqp["version"] = "1.0.0"
+    bqp["id"] = random.randint(2**20, 2**60)
+    bqp["scale"] = 1.0
+    bqp["offset"] = 0.0
+    if as_qubo:
+        bqp["variable_domain"] = "boolean"
+    else:
+        bqp["variable_domain"] = "spin"
+
+    # Prepare the list of all variables.
+    var_ids = set(problem.weights.keys())
+    for q1, q2 in problem.strengths.keys():
+        var_ids.add(q1)
+        var_ids.add(q2)
+    bqp["variable_ids"] = sorted(var_ids)
+
+    # Prepare the linear terms.
+    lin_terms = []
+    for q, wt in sorted(problem.weights.items()):
+        lin_terms.append({
+            "id": q,
+            "coeff": wt})
+    bqp["linear_terms"] = lin_terms
+
+    # Prepare the quadratic terms.
+    quad_terms = []
+    strengths = qmasm.canonicalize_strengths(problem.strengths)
+    for (q1, q2), wt in sorted(strengths.items()):
+        quad_terms.append({
+            "id_tail": q1,
+            "id_head": q2,
+            "coeff": wt})
+    bqp["quadratic_terms"] = quad_terms
+
+    # Prepare some metadata.
+    metadata = {}
+    metadata["command_line"] = qmasm.get_command_line()
+    metadata["generated"] = datetime.datetime.utcnow().isoformat()
+    if hasattr(problem, "embedding"):
+        # Physical problem
+        try:
+            L, M, N = qmasm.chimera_topology(qmasm.solver)
+            metadata["chimera_cell_size"] = L*2
+            metadata["chimera_degree"] = max(M, N)
+            metadata["dw_solver_name"] = qmasm.solver_name
+            props = qmasm.solver.properties
+            metadata["dw_chip_id"] = props["chip_id"]
+            metadata["dw_url"] = os.environ["DW_INTERNAL__HTTPLINK"]
+        except KeyError:
+            pass
+    bqp["metadata"] = metadata
+
+    # Output the problem in JSON format.
+    outfile.write(json.dumps(bqp, indent=2, sort_keys=True) + "\n")
+
 def write_output(problem, oname, oformat, as_qubo):
     "Write an output file in one of a variety of formats."
 
@@ -295,6 +358,8 @@ def write_output(problem, oname, oformat, as_qubo):
         output_qmasm(outfile)
     elif oformat == "minizinc":
         output_minizinc(outfile, problem)
+    elif oformat == "bqpjson":
+        output_bqpjson(outfile, as_qubo, problem)
 
     # Close the output file.
     if oname != "<stdout>":

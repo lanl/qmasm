@@ -20,7 +20,7 @@ def parse_command_line():
                            help="run the program on the current solver")
     cl_parser.add_argument("-o", "--output", metavar="FILE", default="<stdout>",
                            help="file to which to write weights and strengths (default: none)")
-    cl_parser.add_argument("-f", "--format", choices=["qubist", "dw", "qbsolv", "qmasm", "minizinc"], default="qubist",
+    cl_parser.add_argument("-f", "--format", choices=["qubist", "dw", "qbsolv", "qmasm", "minizinc", "bqpjson"], default="qubist",
                            help="output-file format")
     cl_parser.add_argument("-O", type=int, nargs="?", const=1, default=0,
                            metavar="LEVEL",
@@ -68,18 +68,22 @@ def quote_for_shell(token):
         return token
     return "'" + token.replace("'", "'\"'\"'") + "'"
 
+def get_command_line():
+    "Return the command line as a string, properly quoted."
+    try:
+        shell_quote = shlex.quote
+    except AttributeError:
+        shell_quote = quote_for_shell
+    return " ".join([shell_quote(a) for a in sys.argv])
+
 def report_command_line(cl_args):
     "For provenance and debugging purposes, report our command line parameters."
     # Output the command line as is.
     verbosity = cl_args.verbose
     if verbosity < 1:
         return
-    try:
-        shell_quote = shlex.quote
-    except AttributeError:
-        shell_quote = quote_for_shell
     sys.stderr.write("Command line provided:\n\n")
-    sys.stderr.write("    %s\n\n" % (" ".join([shell_quote(a) for a in sys.argv])))
+    sys.stderr.write("    %s\n\n" % get_command_line())
 
     # At higher levels of verbosity, output every single option.
     if verbosity < 2:
