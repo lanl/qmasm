@@ -322,20 +322,33 @@ def output_bqpjson(outfile, as_qubo, problem):
 
     # Prepare some metadata.
     metadata = {}
+    if as_qubo:
+        metadata["description"] = "QUBO problem compiled by QMASM (https://github.com/lanl/qmasm)"
+    else:
+        metadata["description"] = "Ising problem compiled by QMASM (https://github.com/lanl/qmasm)"
     metadata["command_line"] = qmasm.get_command_line()
     metadata["generated"] = datetime.datetime.utcnow().isoformat()
     if hasattr(problem, "embedding"):
         # Physical problem
-        try:
-            L, M, N = qmasm.chimera_topology(qmasm.solver)
-            metadata["chimera_cell_size"] = L*2
-            metadata["chimera_degree"] = max(M, N)
-            metadata["dw_solver_name"] = qmasm.solver_name
-            props = qmasm.solver.properties
-            metadata["dw_chip_id"] = props["chip_id"]
-            metadata["dw_url"] = os.environ["DW_INTERNAL__HTTPLINK"]
-        except KeyError:
-            pass
+        def attempt_assign(key, func):
+            "Try assigning a key, but don't complain if we can't."
+            try:
+                metadata[key] = func()
+            except KeyError:
+                pass
+        attempt_assign("dw_url", lambda: os.environ["DW_INTERNAL__HTTPLINK"])
+        attempt_assign("dw_solver_name", lambda: qmasm.solver_name)
+        props = qmasm.solver.properties
+        attempt_assign("dw_chip_id", lambda: props["chip_id"])
+        L, M, N = qmasm.chimera_topology(qmasm.solver)
+        metadata["chimera_cell_size"] = L*2
+        metadata["chimera_degree"] = max(M, N)
+        metadata["equivalent_ids"] = sorted(problem.chains.keys())
+        metadata["variable_names"] = {s: problem.embedding[n]
+                                      for s, n in qmasm.sym2num.items()}
+    else:
+        metadata["variable_names"] = {s: [n]
+                                      for s, n in qmasm.sym2num.items()}
     bqp["metadata"] = metadata
 
     # Output the problem in JSON format.
