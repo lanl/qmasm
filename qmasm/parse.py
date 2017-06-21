@@ -117,9 +117,14 @@ class Alias(Statement):
             sym1 = sym1.replace(prefix + "!next.", next_prefix)
             sym2 = sym2.replace(prefix + "!next.", next_prefix)
         try:
+            # sym2 is defined.
             qmasm.sym2num[sym1] = qmasm.sym2num[sym2]
         except KeyError:
-            self.error_in_line("Cannot make symbol %s an alias of undefined symbol %s" % (sym1, sym2))
+            # sym2 is not defined.  Define it then alias it.
+            qmasm.next_sym_num += 1
+            num = qmasm.next_sym_num
+            qmasm.sym2num[sym2] = num
+            qmasm.sym2num[sym1] = num
         if sym1 == sym2:
             self.error_in_line("Fields cannot alias themselves")
 
