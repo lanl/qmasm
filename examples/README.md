@@ -106,6 +106,7 @@ Solution #3 (energy = -21.25, tally = 131):
     big_and.Y       -1  False
 ```
 <p style="text-align: center">⋮</p>
+
 ```
 Solution #15 (energy = -21.25, tally = 7):
 

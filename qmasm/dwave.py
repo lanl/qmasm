@@ -5,7 +5,7 @@
 
 from collections import defaultdict
 try:
-    from dwave_sapi2.core import solve_ising
+    from dwave_sapi2.core import async_solve_ising, await_completion
     from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
     from dwave_sapi2.local import local_connection
     from dwave_sapi2.remote import RemoteConnection
@@ -401,7 +401,7 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
         # it actually works -- or fails for a different reason.
         try:
             weight_list = qmasm.dict_to_list(physical.weights)
-            answer = solve_ising(qmasm.solver, weight_list, physical.strengths, **solver_params)
+            problem = async_solve_ising(qmasm.solver, weight_list, physical.strengths, **solver_params)
             break
         except ValueError as e:
             # Is there a better way to extract the failing symbol than a regular
@@ -430,6 +430,15 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
         else:
             sys.stderr.write("    [none]\n")
         sys.stderr.write("\n")
+
+    # Wait for the solver to complete.
+    done = False
+    while not done:
+        done = await_completion([problem], 1, 60)
+    answer = problem.result()
+    if verbosity >= 1:
+        status = problem.status()
+        sys.stderr.write("Problem ID: %s\n\n" % status["problem_id"])
 
     # Tally the occurrences of each solution
     solutions = answer["solutions"]
