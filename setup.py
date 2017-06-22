@@ -21,7 +21,7 @@ class install(_install):
             os.rename(pyscript, script)
 
 setup(name = "QMASM",
-      version = "1.2",
+      version = "2.0",
       description = "Quantum Macro Assembler",
       author = "Scott Pakin",
       author_email = "pakin@lanl.gov",
