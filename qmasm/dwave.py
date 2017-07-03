@@ -371,9 +371,24 @@ def solution_is_intact(physical, soln):
     # The solution looks good!
     return True
 
+# Determine a suitable annealing time to use if none was specified.
+def get_default_annealing_time():
+    try:
+        # Use the default value.
+        anneal_time = qmasm.solver.properties["default_annealing_time"]
+    except KeyError:
+        try:
+            # If the default value is undefined, use the minimum allowed
+            # value.
+            anneal_time = qmasm.solver.properties["annealing_time_range"][0]
+        except KeyError:
+            # If all else fails, use 20 as a reasonable default.
+            anneal_time = 20
+    return anneal_time
+
 def compute_sample_counts(samples, anneal_time):
     "Return a list of sample counts to request of the hardware."
-    # The number of samples times the time per sample can't exceed the
+    # The number of samples multiplied by the time per sample can't exceed the
     # maximum run duration.
     try:
         max_run_duration = qmasm.solver.properties["max_run_duration"]
@@ -405,6 +420,60 @@ def compute_sample_counts(samples, anneal_time):
                 samples_list.append(s)
                 s = 0
     return samples_list
+
+def compute_spin_rev_counts(spin_revs, samples_list):
+    "Divide a total number of spin reversals across a set of samples."
+    samples = sum(samples_list)
+    spin_rev_frac = float(spin_revs)/float(samples)  # We'll evenly divide our spin reversals among samples.
+    spin_rev_list = [int(samps*spin_rev_frac) for samps in samples_list]
+    missing_srs = spin_revs - sum(spin_rev_list)
+    while missing_srs > 0:
+        # Account for rounding errors by adding back in some missing spin
+        # reversals.
+        for i in range(len(samples)):
+            if samples_list[i] > spin_rev_list[i]:
+                spin_rev_list[i] += 1
+                missing_srs -= 1
+                if missing_srs == 0:
+                    break
+    return spin_rev_list
+
+def report_parameters_used(solver_params, unused_params):
+    "Output parameters we kept and those we discarded."
+    sys.stderr.write("Parameters accepted by the %s solver:\n\n" % qmasm.solver_name)
+    if len(solver_params) > 0:
+        for k in solver_params.keys():
+            sys.stderr.write("    %s\n" % k)
+    else:
+        sys.stderr.write("    [none]\n")
+    sys.stderr.write("\n")
+    sys.stderr.write("Parameters rejected by the %s solver:\n\n" % qmasm.solver_name)
+    if len(unused_params) > 0:
+        for k in unused_params.keys():
+            sys.stderr.write("    %s\n" % k)
+    else:
+        sys.stderr.write("    [none]\n")
+    sys.stderr.write("\n")
+
+def report_subproblems_executed(nqmis, problems, samples_list, spin_rev_list):
+    "Output the problem ID for each subproblem executed."
+    sys.stderr.write("Subproblems executed:\n\n")
+    sys.stderr.write("    Problem ID                            Samples  Spin reversals\n")
+    sys.stderr.write("    ------------------------------------  -------  --------------\n")
+    tot_samps = 0
+    tot_sp_revs = 0
+    for i in range(nqmis):
+        status = problems[i].status()
+        prob_id = status["problem_id"]
+        samps = samples_list[i]
+        sp_revs = spin_rev_list[i]
+        tot_samps += samps
+        tot_sp_revs += sp_revs
+        sys.stderr.write("    %-36s  %7d  %14d\n" % (prob_id, samps, sp_revs))
+    if nqmis > 1:
+        all_str = "All %d problem IDs" % nqmis
+        sys.stderr.write("    %-36s  %7d  %14d\n" % (all_str, tot_samps, tot_sp_revs))
+    sys.stderr.write("\n")
 
 class Solution(object):
     "A Solution represents a single solution returned by the D-Wave."
@@ -470,34 +539,13 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
 
     # Determine the annealing time to use.
     if anneal_time == None:
-        try:
-            # Use the default value.
-            anneal_time = qmasm.solver.properties["default_annealing_time"]
-        except KeyError:
-            try:
-                # If the default value is undefined, use the minimum allowed
-                # value.
-                anneal_time = qmasm.solver.properties["annealing_time_range"][0]
-            except KeyError:
-                # If all else fails, use 20 as a reasonable default.
-                anneal_time = 20
+        anneal_time = get_default_annealing_time()
 
     # Compute a list of the number of samples to take each iteration
     # and the number of spin reversals to perform.
     samples_list = compute_sample_counts(samples, anneal_time)
+    spin_rev_list = compute_spin_rev_counts(spin_revs, samples_list)
     nqmis = len(samples_list)   # Number of (non-unique) QMIs to submit
-    spin_rev_frac = float(spin_revs)/float(samples)  # We'll evenly divide our spin reversals among samples.
-    spin_rev_list = [int(samps*spin_rev_frac) for samps in samples_list]
-    missing_srs = spin_revs - sum(spin_rev_list)
-    while missing_srs > 0:
-        # Account for rounding errors by adding back in some missing spin
-        # reversals.
-        for i in range(nqmis):
-            if samples_list[i] > spin_rev_list[i]:
-                spin_rev_list[i] += 1
-                missing_srs -= 1
-                if missing_srs == 0:
-                    break
 
     # Submit one or more QMIs to the D-Wave.
     problems = []
@@ -527,24 +575,8 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
                 del solver_params[bad_name]
             except RuntimeError as e:
                 qmasm.abend(e)
-
-    # Report the parameters the solver accepted/rejected.
     if verbosity >= 2:
-        # Output parameters we kept and those we discarded
-        sys.stderr.write("Parameters accepted by the %s solver:\n\n" % qmasm.solver_name)
-        if len(solver_params) > 0:
-            for k in solver_params.keys():
-                sys.stderr.write("    %s\n" % k)
-        else:
-            sys.stderr.write("    [none]\n")
-        sys.stderr.write("\n")
-        sys.stderr.write("Parameters rejected by the %s solver:\n\n" % qmasm.solver_name)
-        if len(unused_params) > 0:
-            for k in unused_params.keys():
-                sys.stderr.write("    %s\n" % k)
-        else:
-            sys.stderr.write("    [none]\n")
-        sys.stderr.write("\n")
+        report_parameters_used(solver_params, unused_params)
 
     # Wait for the solver to complete.
     done = False
@@ -552,23 +584,7 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
         done = await_completion(problems, nqmis, 60)
     answers = [p.result() for p in problems]
     if verbosity >= 1:
-        sys.stderr.write("Subproblems executed:\n\n")
-        sys.stderr.write("    Problem ID                            Samples  Spin reversals\n")
-        sys.stderr.write("    ------------------------------------  -------  --------------\n")
-        tot_samps = 0
-        tot_sp_revs = 0
-        for i in range(nqmis):
-            status = problems[i].status()
-            prob_id = status["problem_id"]
-            samps = samples_list[i]
-            sp_revs = spin_rev_list[i]
-            tot_samps += samps
-            tot_sp_revs += sp_revs
-            sys.stderr.write("    %-36s  %7d  %14d\n" % (prob_id, samps, sp_revs))
-        if nqmis > 1:
-            all_str = "All %d problem IDs" % nqmis
-            sys.stderr.write("    %-36s  %7d  %14d\n" % (all_str, tot_samps, tot_sp_revs))
-        sys.stderr.write("\n")
+        report_subproblems_executed(nqmis, problems, samples_list, spin_rev_list)
 
     # Tally the occurrences of each solution
     answer = merge_answers(answers)
