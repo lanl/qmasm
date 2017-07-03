@@ -11,6 +11,8 @@ import sys
 
 def parse_command_line():
     "Parse the QMASM command line.  Return an argparse.Namespace."
+
+    # Define all of our command-line arguments.
     cl_parser = argparse.ArgumentParser(description="Assemble a symbolic Hamiltonian into a numeric one")
     cl_parser.add_argument("input", nargs="*",
                            help="file from which to read a symbolic Hamiltonian")
@@ -54,11 +56,17 @@ def parse_command_line():
     cl_parser.add_argument("--postproc", choices=["none", "sample", "opt"],
                            default="none",
                            help='type of postprocessing to perform (default: "none")')
+
+    # Parse the command line.
     cl_args = cl_parser.parse_args()
+
+    # Perform a few sanity checks on the parameters.
     if cl_args.chain_strength != None and cl_args.chain_strength >= 0.0:
         sys.stderr.write("%s: Warning: A non-negative chain strength (%.20g) was specified\n" % (qmasm.progname, cl_args.chain_strength))
     if cl_args.pin_strength != None and cl_args.pin_strength >= 0.0:
         sys.stderr.write("%s: Warning: A non-negative pin strength (%.20g) was specified\n" % (qmasm.progname, cl_args.pin_strength))
+    if cl_args.spin_revs > cl_args.samples:
+        qmasm.abend("The number of spin reversals is not allowed to exceed the number of samples")
     return cl_args
 
 def quote_for_shell(token):

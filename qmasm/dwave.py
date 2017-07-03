@@ -16,6 +16,7 @@ import copy
 import hashlib
 import marshal
 import math
+import operator
 import os
 import qmasm
 import re
@@ -370,6 +371,98 @@ def solution_is_intact(physical, soln):
     # The solution looks good!
     return True
 
+def compute_sample_counts(samples, anneal_time):
+    "Return a list of sample counts to request of the hardware."
+    # The number of samples times the time per sample can't exceed the
+    # maximum run duration.
+    try:
+        max_run_duration = qmasm.solver.properties["max_run_duration"]
+    except KeyError:
+        max_run_duration = 3000000  # Default for older SAPI versions
+    try:
+        therm_time = qmasm.solver.properties["default_programming_thermalization"]
+    except KeyError:
+        therm_time = 0   # As good a guess as any
+    max_samples = (max_run_duration - therm_time)//anneal_time
+
+    # The number of samples can't exceed the maximum the hardware allows.
+    try:
+        max_samples = min(max_samples, qmasm.solver.properties["num_reads_range"][1])
+    except KeyError:
+        pass
+
+    # Split the number of samples into pieces of size max_samples.
+    if samples <= max_samples:
+        samples_list = [samples]
+    else:
+        samples_list = []
+        s = samples
+        while s > 0:
+            if s >= max_samples:
+                samples_list.append(max_samples)
+                s -= max_samples
+            else:
+                samples_list.append(s)
+                s = 0
+    return samples_list
+
+class Solution(object):
+    "A Solution represents a single solution returned by the D-Wave."
+
+    def __init__(self, spins, energy, tally):
+        self.spins = copy.copy(spins)
+        self.energy = energy
+        self.tally = tally
+
+    def merge(self, other):
+        "Merge another Solution into us,"
+        assert(self.energy == other.energy)
+        assert(self.spins == other.spins)
+        self.tally += other.tally
+
+def merge_answers(answers):
+    "Merge a list of answers into a single, combined piece of information."
+    # Handle the trivial case of a single answer.
+    n_ans = len(answers)
+    if n_ans == 1:
+        return answers[0]
+
+    # Merge identical solutions.  Update energies and num_occurrences
+    # accordingly.
+    solution_list = [Solution(ans["solutions"][i], ans["energies"][i], ans["num_occurrences"][i])
+                     for ans in answers
+                     for i in range(len(ans["solutions"]))]
+    solution_list.sort(key=operator.attrgetter("spins"))
+    solutions = [solution_list[0]]
+    for soln in solution_list[1:]:
+        if solutions[-1].spins == soln.spins:
+            solutions[-1].merge(soln)
+        else:
+            solutions.append(soln)
+    solutions.sort(key=operator.attrgetter("energy"))
+
+    # Timing measurements that represent <something> per <something> are
+    # averaged.  All other timing measurements are summed.
+    timing = {}
+    for ans in answers:
+        for k, v in ans["timing"].items():
+            try:
+                timing[k] += v
+            except KeyError:
+                timing[k] = v
+    for k, v in timing.items():
+        if "_per_" in k:
+            timing[k] = int(v/float(n_ans) + 0.5)
+
+    # Construct a unified answer dictionary and return it.
+    all_answers = {
+        "solutions": [soln.spins for soln in solutions],
+        "energies": [soln.energy for soln in solutions],
+        "num_occurrences": [soln.tally for soln in solutions],
+        "timing": timing
+    }
+    return all_answers
+
 def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, postproc, discard):
     "Submit a QMI to the D-Wave."
     # Map abbreviated to full names for postprocessing types.
@@ -387,46 +480,68 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
                 anneal_time = qmasm.solver.properties["annealing_time_range"][0]
             except KeyError:
                 # If all else fails, use 20 as a reasonable default.
-                annealing_time = 20
+                anneal_time = 20
 
-    # Submit a QMI to the D-Wave and get back a list of solution vectors.
-    solver_params = dict(chains=physical.embedding,
-                         num_reads=samples,
-                         annealing_time=anneal_time,
-                         num_spin_reversal_transforms=spin_revs,
-                         postprocess=postproc)
-    unused_params = dict()
-    while True:
-        # Repeatedly remove parameters the particular solver doesn't like until
-        # it actually works -- or fails for a different reason.
-        try:
-            weight_list = qmasm.dict_to_list(physical.weights)
-            problem = async_solve_ising(qmasm.solver, weight_list, physical.strengths, **solver_params)
-            break
-        except ValueError as e:
-            # Is there a better way to extract the failing symbol than a regular
-            # expression match?
-            bad_name_match = re.match(r'"(.*?)"', str(e))
-            if bad_name_match == None:
-                raise e
-            bad_name = bad_name_match.group(1)
-            unused_params[bad_name] = solver_params[bad_name]
-            del solver_params[bad_name]
-        except RuntimeError as e:
-            qmasm.abend(e)
+    # Compute a list of the number of samples to take each iteration
+    # and the number of spin reversals to perform.
+    samples_list = compute_sample_counts(samples, anneal_time)
+    nqmis = len(samples_list)   # Number of (non-unique) QMIs to submit
+    spin_rev_frac = float(spin_revs)/float(samples)  # We'll evenly divide our spin reversals among samples.
+    spin_rev_list = [int(samps*spin_rev_frac) for samps in samples_list]
+    missing_srs = spin_revs - sum(spin_rev_list)
+    while missing_srs > 0:
+        # Account for rounding errors by adding back in some missing spin
+        # reversals.
+        for i in range(nqmis):
+            if samples_list[i] > spin_rev_list[i]:
+                spin_rev_list[i] += 1
+                missing_srs -= 1
+                if missing_srs == 0:
+                    break
+
+    # Submit one or more QMIs to the D-Wave.
+    problems = []
+    for i in range(nqmis):
+        solver_params = dict(chains=physical.embedding,
+                             num_reads=samples_list[i],
+                             annealing_time=anneal_time,
+                             num_spin_reversal_transforms=spin_rev_list[i],
+                             postprocess=postproc)
+        unused_params = dict()
+        while True:
+            # Repeatedly remove parameters the particular solver doesn't like
+            # until it actually works -- or fails for a different reason.
+            try:
+                weight_list = qmasm.dict_to_list(physical.weights)
+                p = async_solve_ising(qmasm.solver, weight_list, physical.strengths, **solver_params)
+                problems.append(p)
+                break
+            except ValueError as e:
+                # Is there a better way to extract the failing symbol than a
+                # regular expression match?
+                bad_name_match = re.match(r'"(.*?)"', str(e))
+                if bad_name_match == None:
+                    raise e
+                bad_name = bad_name_match.group(1)
+                unused_params[bad_name] = solver_params[bad_name]
+                del solver_params[bad_name]
+            except RuntimeError as e:
+                qmasm.abend(e)
+
+    # Report the parameters the solver accepted/rejected.
     if verbosity >= 2:
         # Output parameters we kept and those we discarded
-        sys.stderr.write("Parameters accepted by the %s solver:\n" % qmasm.solver_name)
+        sys.stderr.write("Parameters accepted by the %s solver:\n\n" % qmasm.solver_name)
         if len(solver_params) > 0:
-            for k, v in solver_params.items():
-                sys.stderr.write("    %s = %s\n" % (k, v))
+            for k in solver_params.keys():
+                sys.stderr.write("    %s\n" % k)
         else:
             sys.stderr.write("    [none]\n")
         sys.stderr.write("\n")
-        sys.stderr.write("Parameters rejected by the %s solver:\n" % qmasm.solver_name)
+        sys.stderr.write("Parameters rejected by the %s solver:\n\n" % qmasm.solver_name)
         if len(unused_params) > 0:
-            for k, v in unused_params.items():
-                sys.stderr.write("    %s = %s\n" % (k, v))
+            for k in unused_params.keys():
+                sys.stderr.write("    %s\n" % k)
         else:
             sys.stderr.write("    [none]\n")
         sys.stderr.write("\n")
@@ -434,13 +549,29 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
     # Wait for the solver to complete.
     done = False
     while not done:
-        done = await_completion([problem], 1, 60)
-    answer = problem.result()
+        done = await_completion(problems, nqmis, 60)
+    answers = [p.result() for p in problems]
     if verbosity >= 1:
-        status = problem.status()
-        sys.stderr.write("Problem ID: %s\n\n" % status["problem_id"])
+        sys.stderr.write("Subproblems executed:\n\n")
+        sys.stderr.write("    Problem ID                            Samples  Spin reversals\n")
+        sys.stderr.write("    ------------------------------------  -------  --------------\n")
+        tot_samps = 0
+        tot_sp_revs = 0
+        for i in range(nqmis):
+            status = problems[i].status()
+            prob_id = status["problem_id"]
+            samps = samples_list[i]
+            sp_revs = spin_rev_list[i]
+            tot_samps += samps
+            tot_sp_revs += sp_revs
+            sys.stderr.write("    %-36s  %7d  %14d\n" % (prob_id, samps, sp_revs))
+        if nqmis > 1:
+            all_str = "All %d problem IDs" % nqmis
+            sys.stderr.write("    %-36s  %7d  %14d\n" % (all_str, tot_samps, tot_sp_revs))
+        sys.stderr.write("\n")
 
     # Tally the occurrences of each solution
+    answer = merge_answers(answers)
     solutions = answer["solutions"]
     semifinal_answer = unembed_answer(solutions, physical.embedding,
                                       broken_chains="minimize_energy",
