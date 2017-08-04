@@ -320,7 +320,7 @@ if cl_args.verbose >= 1:
         sys.stderr.write("Timing information:\n\n")
         sys.stderr.write("    %-30s %-10s\n" % ("Measurement", "Value (us)"))
         sys.stderr.write("    %s %s\n" % ("-" * 30, "-" * 10))
-        for timing_value in timing_info:
+        for timing_value in sorted(timing_info):
             sys.stderr.write("    %-30s %10d\n" % timing_value)
         sys.stderr.write("\n")
     except KeyError:
