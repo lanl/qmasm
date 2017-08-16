@@ -22,6 +22,7 @@ import qmasm
 import re
 import sys
 import tempfile
+import time
 
 def connect_to_dwave():
     """
@@ -578,13 +579,30 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
     if verbosity >= 2:
         report_parameters_used(solver_params, unused_params)
 
+    # Output problem IDs as soon as they become available.
+    if verbosity >= 1:
+        while any([problems[i].status()["problem_id"] == "" for i in range(nqmis)]):
+            await_completion(problems, nqmis, 1)
+        report_subproblems_executed(nqmis, problems, samples_list, spin_rev_list)
+
     # Wait for the solver to complete.
+    if verbosity >= 2:
+        sys.stderr.write("Number of subproblems completed:\n\n")
+        cdigits = len(str(nqmis))     # Digits in the number of completed QMIs
+        tdigits = len(str(nqmis*5))   # Estimate 5 seconds per QMI submission
+        start_time = time.time()
     done = False
     while not done:
-        done = await_completion(problems, nqmis, 60)
+        done = await_completion(problems, nqmis, 10)
+        if verbosity >= 2:
+            ncomplete = sum([problems[i].status()["state"] == "DONE" for i in range(nqmis)])
+            sys.stderr.write("    %*d of %d (%3.0f%%) after %*.0f seconds\n" %
+                             (cdigits, ncomplete, nqmis,
+                              100.0*float(ncomplete)/float(nqmis),
+                              tdigits, time.time() - start_time))
+    if verbosity >= 2:
+        sys.stderr.write("\n")
     answers = [p.result() for p in problems]
-    if verbosity >= 1:
-        report_subproblems_executed(nqmis, problems, samples_list, spin_rev_list)
 
     # Tally the occurrences of each solution
     answer = merge_answers(answers)
