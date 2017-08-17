@@ -456,24 +456,28 @@ def report_parameters_used(solver_params, unused_params):
         sys.stderr.write("    [none]\n")
     sys.stderr.write("\n")
 
-def report_subproblems_executed(nqmis, problems, samples_list, spin_rev_list):
-    "Output the problem ID for each subproblem executed."
-    sys.stderr.write("Subproblems executed:\n\n")
-    sys.stderr.write("    Problem ID                            Samples  Spin reversals\n")
-    sys.stderr.write("    ------------------------------------  -------  --------------\n")
-    tot_samps = 0
-    tot_sp_revs = 0
+def report_subproblems_submitted(nqmis, problems, samples_list, spin_rev_list):
+    "Output the problem ID for each subproblem submitted."
+    sys.stderr.write("Subproblems submitted:\n\n")
+    tot_samps = sum([samples_list[i] for i in range(nqmis)])
+    tot_sp_revs = sum([spin_rev_list[i] for i in range(nqmis)])
+    samp_digs = max(len("Samples"), len(str(tot_samps)))
+    sr_digs = max(len("Spin reversals"), len(str(tot_sp_revs)))
+    sys.stderr.write("    Problem ID                            %-*s  %-*s\n" %
+                     (samp_digs, "Samples", sr_digs, "Spin reversals"))
+    sys.stderr.write("    ------------------------------------  %-*s  %-*s\n" %
+                     (samp_digs, "-"*samp_digs, sr_digs, "-"*sr_digs))
     for i in range(nqmis):
         status = problems[i].status()
         prob_id = status["problem_id"]
         samps = samples_list[i]
         sp_revs = spin_rev_list[i]
-        tot_samps += samps
-        tot_sp_revs += sp_revs
-        sys.stderr.write("    %-36s  %7d  %14d\n" % (prob_id, samps, sp_revs))
+        sys.stderr.write("    %-36s  %*d  %*d\n" %
+                         (prob_id, samp_digs, samps, sr_digs, sp_revs))
     if nqmis > 1:
         all_str = "All %d problem IDs" % nqmis
-        sys.stderr.write("    %-36s  %7d  %14d\n" % (all_str, tot_samps, tot_sp_revs))
+        sys.stderr.write("    %-36s  %*d  %*d\n" %
+                         (all_str, samp_digs, tot_samps, sr_digs, tot_sp_revs))
     sys.stderr.write("\n")
 
 class Solution(object):
@@ -583,7 +587,7 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
     if verbosity >= 1:
         while any([problems[i].status()["problem_id"] == "" for i in range(nqmis)]):
             await_completion(problems, nqmis, 1)
-        report_subproblems_executed(nqmis, problems, samples_list, spin_rev_list)
+        report_subproblems_submitted(nqmis, problems, samples_list, spin_rev_list)
 
     # Wait for the solver to complete.
     if verbosity >= 2:
