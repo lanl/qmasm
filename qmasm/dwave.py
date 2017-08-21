@@ -431,7 +431,7 @@ def compute_spin_rev_counts(spin_revs, samples_list):
     while missing_srs > 0:
         # Account for rounding errors by adding back in some missing spin
         # reversals.
-        for i in range(len(samples)):
+        for i in range(samples):
             if samples_list[i] > spin_rev_list[i]:
                 spin_rev_list[i] += 1
                 missing_srs -= 1
