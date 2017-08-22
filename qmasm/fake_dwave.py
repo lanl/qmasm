@@ -85,3 +85,9 @@ def qubo_to_ising(qs):
 
 def get_hardware_adjacency(solver):
     qmasm.abend("Without D-Wave's libraries, QMASM can do little more than output qbsolv, MiniZinc, and flattened QMASM files")
+
+def fix_variables(Q, method="optimized"):
+    "Return the original QUBO unmodified."
+    return {"new_Q": Q,
+            "offset": 0.0,
+            "fixed_variables": {}}
