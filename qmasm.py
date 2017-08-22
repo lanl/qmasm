@@ -81,6 +81,10 @@ if cl_args.O >= 1:
     if cl_args.verbose >= 2:
         sys.stderr.write("  %6d logical qubits after optimization\n\n" % (qmasm.next_sym_num + 1))
 
+# Further simplify the problem if we can.
+if cl_args.O >= 1:
+    logical_ising = qmasm.simplify_problem(logical_ising, cl_args.verbose)
+
 # This is a good time to update our logical statistics.
 logical_stats["vars"] = qmasm.next_sym_num + 1
 logical_stats["strengths"] = len(logical_ising.strengths)
@@ -117,7 +121,7 @@ if cl_args.verbose >= 2:
     sys.stderr.write("\n")
 
     # Map each canonicalized name to one or more original symbols.
-    canon2syms = [[] for _ in range(len(qmasm.sym2num))]
+    canon2syms = [[] for _ in range(max(qmasm.sym2num.values()) + 1)]
     max_sym_name_len = 8
     for s, n in qmasm.sym2num.items():
         canon2syms[n].append(s)
@@ -222,7 +226,7 @@ if cl_args.verbose >= 2:
     sys.stderr.write("\n")
 
 # Map each logical qubit to one or more symbols.
-num2syms = [[] for _ in range(len(qmasm.sym2num))]
+num2syms = [[] for _ in range(max(qmasm.sym2num.values()) + 1)]
 max_sym_name_len = 7
 for s, n in qmasm.sym2num.items():
     if cl_args.verbose >= 2 or "$" not in s:
@@ -332,6 +336,7 @@ class ValidSolution:
     "Represent a minimal state of a spin system."
 
     def __init__(self, soln, energy):
+        # Map named variables to spins.
         self.solution = soln
         self.energy = energy
         self.names = []   # List of names for each named row
@@ -342,10 +347,18 @@ class ValidSolution:
                 continue
             self.names.append(" ".join(num2syms[q]))
             self.spins.append(soln[q])
-            self.id = self.id*2 + soln[q]
+            self.id = self.id*2 + (soln[q] + 1)/2
+
+        # Additionally map the spins computed during simplification.
+        for nm, s in physical_ising.known_values.items():
+            if cl_args.verbose < 2 and "$" in nm:
+                continue
+            self.names.append(nm)
+            self.spins.append(s)
+            self.id = self.id*2 + (s + 1)/2
 
 # Determine the set of solutions to output.
-energies = answer["energies"]
+energies = [e + physical_ising.simple_offset for e in answer["energies"]]
 n_low_energies = len([e for e in energies if abs(e - energies[0]) < min_energy_delta])
 if cl_args.all_solns:
     n_solns_to_output = len(final_answer)

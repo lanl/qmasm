@@ -432,6 +432,7 @@ def _output_solution_int(soln):
     print("    %s  %s  %s" % ("-" * max_sym_name_len, "-" * max_binary_len, "-" * max_decimal_len))
     for name, (bstr, dstr) in sorted(name2strs.items()):
         print("    %-*s  %*s  %*s" % (max_sym_name_len, name, max_binary_len, bstr, max_decimal_len, dstr))
+    print("")
 
 def _output_solution_bool(soln):
     "Helper function for output_solution that outputs Booleans."
@@ -454,7 +455,7 @@ def _output_solution_bool(soln):
     output_lines = []
     for name, spin in name_spin:
         if spin == 3:
-            # A spin of +3 is too weird to represent an unused qubit.
+            # A spin of +3 is too weird to represent an unused qubit so we use 0.
             spin = 0
             spin_str = "   0"
         else:

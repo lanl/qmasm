@@ -7,9 +7,10 @@ from collections import defaultdict
 try:
     from dwave_sapi2.core import async_solve_ising, await_completion
     from dwave_sapi2.embedding import find_embedding, embed_problem, unembed_answer
+    from dwave_sapi2.fix_variables import fix_variables
     from dwave_sapi2.local import local_connection
     from dwave_sapi2.remote import RemoteConnection
-    from dwave_sapi2.util import get_hardware_adjacency
+    from dwave_sapi2.util import get_hardware_adjacency, ising_to_qubo, qubo_to_ising
 except ImportError:
     from .fake_dwave import *
 import copy
@@ -157,6 +158,83 @@ def read_hardware_adjacency(fname, verbosity):
     if verbosity >= 2:
         sys.stderr.write("%d unique edges found\n\n" % len(adj))
     return sorted(adj)
+
+def simplify_problem(logical, verbosity):
+    """Try to find spins that can be removed from the problem because their
+    value is known a priori."""
+    # SAPI's fix_variables function works only on QUBOs so we have to convert.
+    # We directly use SAPI's ising_to_qubo function instead of our own
+    # convert_to_qubo because the QUBO has to be in matrix form.
+    hs = qmasm.dict_to_list(logical.weights)
+    Js = logical.strengths
+    Q, qubo_offset = ising_to_qubo(hs, Js)
+
+    # Simplify the problem if possible.
+    simple = fix_variables(Q, method="optimized")
+    fixed_vars = simple["fixed_variables"]
+
+    # At high verbosity levels, list all of the known symbols and their value.
+    if verbosity >= 2:
+        # Map each logical qubit to one or more symbols.
+        num2syms = [[] for _ in range(len(qmasm.sym2num))]
+        max_sym_name_len = 7
+        for q, n in qmasm.sym2num.items():
+            num2syms[n].append(q)
+            max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
+
+        # Output a table of know values
+        sys.stderr.write("Elided qubits whose low-energy value can be determined a priori:\n\n")
+        if len(fixed_vars) > 0:
+            sys.stderr.write("    Logical  %-*s  Value\n" % (max_sym_name_len, "Name(s)"))
+            sys.stderr.write("    -------  %s  -----\n" % ("-" * max_sym_name_len))
+            truval = {0: "False", +1: "True"}
+            for q, b in sorted(fixed_vars.items()):
+                if num2syms[q] == []:
+                    continue
+                name_list = " ".join(sorted(num2syms[q]))
+                sys.stderr.write("    %7d  %-*s  %-s\n" % (q, max_sym_name_len, name_list, truval[b]))
+            sys.stderr.write("\n")
+
+    # Return the original problem if no qubits could be elided.
+    if verbosity >= 2:
+        sys.stderr.write("  %6d logical qubits before elision\n" % (qmasm.next_sym_num + 1))
+    if len(fixed_vars) == 0:
+        if verbosity >= 2:
+            sys.stderr.write("  %6d logical qubits after elision\n\n" % (qmasm.next_sym_num + 1))
+        return logical
+
+    # Construct a simplified problem, renumbering so as to compact qubit
+    # numbers.
+    new_obj = copy.deepcopy(logical)
+    new_obj.known_values = {s: 2*fixed_vars[n] - 1
+                            for s, n in qmasm.sym2num.items()
+                            if n in fixed_vars}
+    new_obj.simple_offset = simple["offset"]
+    hs, Js, ising_offset = qubo_to_ising(simple["new_Q"])
+    qubits_used = set([i for i in range(len(hs)) if hs[i] != 0.0])
+    for q1, q2 in Js.keys():
+        qubits_used.add(q1)
+        qubits_used.add(q2)
+    qmap = dict(zip(sorted(qubits_used), range(len(qubits_used))))
+    new_obj.chains = {(qmap[q1], qmap[q2]): None
+                      for q1, q2 in new_obj.chains.keys()
+                      if q1 in qmap and q2 in qmap}
+    new_obj.weights = defaultdict(lambda: 0.0,
+                                  {qmap[i]: hs[i]
+                                   for i in range(len(hs))
+                                   if hs[i] != 0.0})
+    new_obj.strengths = qmasm.canonicalize_strengths({(qmap[q1], qmap[q2]): wt
+                                                      for (q1, q2), wt in Js.items()})
+    new_obj.pinned = [(qmap[q], b)
+                      for q, b in new_obj.pinned
+                      if q in qmap]
+    qmasm.sym2num = {s: qmap[q]
+                     for s, q in qmasm.sym2num.items()
+                     if q in qmap}
+    qmasm.next_sym_num = max(qmasm.sym2num.values())
+    if verbosity >= 2:
+        sys.stderr.write("  %6d logical qubits after elision\n\n" % (qmasm.next_sym_num + 1))
+    return new_obj
 
 def find_dwave_embedding(logical, optimization, verbosity, hw_adj_file):
     """Find an embedding of a logical problem in the D-Wave's physical topology.

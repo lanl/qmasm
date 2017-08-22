@@ -61,6 +61,8 @@ class Problem(object):
         self.chains = {}     # Subset of strengths keys that represents chains
         self.pinned = []     # Pairs of {unique number, Boolean} to pin
         self.offset = 0.0    # Value to add to QUBO energy to convert to Ising energy or vice versa
+        self.known_values = {}    # Map from symbol name to spin for values known a priori
+        self.simple_offset = 0.0  # Value to add to Ising energy to compensate for problem simplification
 
     def assign_chain_strength(self, ch_str):
         """Define a strength for each user-specified and automatically generated
