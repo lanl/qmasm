@@ -100,44 +100,6 @@ discon_syms = logical_ising.find_disconnected_variables()
 if len(discon_syms) > 0:
     qmasm.abend("Disconnected variables encountered: %s" % " ".join(sorted(discon_syms)))
 
-# Output a normalized input file.
-if cl_args.verbose >= 2:
-    # Weights
-    sys.stderr.write("Canonicalized the input file:\n\n")
-    for q in sorted(logical_ising.weights.keys()):
-        sys.stderr.write("    q%d %.20g\n" % (q + 1, logical_ising.weights[q]))
-    sys.stderr.write("\n")
-
-    # Chains
-    if len(logical_ising.chains) > 0:
-        for qs in sorted(logical_ising.chains.keys()):
-            sys.stderr.write("    q%d = q%d\n" % (qs[0] + 1, qs[1] + 1))
-        sys.stderr.write("\n")
-
-    # Strengths (those that are not chains)
-    for qs in sorted(logical_ising.strengths.keys()):
-        if qs not in logical_ising.chains:
-            sys.stderr.write("    q%d q%d %.20g\n" % (qs[0] + 1, qs[1] + 1, logical_ising.strengths[qs]))
-    sys.stderr.write("\n")
-
-    # Map each canonicalized name to one or more original symbols.
-    canon2syms = [[] for _ in range(max(qmasm.sym2num.values()) + 1)]
-    max_sym_name_len = 8
-    for s, n in qmasm.sym2num.items():
-        canon2syms[n].append(s)
-        max_sym_name_len = max(max_sym_name_len, len(repr(canon2syms[n])) - 1)
-
-    # Output the mapping we just computed.
-    sys.stderr.write("Constructed a key to the above:\n\n")
-    sys.stderr.write("    Canonical  %-*s\n" % (max_sym_name_len, "Original"))
-    sys.stderr.write("    ---------  %s\n" % ("-" * max_sym_name_len))
-    for i in range(len(canon2syms)):
-        if canon2syms[i] == []:
-            continue
-        name_list = " ".join(sorted(canon2syms[i]))
-        sys.stderr.write("    q%-8d  %s\n" % (i + 1, name_list))
-    sys.stderr.write("\n")
-
 # Establish a connection to the D-Wave, and use this to talk to a solver.  We
 # rely on the qOp infrastructure to set the environment variables properly.
 qmasm.connect_to_dwave()
