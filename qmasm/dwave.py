@@ -15,6 +15,7 @@ except ImportError:
     from .fake_dwave import *
 import copy
 import hashlib
+import json
 import marshal
 import math
 import operator
@@ -334,26 +335,43 @@ def find_dwave_embedding(logical, optimization, verbosity, hw_adj_file):
         # failed.
         if embedding != []:
             if verbosity >= 2:
+                # SAPI's find_embedding is hard-wired to write to stdout.
+                # Trick it into writing into a pipe instead.
                 if edgex == 0 and edgey == 0:
                     sys.stderr.write("  Trying to embed ... ")
                 else:
-                    sys.stderr.write("  Trying a %dx%d unit-cell embedding ... " % (edgex, edgey))
-                status_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
-                stdout_fd = os.dup(sys.stdout.fileno())
-                os.dup2(status_file.fileno(), sys.stdout.fileno())
-                embedding = find_embedding(edges, alt_hw_adj, verbose=1)
-                sys.stdout.flush()
-                os.dup2(stdout_fd, sys.stdout.fileno())
-                status_file.close()
-                if len(embedding) > 0:
-                    sys.stderr.write("succeeded\n\n")
+                    sys.stderr.write("  Trying a %dx%d unit-cell embedding ...\n\n" % (edgex, edgey))
+                sepLine = "=== EMBEDDING ===\n"
+                r, w = os.pipe()
+                pid = os.fork()
+                if pid == 0:
+                    # Child -- perform the embedding.
+                    os.close(r)
+                    os.dup2(w, sys.stdout.fileno())
+                    embedding = find_embedding(edges, alt_hw_adj, verbose=1)
+                    sys.stdout.flush()
+                    os.write(w, sepLine)
+                    os.write(w, json.dumps(embedding) + "\n")
+                    os.close(w)
+                    os._exit(0)
                 else:
-                    sys.stderr.write("failed\n\n")
-                with open(status_file.name, "r") as status:
-                    for line in status:
-                        sys.stderr.write("    %s" % line)
-                sys.stderr.write("\n")
-                os.remove(status_file.name)
+                    # Parent -- report the embedding's progress.
+                    os.close(w)
+                    pipe = os.fdopen(r, "r", 10000)
+                    while True:
+                        try:
+                            rstr = pipe.readline()
+                            if rstr == sepLine:
+                                break
+                            if rstr == "":
+                                qmasm.abend("Embedder failed to terminate properly")
+                            sys.stderr.write("      %s" % rstr)
+                        except:
+                            pass
+
+                    # Receive the embedding from the child.
+                    embedding = json.loads(pipe.readline())
+                    sys.stderr.write("\n")
             else:
                 embedding = find_embedding(edges, alt_hw_adj, verbose=0)
             ec.write(embedding)
