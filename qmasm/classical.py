@@ -17,7 +17,7 @@ qmasm.minizinc_scale_factor = 10000.0
 def run_qbsolv(ising, oname, extra_args, verbosity):
     "Run qmasm-qbsolv on the problem and report the result."
     # Use the specified file name if provided.  Otherwise, write to a temporary
-    # file."
+    # file.
     if oname == "<stdout>":
         tfile = tempfile.NamedTemporaryFile(suffix=".qubo", prefix="qmasm-", mode="w+")
         qubo_fname = tfile.name

@@ -44,29 +44,20 @@ if len(name2qubit) == 0:
     sys.stderr.write("%s: No QMASM comments found in %s.  Aborting.\n" % (sys.argv[0], infile))
     sys.exit(1)
 
-# Run qbsolv and store its output bits.
+# Run qbsolv and store the solution bits and solution energy it outputs.
 try:
     proc = subprocess.Popen(["qbsolv"] + sys.argv[1:], stdout=subprocess.PIPE, stderr=sys.stderr)
 except OSError as e:
     sys.stderr.write("qbsolv: %s\n" % str(e))
     sys.exit(1)
-pout, perr = proc.communicate()
-output = pout.split(b"\n")
-output = output[:-1]   # Skip empty final line.
-retcode = proc.wait()
-if retcode < 0:
-    os.kill(os.getpid(), -retcode)
-elif retcode > 0:
-    # Some qbsolv errors go to stdout, not stderr.
-    for line in output:
-        sys.stderr.write("qbsolv: %s\n" % line)
-    sys.exit(retcode)
-if perr != None:
-    sys.stderr.write(perr)
 bits = []
 next_is_bits = False
 energy = "?"
-for line in output:
+while True:
+    line = proc.stdout.readline()
+    if line == "":
+        break
+    line = line.rstrip()
     sys.stderr.write("# %s\n" % line)
     if b"Number of bits in solution" in line:
         next_is_bits = True
@@ -75,6 +66,14 @@ for line in output:
         next_is_bits = False
     elif b"Energy of solution" in line:
         energy = float(line.split()[0])
+retcode = proc.wait()
+if retcode < 0:
+    os.kill(os.getpid(), -retcode)
+elif retcode > 0:
+    # Some qbsolv errors go to stdout, not stderr.
+    for line in output:
+        sys.stderr.write("qbsolv: %s\n" % line)
+    sys.exit(retcode)
 sys.stderr.write("\n")
 
 # Report the output bits symbolically in QMASM style.
