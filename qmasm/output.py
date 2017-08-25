@@ -3,6 +3,7 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
+import copy
 import datetime
 import json
 import os
@@ -103,13 +104,33 @@ def output_dw(outfile, problem):
 
 def output_qbsolv(outfile, problem):
     "Output weights and strengths in qbsolv format."
+    # Determine the list of nonzero weights and strengths.
+    if not problem.qubo:
+        qprob = problem.convert_to_qubo()
+        output_weights, output_strengths = qprob.weights, qprob.strengths
+    else:
+        output_weights = problem.weights
+        output_strengths = problem.strengths
+    max_node = max(list(output_weights.keys()) + [max(qs) for qs in output_strengths.keys()])
+    num_nonzero_weights = len([q for q, wt in output_weights.items() if wt != 0.0])
+    num_nonzero_strengths = len([qs for qs, wt in output_strengths.items() if wt != 0.0])
+
+    # Assign dummy qubit numbers to qubits whose value is known a priori.
+    n_known = len(problem.known_values)
+    extra_nodes = dict(zip(sorted(problem.known_values.keys()),
+                           range(max_node + 1, max_node + 1 + n_known)))
+    max_node += n_known
+    num_nonzero_weights += n_known
+    output_weights.update({num: problem.known_values[sym]*qmasm.pin_strength
+                           for sym, num in extra_nodes.items()})
+    sym2num = copy.deepcopy(qmasm.sym2num)
+    sym2num.update(extra_nodes)
+
     # Output a name-to-number map as header comments.
     key_width = 0
     val_width = 0
     items = []
-    for s, n in qmasm.sym2num.items():
-        if "$" in s:
-            continue
+    for s, n in sym2num.items():
         if len(s) > key_width:
             key_width = len(s)
 
@@ -125,20 +146,8 @@ def output_qbsolv(outfile, problem):
     for s, nstr in items:
         outfile.write("c %-*s --> %-*s\n" % (key_width, s, val_width, nstr))
 
-    # Determine the list of nonzero weights and strengths and write a
-    # header line.
-    if not problem.qubo:
-        qprob = problem.convert_to_qubo()
-        output_weights, output_strengths = qprob.weights, qprob.strengths
-    else:
-        output_weights = problem.weights
-        output_strengths = problem.strengths
-    max_node = max(list(output_weights.keys()) + [max(qs) for qs in output_strengths.keys()])
-    num_nonzero_weights = len([q for q, wt in output_weights.items() if wt != 0.0])
-    num_nonzero_strengths = len([qs for qs, wt in output_strengths.items() if wt != 0.0])
-    outfile.write("p qubo 0 %d %d %d\n" % (max_node + 1, num_nonzero_weights, num_nonzero_strengths))
-
     # Output all nonzero weights and strengths.
+    outfile.write("p qubo 0 %d %d %d\n" % (max_node + 1, num_nonzero_weights, num_nonzero_strengths))
     for q, wt in sorted(output_weights.items()):
         if wt != 0.0:
             outfile.write("%d %d %.10g\n" % (q, q, wt))
