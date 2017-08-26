@@ -69,7 +69,7 @@ class EmbeddingCache(object):
         if not os.path.isdir(self.cachedir):
             qmasm.abend("QMASMCACHE is set to %s, which is not an extant directory" % self.cachedir)
 
-        # Compute an MD5 sum of our inputs.
+        # Compute a SHA-1 sum of our inputs.
         sha = hashlib.sha1()
         sha.update(str(sorted(edges)))
         sha.update(str(sorted(adj)))
