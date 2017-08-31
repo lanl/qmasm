@@ -681,9 +681,12 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
 
     # Output problem IDs as soon as they become available.
     if verbosity >= 1:
-        while any([problems[i].status()["problem_id"] == "" for i in range(nqmis)]):
-            await_completion(problems, nqmis, 1)
-        report_subproblems_submitted(nqmis, problems, samples_list, spin_rev_list)
+        try:
+            while any([problems[i].status()["problem_id"] == "" for i in range(nqmis)]):
+                await_completion(problems, nqmis, 1)
+            report_subproblems_submitted(nqmis, problems, samples_list, spin_rev_list)
+        except KeyError:
+            pass   # Not all solvers support "problem_id".
 
     # Wait for the solver to complete.
     if verbosity >= 2:
