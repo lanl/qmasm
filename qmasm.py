@@ -113,6 +113,8 @@ if cl_args.verbose >= 1:
         ext_solver_properties["chimera_toplogy_M_N_L"] = [M, N, L]
     except KeyError:
         pass
+    except qmasm.NonChimera:
+        pass
     ext_solver_properties["solver_name"] = qmasm.solver_name
     try:
         ext_solver_properties["connection_name"] = os.environ["DW_INTERNAL__CONNECTION"]

@@ -265,24 +265,27 @@ def find_dwave_embedding(logical, optimization, verbosity, hw_adj_file):
         report_embeddability(edges, hw_adj)
 
     # Determine the edges of a rectangle of cells we want to use.  If we read
-    # the topology from a file, we call this rectangle 0x0 and force the main
-    # embedding loop to exit after a single iteration because we don't know the
-    # topology is even rectangular.
-    if hw_adj_file == None:
-        L, M, N = qmasm.chimera_topology(qmasm.solver)
-        L2 = 2*L
-        ncells = (qmasm.next_sym_num + L2) // L2   # Round up the number of cells.
-        if optimization >= 2:
-            edgey = max(int(math.sqrt(ncells)), 1)
-            edgex = max((ncells + edgey - 1) // edgey, 1)
-        else:
-            edgey = N
-            edgex = M
-    else:
-        edgex = 0
-        edgey = 0
-        M = 0
-        N = 0
+    # the topology from a file or otherwise can't prove that we have a Chimera
+    # graph, we call this rectangle 0x0 and force the main embedding loop to
+    # exit after a single iteration because we don't know the topology is even
+    # rectangular.
+    edgex = 0
+    edgey = 0
+    M = 0
+    N = 0
+    try:
+        if hw_adj_file == None:
+            L, M, N = qmasm.chimera_topology(qmasm.solver)
+            L2 = 2*L
+            ncells = (qmasm.next_sym_num + L2) // L2   # Round up the number of cells.
+            if optimization >= 2:
+                edgey = max(int(math.sqrt(ncells)), 1)
+                edgex = max((ncells + edgey - 1) // edgey, 1)
+            else:
+                edgey = N
+                edgex = M
+    except qmasm.NonChimera:
+        pass
 
     # Announce what we're about to do.
     if verbosity >= 2:

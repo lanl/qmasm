@@ -52,15 +52,19 @@ def list_to_dict(lst):
                         for k in range(len(lst))
                         if lst[k] != 0.0})
 
+class NonChimera(Exception):
+    "Exception thrown when finding the topology of a non-Chimera graph."
+    pass
+
 def chimera_topology(solver):
-    "Return the topology of the chimera graph associated with a given solver."
+    """Return the topology of the Chimera graph associated with a given solver.
+    Throw NonChimera if the topology is not known to be a Chimera graph."""
     try:
         nominal_qubits = solver.properties["num_qubits"]
     except KeyError:
         # The Ising heuristic solver is an example of a solver that lacks a
-        # fixed hardware representation.  We therefore claim an arbitrary
-        # topology (the D-Wave 2X's 12x12x4x2 topology).
-        return 4, 12, 12
+        # fixed hardware representation.
+        raise NonChimera
     couplers = solver.properties["couplers"]
     deltas = [abs(c1 - c2) for c1, c2 in couplers]
     delta_tallies = {d: 0 for d in deltas}

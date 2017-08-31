@@ -87,8 +87,8 @@ def output_dw(outfile, problem):
         output_strengths = problem.strengths
     try:
         L, M, N = qmasm.chimera_topology(qmasm.solver)
-    except KeyError:
-        qmasm.abend("Failed to query the chimera topology")
+    except qmasm.NonChimera:
+        qmasm.abend("dw output is supported only for Chimera-graph topologies")
     wdata = []
     for q in range(len(output_weights)):
         if output_weights[q] != 0.0:
