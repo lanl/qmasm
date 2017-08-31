@@ -97,7 +97,10 @@ def output_dw(outfile, problem):
     sdata = []
     for sp, str in output_strengths.items():
         if str != 0.0:
-            coupler = coupler_number(M, N, L, sp[0], sp[1])
+            try:
+                coupler = coupler_number(M, N, L, sp[0], sp[1])
+            except IndexError:
+                qmasm.abend("dw output is supported only for Chimera-graph topologies")
             sdata.append("C%04d <== %.25g" % (coupler, str))
     sdata.sort()
     outfile.write("\n".join(wdata + sdata) + "\n")
