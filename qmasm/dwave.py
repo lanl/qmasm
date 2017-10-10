@@ -579,20 +579,6 @@ def report_subproblems_submitted(nqmis, problems, samples_list, spin_rev_list):
                          (all_str, samp_digs, tot_samps, sr_digs, tot_sp_revs))
     sys.stderr.write("\n")
 
-class Solution(object):
-    "A Solution represents a single solution returned by the D-Wave."
-
-    def __init__(self, spins, energy, tally):
-        self.spins = copy.copy(spins)
-        self.energy = energy
-        self.tally = tally
-
-    def merge(self, other):
-        "Merge another Solution into us,"
-        assert(self.energy == other.energy)
-        assert(self.spins == other.spins)
-        self.tally += other.tally
-
 def merge_answers(answers):
     "Merge a list of answers into a single, combined piece of information."
     # Handle the trivial case of a single answer.
@@ -602,17 +588,38 @@ def merge_answers(answers):
 
     # Merge identical solutions.  Update energies and num_occurrences
     # accordingly.
-    solution_list = [Solution(ans["solutions"][i], ans["energies"][i], ans["num_occurrences"][i])
-                     for ans in answers
-                     for i in range(len(ans["solutions"]))]
-    solution_list.sort(key=operator.attrgetter("spins"))
-    solutions = [solution_list[0]]
-    for soln in solution_list[1:]:
-        if solutions[-1].spins == soln.spins:
-            solutions[-1].merge(soln)
-        else:
-            solutions.append(soln)
-    solutions.sort(key=operator.attrgetter("energy"))
+    all_answers = copy.deepcopy(answers)
+    solutions = []
+    energies = []
+    num_occurrences = []
+    while sum([len(ans["energies"]) for ans in all_answers]):
+        # Find a minimum energy.
+        min_energy = 2**30
+        min_soln = []
+        for i in range(n_ans):
+            ans = all_answers[i]
+            try:
+                if ans["energies"][0] < min_energy:
+                    min_energy = ans["energies"][0]
+                    min_soln = ans["solutions"][0]
+            except IndexError:
+                pass
+
+        # Merge all equal solutions.
+        n_occ = 0
+        energies.append(min_energy)
+        solutions.append(min_soln)
+        for i in range(n_ans):
+            ans = all_answers[i]
+            try:
+                if ans["energies"][0] == min_energy and ans["solutions"][0] == min_soln:
+                    n_occ += ans["num_occurrences"][0]
+                    all_answers[i]["num_occurrences"].pop(0)
+                    all_answers[i]["energies"].pop(0)
+                    all_answers[i]["solutions"].pop(0)
+            except IndexError:
+                pass
+        num_occurrences.append(n_occ)
 
     # Timing measurements that represent <something> per <something> are
     # averaged.  All other timing measurements are summed.
@@ -628,13 +635,13 @@ def merge_answers(answers):
             timing[k] = int(v/float(n_ans) + 0.5)
 
     # Construct a unified answer dictionary and return it.
-    all_answers = {
-        "solutions": [soln.spins for soln in solutions],
-        "energies": [soln.energy for soln in solutions],
-        "num_occurrences": [soln.tally for soln in solutions],
+    merged_answers = {
+        "solutions": solutions,
+        "energies": energies,
+        "num_occurrences": num_occurrences,
         "timing": timing
     }
-    return all_answers
+    return merged_answers
 
 def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, postproc, discard):
     "Submit a QMI to the D-Wave."
