@@ -588,20 +588,22 @@ def merge_answers(answers):
 
     # Merge identical solutions.  Update energies and num_occurrences
     # accordingly.
-    all_answers = copy.deepcopy(answers)
     solutions = []
     energies = []
     num_occurrences = []
-    while sum([len(ans["energies"]) for ans in all_answers]):
+    nremaining = [len(ans["energies"]) for ans in answers]
+    idx_list = [0] * n_ans
+    while sum(nremaining) > 0:
         # Find a minimum energy.
         min_energy = 2**30
         min_soln = []
         for i in range(n_ans):
-            ans = all_answers[i]
+            ans = answers[i]
+            idx = idx_list[i]
             try:
-                if ans["energies"][0] < min_energy:
-                    min_energy = ans["energies"][0]
-                    min_soln = ans["solutions"][0]
+                if ans["energies"][idx] < min_energy:
+                    min_energy = ans["energies"][idx]
+                    min_soln = ans["solutions"][idx]
             except IndexError:
                 pass
 
@@ -610,13 +612,13 @@ def merge_answers(answers):
         energies.append(min_energy)
         solutions.append(min_soln)
         for i in range(n_ans):
-            ans = all_answers[i]
+            ans = answers[i]
+            idx = idx_list[i]
             try:
-                if ans["energies"][0] == min_energy and ans["solutions"][0] == min_soln:
-                    n_occ += ans["num_occurrences"][0]
-                    all_answers[i]["num_occurrences"].pop(0)
-                    all_answers[i]["energies"].pop(0)
-                    all_answers[i]["solutions"].pop(0)
+                if ans["energies"][idx] == min_energy and ans["solutions"][idx] == min_soln:
+                    n_occ += ans["num_occurrences"][idx]
+                    idx_list[i] += 1
+                    nremaining[i] -= 1
             except IndexError:
                 pass
         num_occurrences.append(n_occ)
