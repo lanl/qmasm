@@ -352,6 +352,7 @@ func (m Maze) Extend(s string, b bool) Maze {
 func ReadMazes(r *bufio.Reader) []Maze {
 	mazes := make([]Maze, 0, 1) // List of mazes to return
 	var m Maze                  // Current maze
+	haveSoln := false           // true=saw at least one Solution; false=still in header text
 	for {
 		// Read a line from the file and split it into fields.
 		ln, err := r.ReadString('\n')
@@ -366,17 +367,22 @@ func ReadMazes(r *bufio.Reader) []Maze {
 			continue
 		}
 
-		// Start a new maze when we see "Solution".
-		if f[0] == "Solution" {
+		// Process the current line.
+		switch {
+		case f[0] == "Solution":
+			// Start a new maze when we see "Solution".
+			haveSoln = true
 			if m != nil {
 				mazes = append(mazes, m)
 			}
 			m = NewMaze()
-			continue
-		}
 
-		// Append a room to the current maze when we see a solution row.
-		if len(f) == 3 && (f[2] == "True" || f[2] == "False") {
+		case !haveSoln:
+			// Don't get confused by header text.
+
+		case len(f) == 3 && (f[2] == "True" || f[2] == "False"):
+			// Append a room to the current maze when we see a
+			// solution row.
 			m = m.Extend(f[0], f[2] == "True")
 		}
 	}
