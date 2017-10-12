@@ -348,11 +348,14 @@ func (m Maze) Extend(s string, b bool) Maze {
 	return m
 }
 
-// ReadSolutions returns a list of maze solutions read from a Reader.
-func ReadMazes(r *bufio.Reader) []Maze {
-	mazes := make([]Maze, 0, 1) // List of mazes to return
-	var m Maze                  // Current maze
-	haveSoln := false           // true=saw at least one Solution; false=still in header text
+// ReadSolutions returns a list of maze solutions and their tallies as read
+// from a Reader.
+func ReadMazes(r *bufio.Reader) ([]Maze, []int) {
+	mazes := make([]Maze, 0, 1)  // List of mazes to return
+	var m Maze                   // Current maze
+	tallies := make([]int, 0, 1) // List of tallies to return
+	var t int64                  // Current tally
+	haveSoln := false            // true=saw at least one Solution; false=still in header text
 	for {
 		// Read a line from the file and split it into fields.
 		ln, err := r.ReadString('\n')
@@ -374,8 +377,13 @@ func ReadMazes(r *bufio.Reader) []Maze {
 			haveSoln = true
 			if m != nil {
 				mazes = append(mazes, m)
+				tallies = append(tallies, int(t))
 			}
 			m = NewMaze()
+			t, err = strconv.ParseInt(f[7][:len(f[7])-2], 10, 0)
+			if err != nil {
+				notify.Fatal(err)
+			}
 
 		case !haveSoln:
 			// Don't get confused by header text.
@@ -387,9 +395,10 @@ func ReadMazes(r *bufio.Reader) []Maze {
 		}
 	}
 	if m != nil {
-		mazes = append(mazes, m) // Final maze
+		mazes = append(mazes, m)          // Final maze
+		tallies = append(tallies, int(t)) // Final tally
 	}
-	return mazes
+	return mazes, tallies
 }
 
 // NextRoom maps a "from" direction (N, S, E, or W) and room
@@ -485,11 +494,11 @@ func ValidatePaths(r io.Reader) {
 	}
 
 	// Read a list of mazes.
-	mazes := ReadMazes(rb)
+	mazes, tallies := ReadMazes(rb)
 
 	// Process each maze in turn.
 	for i, m := range mazes {
-		fmt.Printf("Solution %d: ", i+1)
+		fmt.Printf("Solution %d (tally: %d): ", i+1, tallies[i])
 		s, err := m.PathString()
 		if err != nil {
 			fmt.Printf("[%s]\n", err)
