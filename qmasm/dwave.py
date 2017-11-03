@@ -232,7 +232,10 @@ def simplify_problem(logical, verbosity):
     qmasm.sym2num = {s: qmap[q]
                      for s, q in qmasm.sym2num.items()
                      if q in qmap}
-    qmasm.next_sym_num = max(qmasm.sym2num.values())
+    try:
+        qmasm.next_sym_num = max(qmasm.sym2num.values())
+    except ValueError:
+        qmasm.next_sym_num = -1
     if verbosity >= 2:
         sys.stderr.write("  %6d logical qubits after elision\n\n" % (qmasm.next_sym_num + 1))
     return new_obj
