@@ -6,6 +6,12 @@ This directory contains additional tools that may be of use to QMASM programmers
 QMASM stylesheets
 -----------------
 
+[`qmasm-mode.el`](qmasm-mode.el) is an Emacs major mode for editing QMASM source code.  It is currently a very simple mode that provides only syntax highlighting.  Load the mode manually with `M-x load-library` then `M-x qmasm-mode` or automatically by including statements like the following in your `.emacs` file:
+```Emacs Lisp
+(load-library "qmasm-mode")
+(setq auto-mode-alist (cons '("\\.qmasm$" . qmasm-mode) auto-mode-alist))
+```
+
 [`qmasm.ssh`](qmasm.ssh) is a stylsheet for the [a2ps](https://www.gnu.org/software/a2ps/) "Any to PostScript" pretty printer.  One can print QMASM source code with a command like the following:
 ```bash
 a2ps -1 --prologue=color -E/path/to/qmasm.ssh my-program.qmasm | lpr
