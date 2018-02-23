@@ -149,7 +149,7 @@ class AssertAST(object):
         identifiers to bits."""
         try:
             return self._evaluate_node(i2b)
-        except self.EvaluationError, e:
+        except self.EvaluationError as e:
             qmasm.abend("%s in assertion %s" % (e, self))
 
 class AssertParser(object):
