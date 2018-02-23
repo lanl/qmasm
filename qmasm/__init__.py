@@ -1,3 +1,4 @@
+from .assertions import *
 from .classical import *
 from .cmdline import *
 from .dwave import *

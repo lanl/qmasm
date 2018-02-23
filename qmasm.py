@@ -191,11 +191,13 @@ if cl_args.verbose >= 2:
 
 # Map each logical qubit to one or more symbols.
 num2syms = [[] for _ in range(max(qmasm.sym2num.values()) + 1)]
+all_num2syms = [[] for _ in range(max(qmasm.sym2num.values()) + 1)]
 max_sym_name_len = 7
 for s, n in qmasm.sym2num.items():
+    all_num2syms[n].append(s)
     if cl_args.verbose >= 2 or "$" not in s:
         num2syms[n].append(s)
-    max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
+        max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
 
 # Output the embedding.
 if cl_args.verbose >= 1:
@@ -299,14 +301,25 @@ if cl_args.verbose >= 1:
 class ValidSolution:
     "Represent a minimal state of a spin system."
 
-    def __init__(self, soln, energy):
+    def __init__(self, problem, soln, energy):
         # Map named variables to spins.
+        self.problem = problem
         self.solution = soln
         self.energy = energy
-        self.names = []   # List of names for each named row
-        self.spins = []   # Spin for each named row
-        self.id = 0       # Map from spins to an int
+        self.names = []       # List of names for each named row
+        self.spins = []       # Spin for each named row
+        self.all_names = []   # List of names for each named row, including "$" names
+        self.all_spins = []   # Spin for each named row, including "$" names
+        self.id = 0           # Map from spins to an int
+        self._checked_asserts = None  # Memoized result of check_assertions
         for q in range(len(soln)):
+            # Add all names to all_num2syms.
+            if all_num2syms[q] == []:
+                continue
+            self.all_names.append(" ".join(all_num2syms[q]))
+            self.all_spins.append(soln[q])
+
+            # Add only non-"$" names to num2syms.
             if num2syms[q] == []:
                 continue
             self.names.append(" ".join(num2syms[q]))
@@ -314,12 +327,39 @@ class ValidSolution:
             self.id = self.id*2 + (soln[q] + 1)/2
 
         # Additionally map the spins computed during simplification.
-        for nm, s in physical_ising.known_values.items():
+        for nm, s in problem.known_values.items():
+            self.all_names.append(nm)
+            self.all_spins.append(s)
             if cl_args.verbose < 2 and "$" in nm:
                 continue
             self.names.append(nm)
             self.spins.append(s)
             self.id = self.id*2 + (s + 1)/2
+
+    def check_assertions(self):
+        "Return the result of applying each assertion."
+        # Return the previous result, if any.
+        if self._checked_asserts != None:
+            return self._checked_asserts
+        
+        # Construct a mapping from names to bits.
+        name2bit = {}
+        for i in range(len(self.all_spins)):
+            names = self.all_names[i].split()
+            spin = self.all_spins[i]
+            if spin in [-1, 1]:
+                spin = (spin + 1)//2
+            else:
+                spin = None
+            for nm in names:
+                name2bit[nm] = spin
+        
+        # Test each assertion in turn.
+        results = []
+        for a in self.problem.assertions:
+            results.append((str(a), a.evaluate(name2bit)))
+        self._checked_asserts = results
+        return self._checked_asserts
 
 # Determine the set of solutions to output.
 energies = [e + physical_ising.simple_offset for e in answer["energies"]]
@@ -328,9 +368,15 @@ if cl_args.all_solns:
     n_solns_to_output = len(final_answer)
 else:
     n_solns_to_output = min(n_low_energies, len(final_answer))
+n_assertion_violations = 0
 id2solution = {}   # Map from an int to a solution
 for snum in range(n_solns_to_output):
-    soln = ValidSolution(final_answer[snum], energies[snum])
+    soln = ValidSolution(physical_ising, final_answer[snum], energies[snum])
+    bad_assert = any([not a[1] for a in soln.check_assertions()])
+    if bad_assert:
+        n_assertion_violations += 1
+        if not cl_args.all_solns:
+            continue
     if soln.id not in id2solution:
         id2solution[soln.id] = soln
 
@@ -340,32 +386,14 @@ if cl_args.verbose >= 1:
     sys.stderr.write("    %6d total\n" % len(energies))
     sys.stderr.write("    %6d with no broken chains or broken pins\n" % num_not_broken)
     sys.stderr.write("    %6d at minimal energy\n" % n_low_energies)
+    sys.stderr.write("    %6d with no failed assertions\n" % (n_low_energies - n_assertion_violations))
     sys.stderr.write("    %6d excluding duplicate variable assignments\n" % len(id2solution))
     sys.stderr.write("\n")
 
 # Output energy tallies.  We first recompute these because some entries seem to
 # be multiply listed.
 if cl_args.verbose >= 2:
-    try:
-        tallies = answer["num_occurrences"]
-    except KeyError:
-        tallies = [1] * len(energies)
-    new_energy_tallies = {}
-    for i in range(len(energies)):
-        e = float(energies[i])
-        t = int(tallies[i])
-        try:
-            new_energy_tallies[e] += t
-        except KeyError:
-            new_energy_tallies[e] = t
-    new_energies = sorted(new_energy_tallies.keys())
-    min_energy_possible = -sum([abs(w) for w in physical_ising.weights] + [abs(s) for s in physical_ising.strengths.values()])
-    sys.stderr.write("Energy histogram (theoretical minimum = %.4f):\n\n" % min_energy_possible)
-    sys.stderr.write("    Energy      Tally\n")
-    sys.stderr.write("    ----------  ------\n")
-    for e in new_energies:
-        sys.stderr.write("    %10.4f  %6d\n" % (e, new_energy_tallies[e]))
-    sys.stderr.write("\n")
+    qmasm.output_energy_tallies(physical_ising, answer, energies)
 
 # Output the solution to the standard output device.
-qmasm.output_solution(id2solution, num_occurrences, cl_args.values)
+qmasm.output_solution(id2solution, num_occurrences, cl_args.values, cl_args.verbose)

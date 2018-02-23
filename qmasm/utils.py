@@ -12,6 +12,16 @@ class RemainingNextException(Exception):
     'This exception is thrown if a "!next." directive can\'t be replaced.'
     pass
 
+def apply_prefix(sym, prefix=None, next_prefix=None):
+    "Apply a prefix to a symbol name, replacing !next. with the next prefix."
+    if prefix != None:
+        sym = prefix + sym
+    if "!next." in sym:
+        if prefix == None or next_prefix == None:
+            raise RemainingNextException
+        sym = sym.replace(prefix + "!next.", next_prefix)
+    return sym
+
 def symbol_to_number(sym, prefix=None, next_prefix=None):
     "Map from a symbol to a number, creating a new association if necessary."
     global sym2num, next_sym_num

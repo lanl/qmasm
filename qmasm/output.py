@@ -390,6 +390,28 @@ def write_output(problem, oname, oformat, as_qubo):
     if oname != "<stdout>":
         outfile.close()
 
+def output_energy_tallies(physical_ising, answer, energies):
+    try:
+        tallies = answer["num_occurrences"]
+    except KeyError:
+        tallies = [1] * len(energies)
+    new_energy_tallies = {}
+    for i in range(len(energies)):
+        e = float(energies[i])
+        t = int(tallies[i])
+        try:
+            new_energy_tallies[e] += t
+        except KeyError:
+            new_energy_tallies[e] = t
+    new_energies = sorted(new_energy_tallies.keys())
+    min_energy_possible = -sum([abs(w) for w in physical_ising.weights] + [abs(s) for s in physical_ising.strengths.values()])
+    sys.stderr.write("Energy histogram (theoretical minimum = %.4f):\n\n" % min_energy_possible)
+    sys.stderr.write("    Energy      Tally\n")
+    sys.stderr.write("    ----------  ------\n")
+    for e in new_energies:
+        sys.stderr.write("    %10.4f  %6d\n" % (e, new_energy_tallies[e]))
+    sys.stderr.write("\n")
+
 def _numeric_solution(soln):
     "Convert single- and multi-bit values to numbers."
     # Map each name to a number and to the number of bits required.
@@ -476,7 +498,32 @@ def _output_solution_bool(soln):
     output_lines.sort()
     print("\n".join(output_lines) + "\n")
 
-def output_solution(id2solution, num_occurrences, style):
+def _output_solution_asserts(soln, verbosity):
+    "Helper function for output_solution that outputs assertion results."
+    # Do nothing if the program contains no assertions.  Otherwise, output some
+    # header text.
+    if len(soln.problem.assertions) == 0:
+        return
+    if verbosity >= 2:
+        print("    Assertions made")
+        print("    ---------------")
+    else:
+        print("    Assertions failed")
+        print("    -----------------")
+        
+    # Output each assertion in turn.
+    n_failed = 0
+    for (astr, ok) in soln.check_assertions():
+        if not ok:
+            print("    FAIL: %s" % astr)
+            n_failed += 1
+        elif verbosity >= 2:
+            print("    PASS: %s" % astr)
+    if verbosity < 2 and n_failed == 0:
+        print("    [none]")
+    print("")
+    
+def output_solution(id2solution, num_occurrences, style, verbosity):
     "Output a user-readable solution to the standard output device."
     soln_key = lambda s: (id2solution[s].energy, s)
     sorted_solns = [id2solution[s] for s in sorted(id2solution.keys(), key=soln_key)]
@@ -496,3 +543,4 @@ def output_solution(id2solution, num_occurrences, style):
             _output_solution_int(soln)
         else:
             raise Exception('Output style "%s" not recognized' % style)
+        _output_solution_asserts(soln, verbosity)

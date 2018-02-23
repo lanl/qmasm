@@ -3,6 +3,7 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
+import copy
 import os
 import qmasm
 import re
@@ -148,6 +149,31 @@ class Strength(Statement):
             num1, num2 = num2, num1
         problem.strengths[(num1, num2)] += self.strength
 
+class Assert(Statement):
+    "Instantiation of a run-time assertion."
+    parser = qmasm.AssertParser()
+
+    def __init__(self, filename, lineno, expr):
+        super(Assert, self).__init__(filename, lineno)
+        self.expr = expr
+        self.ast = self.parser.parse(expr)
+
+    def as_str(self, prefix=""):
+        if prefix == "":
+            ast = self.ast
+        else:
+            ast = copy.deepcopy(self.ast)
+            ast.apply_prefix(prefix, None)
+        return str(ast)
+
+    def update_qmi(self, prefix, next_prefix, problem):
+        if prefix == "":
+            ast = self.ast
+        else:
+            ast = copy.deepcopy(self.ast)
+            ast.apply_prefix(prefix, next_prefix)
+        problem.assertions.append(ast)
+
 class MacroUse(Statement):
     "Instantiation of a macro definition."
     def __init__(self, filename, lineno, name, body, prefixes):
@@ -225,6 +251,13 @@ class FileParser(object):
         self.parse_file(incname, incfile)
         incfile.close()
 
+    def parse_line_assert(self, filename, lineno, fields):
+        "Parse an !assert directive."
+        # "!assert" <expr> -- assert a property that must be true at run time.
+        if len(fields) < 2:
+            error_in_line(filename, lineno, "Expected an expression to follow !assert")
+        self.target.append(Assert(filename, lineno, " ".join(fields[1:])))
+
     def parse_line_begin_macro(self, filename, lineno, fields):
         "Parse a !begin_macro directive."
         # "!begin_macro" <name> -- begin a macro definition.
@@ -297,7 +330,7 @@ class FileParser(object):
         self.target.append(Strength(filename, lineno, fields[0], fields[1], strength))
 
     def parse_line_use_macro(self, filename, lineno, fields):
-        "Parse an !use_macro directive."
+        "Parse a !use_macro directive."
         # "!use_macro" <macro_name> <instance_name> -- instantiate a macro using
         # <instance_name> as each variable's prefix.
         if len(fields) < 3:
@@ -322,6 +355,7 @@ class FileParser(object):
         # Establish a mapping from a first-field directive to a parsing function.
         dir_to_func = {
             "!include":     self.parse_line_include,
+            "!assert":      self.parse_line_assert,
             "!begin_macro": self.parse_line_begin_macro,
             "!end_macro":   self.parse_line_end_macro,
             "!use_macro":   self.parse_line_use_macro,
@@ -370,7 +404,7 @@ class FileParser(object):
                     func = self.parse_line_strength
                 else:
                     # None of the above
-                    error_in_line(filename, lineno, 'Failed to parse "%s"' % line)
+                    error_in_line(filename, lineno, 'Failed to parse "%s"' % line.strip())
             func(filename, lineno, fields)
 
     def parse_files(self, file_list):
