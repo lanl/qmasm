@@ -510,7 +510,7 @@ def _output_solution_asserts(soln, verbosity):
     else:
         print("    Assertions failed")
         print("    -----------------")
-        
+
     # Output each assertion in turn.
     n_failed = 0
     for (astr, ok) in soln.check_assertions():
@@ -522,8 +522,8 @@ def _output_solution_asserts(soln, verbosity):
     if verbosity < 2 and n_failed == 0:
         print("    [none]")
     print("")
-    
-def output_solution(id2solution, num_occurrences, style, verbosity):
+
+def output_solution(id2solution, num_occurrences, style, verbosity, show_asserts):
     "Output a user-readable solution to the standard output device."
     soln_key = lambda s: (id2solution[s].energy, s)
     sorted_solns = [id2solution[s] for s in sorted(id2solution.keys(), key=soln_key)]
@@ -543,4 +543,5 @@ def output_solution(id2solution, num_occurrences, style, verbosity):
             _output_solution_int(soln)
         else:
             raise Exception('Output style "%s" not recognized' % style)
-        _output_solution_asserts(soln, verbosity)
+        if show_asserts:
+            _output_solution_asserts(soln, verbosity)

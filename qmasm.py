@@ -341,7 +341,7 @@ class ValidSolution:
         # Return the previous result, if any.
         if self._checked_asserts != None:
             return self._checked_asserts
-        
+
         # Construct a mapping from names to bits.
         name2bit = {}
         for i in range(len(self.all_spins)):
@@ -353,7 +353,7 @@ class ValidSolution:
                 spin = None
             for nm in names:
                 name2bit[nm] = spin
-        
+
         # Test each assertion in turn.
         results = []
         for a in self.problem.assertions:
@@ -396,4 +396,6 @@ if cl_args.verbose >= 2:
     qmasm.output_energy_tallies(physical_ising, answer, energies)
 
 # Output the solution to the standard output device.
-qmasm.output_solution(id2solution, num_occurrences, cl_args.values, cl_args.verbose)
+show_asserts = (cl_args.all_solns or cl_args.verbose >= 2) and len(physical_ising.assertions) > 0
+qmasm.output_solution(id2solution, num_occurrences, cl_args.values,
+                      cl_args.verbose, show_asserts)
