@@ -28,7 +28,7 @@ class AssertAST(object):
                 return "(%s)" % str(self.kids[0])
             return str(self.kids[0])
         if nkids == 2:
-            if self.value in ["*", "/", "%", "&"]:
+            if self.value in ["*", "/", "%", "&", "<<", ">>"]:
                 return "%s%s%s" % (str(self.kids[0]), self.value, str(self.kids[1]))
             elif self.type == "conn":
                 return "(%s) %s (%s)" % (str(self.kids[0]), self.value, str(self.kids[1]))
@@ -90,6 +90,10 @@ class AssertAST(object):
             return kvals[0] & kvals[1]
         elif self.value == "|":
             return kvals[0] ^ kvals[1]
+        elif self.value == "<<":
+            return kvals[0] << kvals[1]
+        elif self.value == ">>":
+            return kvals[0] >> kvals[1]
         else:
             raise self.EvaluationError("Internal error evaluating arithmetic operator %s" % self.value)
 
@@ -156,7 +160,7 @@ class AssertParser(object):
     int_re = re.compile(r'\d+')
     conn_re = re.compile(r'\|\||&&')
     rel_re = re.compile(r'<[=>]?|>=?|=')
-    arith_re = re.compile(r'[-+*/%&\|^~]')
+    arith_re = re.compile(r'[-+*/%&\|^~]|>>|<<')
     ident_re = re.compile(r'[^-+*/%&\|^~()<=>\s]+')
 
     class ParseError(Exception):
@@ -191,6 +195,12 @@ class AssertParser(object):
                 match = mo.group(0)
                 tokens.append(("conn", match))
                 s = s[len(match):].lstrip()
+                continue
+
+            # Match "<<" and ">>" before we match "<" and ">".
+            if len(s) >= 2 and (s[:2] == "<<" or s[:2] == ">>"):
+                tokens.append(("arith", s[:2]))
+                s = s[2:].lstrip()
                 continue
 
             # Match relational operators.
@@ -252,7 +262,7 @@ class AssertParser(object):
         elif self.sym[0] == "arith":
             child = self.unary()
         else:
-            raise self.ParseError("Parse error at %s" % val)
+            raise self.ParseError('Parse error at "%s"' % val)
         return AssertAST("factor", None, [child])
 
     def unary(self):
@@ -267,7 +277,7 @@ class AssertParser(object):
         "Return a term (product of one or two factors)."
         f1 = self.factor()
         op = self.sym[1]
-        if self.sym[0] == "arith" and op in ["*", "/", "%", "&"]:
+        if self.sym[0] == "arith" and op in ["*", "/", "%", "&", "<<", ">>"]:
             self.advance()
             f2 = self.term()
             return AssertAST("term", op, [f1, f2])
@@ -314,11 +324,14 @@ class AssertParser(object):
         return AssertAST("conn", op, [d1, d2])
 
     def parse(self, s):
-        "Parse an relational expression into an AST"
+        "Parse a relational expression into an AST"
         self.tokens = self.lex(s)
         self.tokidx = -1
         self.advance()
-        ast = self.conjunction()
-        if self.sym[0] != "EOF":
-            raise self.ParseError('Parse error at "%s"' % self.sym[1])
+        try:
+            ast = self.conjunction()
+            if self.sym[0] != "EOF":
+                raise self.ParseError('Parse error at "%s"' % self.sym[1])
+        except self.ParseError as e:
+            qmasm.abend('%s in "%s"' % (e, s))
         return ast
