@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 
 ###################################
 # Wrap qbsolv when processing     #
@@ -8,6 +8,7 @@
 ###################################
 
 import os
+import re
 import subprocess
 import sys
 
@@ -51,7 +52,7 @@ except OSError as e:
     sys.stderr.write("qbsolv: %s\n" % str(e))
     sys.exit(1)
 bits = []
-next_is_bits = False
+bits_re = re.compile(r'^[01]+$')
 energy = "?"
 while True:
     line = proc.stdout.readline()
@@ -59,11 +60,8 @@ while True:
         break
     line = line.rstrip()
     sys.stderr.write("# %s\n" % line)
-    if b"Number of bits in solution" in line:
-        next_is_bits = True
-    elif next_is_bits:
+    if bits_re.match(line):
         bits = [int(b) for b in list(line)]
-        next_is_bits = False
     elif b"Energy of solution" in line:
         energy = float(line.split()[0])
 retcode = proc.wait()
