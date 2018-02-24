@@ -22,13 +22,15 @@ class AssertAST(object):
         if nkids == 0:
             return str(self.value)
         if nkids == 1:
-            if type == "unary":
+            if self.type == "unary" and self.value == "id":
+                return str(self.kids[0])
+            if self.type == "unary":
                 return "%s%s" % (self.value, str(self.kids[0]))
-            if type == "factor" and self.kids[0].type == "expr":
+            if self.type == "factor" and self.kids[0].type == "expr":
                 return "(%s)" % str(self.kids[0])
             return str(self.kids[0])
         if nkids == 2:
-            if self.value in ["*", "/", "%", "&", "<<", ">>"]:
+            if self.value in ["*", "/", "%", "&", "<<", ">>", "**"]:
                 return "%s%s%s" % (str(self.kids[0]), self.value, str(self.kids[1]))
             elif self.type == "conn":
                 return "(%s) %s (%s)" % (str(self.kids[0]), self.value, str(self.kids[1]))
@@ -69,10 +71,10 @@ class AssertAST(object):
             return -kvals[0]
         elif self.value == "~":
             return ~kvals[0]
-        elif self.value == "+":
+        elif self.value in ["+", "id"]:
             return kvals[0]
         else:
-            raise self.EvaluationError("Internal error evaluating unary %s" % self.value)
+            raise self.EvaluationError('Internal error evaluating unary "%s"' % self.value)
 
     def _evaluate_arith(self, i2b, kvals):
         "Evaluate an arithmetic expression."
@@ -94,6 +96,8 @@ class AssertAST(object):
             return kvals[0] << kvals[1]
         elif self.value == ">>":
             return kvals[0] >> kvals[1]
+        elif self.value == "**":
+            return kvals[0] ** kvals[1]
         else:
             raise self.EvaluationError("Internal error evaluating arithmetic operator %s" % self.value)
 
@@ -139,14 +143,14 @@ class AssertAST(object):
         elif len(kvals) == 1:
             # All other single-child nodes return their child unmodified.
             return kvals[0]
-        elif self.type in ["term", "expr"]:
+        elif self.type in ["power", "term", "expr"]:
             return self._evaluate_arith(i2b, kvals)
         elif self.type == "rel":
             return self._evaluate_rel(i2b, kvals)
         elif self.type == "conn":
             return self._evaluate_conn(i2b, kvals)
         else:
-            raise self.EvaluationError("Internal error evaluating AST node type %s" % self.value)
+            raise self.EvaluationError("Internal error evaluating AST node of type %s, value %s" % (repr(self.type), repr(self.value)))
 
     def evaluate(self, i2b):
         """Evaluate the AST to either True or False given a mapping from
@@ -160,7 +164,7 @@ class AssertParser(object):
     int_re = re.compile(r'\d+')
     conn_re = re.compile(r'\|\||&&')
     rel_re = re.compile(r'<[=>]?|>=?|=')
-    arith_re = re.compile(r'[-+*/%&\|^~]|>>|<<')
+    arith_re = re.compile(r'[-+/%&\|^~]|>>|<<|\*\*?')
     ident_re = re.compile(r'[^-+*/%&\|^~()<=>\s]+')
 
     class ParseError(Exception):
@@ -209,6 +213,12 @@ class AssertParser(object):
                 match = mo.group(0)
                 tokens.append(("rel", match))
                 s = s[len(match):].lstrip()
+                continue
+
+            # Match "**" before we match "*".
+            if len(s) >= 2 and s[:2] == "**":
+                tokens.append(("power", s[:2]))
+                s = s[2:].lstrip()
                 continue
 
             # Match arithmetic operators.
@@ -265,17 +275,28 @@ class AssertParser(object):
             raise self.ParseError('Parse error at "%s"' % val)
         return AssertAST("factor", None, [child])
 
-    def unary(self):
-        "Return a unary operator applied to a factor."
+    def power(self):
+        "Return a factor or a factor raised to the power of a second factor."
+        f1 = self.factor()
         op = self.sym[1]
-        if op not in ["+", "-", "~"]:
-            raise self.ParseError('unexpected unary operator "%s"' % op)
-        self.advance()
-        return AssertAST("unary", op, self.factor())
+        if self.sym[0] == "power" and op == "**":
+            self.advance()
+            f2 = self.power()
+            return AssertAST("power", op, [f1, f2])
+        return AssertAST("power", op, [f1])
+
+    def unary(self):
+        "Return a unary operator applied to a power."
+        op = self.sym[1]
+        if op in ["+", "-", "~"]:
+            self.advance()
+        else:
+            op = "id"
+        return AssertAST("unary", op, [self.power()])
 
     def term(self):
-        "Return a term (product of one or two factors)."
-        f1 = self.factor()
+        "Return a term (product of one or two unaries)."
+        f1 = self.unary()
         op = self.sym[1]
         if self.sym[0] == "arith" and op in ["*", "/", "%", "&", "<<", ">>"]:
             self.advance()
