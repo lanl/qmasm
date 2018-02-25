@@ -71,6 +71,11 @@ class AssertAST(object):
             return -kvals[0]
         elif self.value == "~":
             return ~kvals[0]
+        elif self.value == "!":
+            if kvals[0] == 0:
+                return 1
+            else:
+                return 0
         elif self.value in ["+", "id"]:
             return kvals[0]
         else:
@@ -166,8 +171,8 @@ class AssertParser(object):
     int_re = re.compile(r'\d+')
     conn_re = re.compile(r'\|\||&&')
     rel_re = re.compile(r'<[=>]?|>=?|=')
-    arith_re = re.compile(r'[-+/%&\|^~]|>>|<<|\*\*?')
-    ident_re = re.compile(r'[^-+*/%&\|^~()<=>\s]+')
+    arith_re = re.compile(r'[-+/%&\|^~!]|>>|<<|\*\*?')
+    ident_re = re.compile(r'[^-+*/%&\|^~!()<=>\s]+')
 
     class ParseError(Exception):
         pass
@@ -290,7 +295,7 @@ class AssertParser(object):
     def unary(self):
         "Return a unary operator applied to a power."
         op = self.sym[1]
-        if op in ["+", "-", "~"]:
+        if op in ["+", "-", "~", "!"]:
             self.advance()
         else:
             op = "id"
