@@ -91,6 +91,8 @@ class AssertAST(object):
         elif self.value == "&":
             return kvals[0] & kvals[1]
         elif self.value == "|":
+            return kvals[0] | kvals[1]
+        elif self.value == "^":
             return kvals[0] ^ kvals[1]
         elif self.value == "<<":
             return kvals[0] << kvals[1]
