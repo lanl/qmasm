@@ -36,6 +36,9 @@ class AssertAST(object):
                 return "(%s) %s (%s)" % (str(self.kids[0]), self.value, str(self.kids[1]))
             else:
                 return "%s %s %s" % (str(self.kids[0]), self.value, str(self.kids[1]))
+        if nkids == 3:
+            if self.type == "if_expr":
+                return "if %s then %s else %s endif" % (str(self.kids[0]), str(self.kids[1]), str(self.kids[2]))
         raise Exception("Internal error parsing (%s, %s)" % (repr(self.type), repr(self.value)))
 
     def __str__(self):
@@ -134,6 +137,13 @@ class AssertAST(object):
         else:
             raise self.EvaluationError("Internal error evaluating logical connective %s" % self.value)
 
+    def _evaluate_if_expr(self, i2b, kvals):
+        "Evaluate an if...then...else expression."
+        if kvals[0]:
+            return kvals[1]
+        else:
+            return kvals[2]
+
     def _evaluate_node(self, i2b):
         """Evaluate the AST to either True or False given a mapping from
         identifiers to bits."""
@@ -156,6 +166,8 @@ class AssertAST(object):
             return self._evaluate_rel(i2b, kvals)
         elif self.type == "conn":
             return self._evaluate_conn(i2b, kvals)
+        elif self.type == "if_expr":
+            return self._evaluate_if_expr(i2b, kvals)
         else:
             raise self.EvaluationError("Internal error evaluating AST node of type %s, value %s" % (repr(self.type), repr(self.value)))
 
@@ -173,6 +185,7 @@ class AssertParser(object):
     rel_re = re.compile(r'<[=>]?|>=?|=')
     arith_re = re.compile(r'[-+/%&\|^~!]|>>|<<|\*\*?')
     ident_re = re.compile(r'[^-+*/%&\|^~!()<=>\s]+')
+    keyword_re = re.compile(r'\b(if|then|else|endif)\b')
 
     class ParseError(Exception):
         pass
@@ -190,6 +203,14 @@ class AssertParser(object):
             if s[0] == ")":
                 tokens.append(("rparen", ")"))
                 s = s[1:].lstrip()
+                continue
+
+            # Match keywords.
+            mo = self.keyword_re.match(s)
+            if mo != None:
+                match = mo.group(0)
+                tokens.append((match, match))
+                s = s[len(match):].lstrip()
                 continue
 
             # Match positive integers.
@@ -266,6 +287,17 @@ class AssertParser(object):
         if not self.accept(ty):
             raise self.ParseError("Expected %s but saw %s" % (ty, repr(self.sym)))
 
+    def if_expr(self):
+        "Return an if...then...else expression."
+        self.expect("if")
+        cond = self.conjunction()
+        self.expect("then")
+        then_expr = self.expression()
+        self.expect("else")
+        else_expr = self.expression()
+        self.expect("endif")
+        return AssertAST("if_expr", None, [cond, then_expr, else_expr])
+
     def factor(self):
         "Return a factor (variable, integer, or expression)."
         val = self.sym[1]
@@ -278,6 +310,8 @@ class AssertParser(object):
             self.expect("rparen")
         elif self.sym[0] == "arith":
             child = self.unary()
+        elif self.sym[0] == "if":
+            child = self.if_expr()
         else:
             raise self.ParseError('Parse error at "%s"' % val)
         return AssertAST("factor", None, [child])
