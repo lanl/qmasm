@@ -107,6 +107,8 @@ class AssertAST(object):
         elif self.value == ">>":
             return kvals[0] >> kvals[1]
         elif self.value == "**":
+            if kvals[1] < 0:
+                raise self.EvaluationError("Negative powers (%d) are not allowed" % kvals[1])
             return kvals[0] ** kvals[1]
         else:
             raise self.EvaluationError("Internal error evaluating arithmetic operator %s" % self.value)
