@@ -3,7 +3,6 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
-import copy
 import datetime
 import json
 import os
@@ -126,7 +125,7 @@ def output_qbsolv(outfile, problem):
     num_nonzero_weights += n_known
     output_weights.update({num: problem.known_values[sym]*qmasm.pin_strength
                            for sym, num in extra_nodes.items()})
-    sym2num = copy.deepcopy(qmasm.sym_map.symbol_number_map())
+    sym2num = dict(qmasm.sym_map.symbol_number_items())
     sym2num.update(extra_nodes)
 
     # Output a name-to-number map as header comments.

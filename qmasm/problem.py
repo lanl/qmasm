@@ -20,9 +20,10 @@ def new_internal_sym():
         for i in range(5):
             sym += random.choice(string.ascii_lowercase)
         try:
-            return qmasm.sym_map.new_symbol(sym)
+            n = qmasm.sym_map.to_number(sym)
         except:
-            pass
+            # Symbol does not yet exist.
+            return sym
 
 class DisjointSet(object):
     "Set in a disjoint-set forest"
