@@ -19,9 +19,10 @@ def new_internal_sym():
         sym = "$"
         for i in range(5):
             sym += random.choice(string.ascii_lowercase)
-        if sym not in qmasm.sym2num:
-            return sym
-
+        try:
+            return qmasm.sym_map.new_symbol(sym)
+        except:
+            pass
 
 class DisjointSet(object):
     "Set in a disjoint-set forest"
@@ -222,13 +223,13 @@ class Problem(object):
 
         # Regenerate the global symbol table.
         new_sym2num = {}
-        for s, q in qmasm.sym2num.items():
+        for s, q in qmasm.sym_map.symbol_number_items():
             try:
                 new_q = num2alias[q].find().contents
             except KeyError:
                 new_q = q
             new_sym2num[s] = new_q
-        qmasm.sym2num = new_sym2num
+        qmasm.sym_map.overwrite_with(new_sym2num)
 
         # Renumber all of the above to compact the qubit numbers.
         qubits_used = set(self.weights.keys())
@@ -241,8 +242,7 @@ class Problem(object):
                                    {qmap[q]: wt for q, wt in self.weights.items()})
         self.strengths = qmasm.canonicalize_strengths({(qmap[q1], qmap[q2]): wt for (q1, q2), wt in self.strengths.items()})
         self.pinned = [(qmap[q], b) for q, b in self.pinned]
-        qmasm.sym2num = {s: qmap[q] for s, q in qmasm.sym2num.items()}
-        qmasm.next_sym_num = max(qmasm.sym2num.values())
+        qmasm.sym_map.overwrite_with({s: qmap[q] for s, q in qmasm.sym_map.symbol_number_items()})
 
     def find_disconnected_variables(self):
         """Return a list of variables that are named but not coupled to any
@@ -256,7 +256,7 @@ class Problem(object):
 
         # Complain about any variable whose number is not in the valid set.
         invalid_syms = set()
-        for sym, num in qmasm.sym2num.items():
+        for num in qmasm.sym_map.all_numbers():
             if num not in valid_nums:
-                invalid_syms.add(sym)
+                invalid_syms.update(qmasm.sym_map.to_symbols(num))
         return invalid_syms

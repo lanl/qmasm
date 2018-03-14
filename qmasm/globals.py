@@ -9,11 +9,8 @@ import sys
 # Name of this program
 qmasm.progname = sys.argv[0]
 
-# Map from a symbol to a unique number
-qmasm.sym2num = {}
-
-# One less than the next symbol number to assign
-qmasm.next_sym_num = -1
+# Map between symbols and numbers.
+qmasm.sym_map = qmasm.SymbolMapping()
 
 # List of Statement objects
 qmasm.program = []

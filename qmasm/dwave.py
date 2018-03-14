@@ -173,13 +173,18 @@ def simplify_problem(logical, verbosity):
     # Simplify the problem if possible.
     simple = fix_variables(Q, method="standard")
     fixed_vars = simple["fixed_variables"]
+    if verbosity >= 2:
+        # Also determine if we could get rid of more qubits if we care about
+        # only *a* solution rather than *all* solutions.
+        alt_simple = fix_variables(Q, method="optimized")
+        all_gone = len(alt_simple["new_Q"]) == 0
 
     # At high verbosity levels, list all of the known symbols and their value.
     if verbosity >= 2:
         # Map each logical qubit to one or more symbols.
-        num2syms = [[] for _ in range(len(qmasm.sym2num))]
+        num2syms = [[] for _ in range(qmasm.sym_map.max_number() + 1)]
         max_sym_name_len = 7
-        for q, n in qmasm.sym2num.items():
+        for q, n in qmasm.sym_map.symbol_number_items():
             num2syms[n].append(q)
             max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
 
@@ -190,25 +195,29 @@ def simplify_problem(logical, verbosity):
             sys.stderr.write("    -------  %s  -----\n" % ("-" * max_sym_name_len))
             truval = {0: "False", +1: "True"}
             for q, b in sorted(fixed_vars.items()):
-                if num2syms[q] == []:
+                try:
+                    syms = qmasm.sym_map.to_symbols(q)
+                except KeyError:
                     continue
-                name_list = " ".join(sorted(num2syms[q]))
+                name_list = " ".join(sorted(syms))
                 sys.stderr.write("    %7d  %-*s  %-s\n" % (q, max_sym_name_len, name_list, truval[b]))
             sys.stderr.write("\n")
 
     # Return the original problem if no qubits could be elided.
     if verbosity >= 2:
-        sys.stderr.write("  %6d logical qubits before elision\n" % (qmasm.next_sym_num + 1))
+        sys.stderr.write("  %6d logical qubits before elision\n" % (qmasm.sym_map.max_number() + 1))
     if len(fixed_vars) == 0:
         if verbosity >= 2:
-            sys.stderr.write("  %6d logical qubits after elision\n\n" % (qmasm.next_sym_num + 1))
+            sys.stderr.write("  %6d logical qubits after elision\n\n" % (qmasm.sym_map.max_number() + 1))
+            if all_gone:
+                sys.stderr.write("    Note: A complete solution can be found classically using roof duality and strongly connected components.\n\n")
         return logical
 
     # Construct a simplified problem, renumbering so as to compact qubit
     # numbers.
     new_obj = copy.deepcopy(logical)
     new_obj.known_values = {s: 2*fixed_vars[n] - 1
-                            for s, n in qmasm.sym2num.items()
+                            for s, n in qmasm.sym_map.symbol_number_items()
                             if n in fixed_vars}
     new_obj.simple_offset = simple["offset"]
     hs, Js, ising_offset = qubo_to_ising(simple["new_Q"])
@@ -229,15 +238,15 @@ def simplify_problem(logical, verbosity):
     new_obj.pinned = [(qmap[q], b)
                       for q, b in new_obj.pinned
                       if q in qmap]
-    qmasm.sym2num = {s: qmap[q]
-                     for s, q in qmasm.sym2num.items()
-                     if q in qmap}
-    try:
-        qmasm.next_sym_num = max(qmasm.sym2num.values())
-    except ValueError:
-        qmasm.next_sym_num = -1
+    qmasm.sym_map.overwrite_with({s: qmap[q]
+                                  for s, q in qmasm.sym_map.symbol_number_items()
+                                  if q in qmap})
     if verbosity >= 2:
-        sys.stderr.write("  %6d logical qubits after elision\n\n" % (qmasm.next_sym_num + 1))
+        # Report the number of logical qubits that remain, but compute the
+        # number that could be removed if only a single solution were required.
+        sys.stderr.write("  %6d logical qubits after elision\n\n" % (qmasm.sym_map.max_number() + 1))
+        if all_gone:
+            sys.stderr.write("    Note: A complete solution can be found classically using roof duality and strongly connected components.\n\n")
     return new_obj
 
 def find_dwave_embedding(logical, optimization, verbosity, hw_adj_file):
@@ -276,11 +285,12 @@ def find_dwave_embedding(logical, optimization, verbosity, hw_adj_file):
     edgey = 0
     M = 0
     N = 0
+    num_vars = len(qmasm.sym_map.all_numbers())
     try:
         if hw_adj_file == None:
             L, M, N = qmasm.chimera_topology(qmasm.solver)
             L2 = 2*L
-            ncells = (qmasm.next_sym_num + L2) // L2   # Round up the number of cells.
+            ncells = (num_vars + L2) // L2   # Round up the number of cells.
             if optimization >= 2:
                 edgey = max(int(math.sqrt(ncells)), 1)
                 edgex = max((ncells + edgey - 1) // edgey, 1)

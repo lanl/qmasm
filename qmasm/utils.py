@@ -34,11 +34,9 @@ def symbol_to_number(sym, prefix=None, next_prefix=None):
 
     # Return the symbol's logical qubit number or allocate a new one.
     try:
-        return qmasm.sym2num[sym]
+        return qmasm.sym_map.to_number(sym)
     except KeyError:
-        qmasm.next_sym_num += 1
-        qmasm.sym2num[sym] = qmasm.next_sym_num
-        return qmasm.next_sym_num
+        return qmasm.sym_map.new_symbol(sym)
 
 def abend(str):
     "Abort the program on an error."
@@ -158,3 +156,88 @@ def canonicalize_strengths(strs):
             q1, q2 = q2, q1   # Canonicalize vertex order.
         new_strs[(q1, q2)] += wt
     return new_strs
+
+class SymbolMapping:
+    "Map between symbols and numbers."
+
+    def __init__(self):
+        self.sym2num = {}
+        self.num2syms = {}
+        self.next_sym_num = 0
+
+    def new_symbol(self, sym):
+        "Assign the next available number to a symbol."
+        if sym in self.sym2num:
+            raise Exception("Internal error: Symbol %s is already defined" % sym)
+        self.sym2num[sym] = self.next_sym_num
+        self.num2syms[self.next_sym_num] = set([sym])
+        self.next_sym_num += 1
+        return self.sym2num[sym]
+
+    def to_number(self, sym):
+        "Map a symbol to a single number."
+        return self.sym2num[sym]
+
+    def to_symbols(self, num):
+        "Map a number to a set of one or more symbols."
+        return self.num2syms[num]
+
+    def max_number(self):
+        "Return the maximum symbol number used so far."
+        return self.next_sym_num - 1
+
+    def all_numbers(self):
+        "Return an unordered list of all numbers used."
+        return self.num2syms.keys()
+
+    def all_symbols(self):
+        "Return an unordered list of all symbols used."
+        return self.sym2num.keys()
+
+    def symbol_number_items(self):
+        "Return a list of {symbol, number} pairs."
+        return self.sym2num.items()
+
+    def alias(self, sym1, sym2):
+        "Make two symbols point to the same number."
+        # Ensure both symbols are defined.
+        try:
+            num1 = self.sym2num[sym1]
+        except KeyError:
+            num1 = self.new_symbol(sym1)
+        try:
+            num2 = self.sym2num[sym2]
+        except KeyError:
+            num2 = self.new_symbol(sym2)
+
+        # Do nothing if the symbols are already aliased.
+        if num1 == num2:
+            return num1
+
+        # Replace all occurrences of the larger number with the smaller in
+        # num2syms.
+        new_num = min(num1, num2)
+        old_num = max(num1, num2)
+        self.num2syms[new_num].update(self.num2syms[old_num])
+        del self.num2syms[old_num]
+
+        # Regenerate sym2num from num2syms.
+        self.sym2num = {}
+        for n, ss in self.num2syms.items():
+            for s in ss:
+                self.sym2num[s] = n
+        return new_num
+
+    def overwrite_with(self, sym2num):
+        "Overwrite the map's contents with a given symbol-to-number map."
+        self.sym2num = sym2num
+        self.num2syms = {}
+        for s, n in self.sym2num.items():
+            try:
+                self.num2syms[n].add(s)
+            except KeyError:
+                self.num2syms[n] = set([s])
+        if len(self.num2syms.keys()) == 0:
+            self.next_sym_num = 0
+        else:
+            self.next_sym_num = max(self.num2syms.keys()) + 1

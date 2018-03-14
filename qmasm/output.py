@@ -126,7 +126,7 @@ def output_qbsolv(outfile, problem):
     num_nonzero_weights += n_known
     output_weights.update({num: problem.known_values[sym]*qmasm.pin_strength
                            for sym, num in extra_nodes.items()})
-    sym2num = copy.deepcopy(qmasm.sym2num)
+    sym2num = copy.deepcopy(qmasm.sym_map.symbol_number_map())
     sym2num.update(extra_nodes)
 
     # Output a name-to-number map as header comments.
@@ -195,7 +195,7 @@ def output_minizinc(outfile, problem, energy=None):
 
     # Map each qubit to one or more symbols.
     num2syms = {}
-    for s, n in qmasm.sym2num.items():
+    for s, n in qmasm.sym_map.symbol_number_items():
         try:
             # Physical problem
             for pn in qprob.embedding[n]:
@@ -357,10 +357,10 @@ def output_bqpjson(outfile, as_qubo, problem):
         metadata["chimera_degree"] = max(M, N)
         metadata["equivalent_ids"] = sorted(problem.chains.keys())
         metadata["variable_names"] = {s: problem.embedding[n]
-                                      for s, n in qmasm.sym2num.items()}
+                                      for s, n in qmasm.sym_map.symbol_number_items()}
     else:
         metadata["variable_names"] = {s: [n]
-                                      for s, n in qmasm.sym2num.items()}
+                                      for s, n in qmasm.sym_map.symbol_number_items()}
     bqp["metadata"] = metadata
 
     # Output the problem in JSON format.

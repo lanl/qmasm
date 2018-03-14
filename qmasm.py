@@ -38,7 +38,7 @@ for stmt in qmasm.program:
 
 # Store all tallies for later reportage.
 logical_stats = {
-    "vars":      qmasm.next_sym_num + 1,
+    "vars":      qmasm.sym_map.max_number() + 1,
     "strengths": len(logical_either.strengths),
     "eqs":       len(logical_either.chains),
     "pins":      len(logical_either.pinned)
@@ -72,21 +72,21 @@ if cl_args.O >= 1:
     # Say what we're about to do
     if cl_args.verbose >= 2:
         sys.stderr.write("Replaced chains of equally weighted qubits with aliases:\n\n")
-        sys.stderr.write("  %6d logical qubits before optimization\n" % (qmasm.next_sym_num + 1))
+        sys.stderr.write("  %6d logical qubits before optimization\n" % (qmasm.sym_map.max_number() + 1))
 
     # Replace chains with aliases wherever we can.
     logical_ising.convert_chains_to_aliases()
 
     # Summarize what we just did.
     if cl_args.verbose >= 2:
-        sys.stderr.write("  %6d logical qubits after optimization\n\n" % (qmasm.next_sym_num + 1))
+        sys.stderr.write("  %6d logical qubits after optimization\n\n" % (qmasm.sym_map.max_number() + 1))
 
 # Further simplify the problem if we can.
 if cl_args.O >= 1:
     logical_ising = qmasm.simplify_problem(logical_ising, cl_args.verbose)
 
 # This is a good time to update our logical statistics.
-logical_stats["vars"] = qmasm.next_sym_num + 1
+logical_stats["vars"] = qmasm.sym_map.max_number() + 1
 logical_stats["strengths"] = len(logical_ising.strengths)
 logical_stats["eqs"] = len(logical_ising.chains)
 logical_stats["pins"] = len(logical_ising.pinned)
@@ -190,10 +190,11 @@ if cl_args.verbose >= 2:
     sys.stderr.write("\n")
 
 # Map each logical qubit to one or more symbols.
-num2syms = [[] for _ in range(max(qmasm.sym2num.values()) + 1)]
-all_num2syms = [[] for _ in range(max(qmasm.sym2num.values()) + 1)]
+max_num = qmasm.sym_map.max_number()
+num2syms = [[] for _ in range(max_num + 1)]
+all_num2syms = [[] for _ in range(max_num + 1)]
 max_sym_name_len = 7
-for s, n in qmasm.sym2num.items():
+for s, n in qmasm.sym_map.symbol_number_items():
     all_num2syms[n].append(s)
     if cl_args.verbose >= 2 or "$" not in s:
         num2syms[n].append(s)
