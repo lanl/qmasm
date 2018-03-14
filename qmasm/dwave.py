@@ -171,7 +171,7 @@ def simplify_problem(logical, verbosity):
     Q, qubo_offset = ising_to_qubo(hs, Js)
 
     # Simplify the problem if possible.
-    simple = fix_variables(Q, method="optimized")
+    simple = fix_variables(Q, method="standard")
     fixed_vars = simple["fixed_variables"]
 
     # At high verbosity levels, list all of the known symbols and their value.
