@@ -200,19 +200,28 @@ class SymbolMapping:
 
     def alias(self, sym1, sym2):
         "Make two symbols point to the same number."
-        # Ensure both symbols are defined.
+        # Ensure that both symbols are defined.
+        n_new_defs = 0   # Number of new definitions made
         try:
             num1 = self.sym2num[sym1]
         except KeyError:
             num1 = self.new_symbol(sym1)
+            n_new_defs += 1
         try:
             num2 = self.sym2num[sym2]
         except KeyError:
             num2 = self.new_symbol(sym2)
+            n_new_defs += 1
 
         # Do nothing if the symbols are already aliased.
         if num1 == num2:
             return num1
+
+        # Abort if both symbols were previously defined (and do not alias each
+        # other).  In this case, we'd need to merge the associated weights and
+        # strengths, and we don't currently do that.
+        if n_new_defs == 0:
+            abend("Unable to alias pre-existing variables %s and %s" % (sym1, sym2))
 
         # Replace all occurrences of the larger number with the smaller in
         # num2syms.
