@@ -343,7 +343,7 @@ class AssertParser(object):
         u = self.unary()
         ops = [self.sym[1]]
         asts = [u]
-        while self.sym[0] == "arith" and ops[0] in ["*", "/", "%", "&", "<<", ">>"]:
+        while self.sym[0] == "arith" and ops[-1] in ["*", "/", "%", "&", "<<", ">>"]:
             self.advance()
             u = self.unary()
             ops.append(self.sym[1])
@@ -354,9 +354,10 @@ class AssertParser(object):
             return AssertAST("term", ops[0], asts)
 
         # Merge the ASTs in a left-associative fashion into a single AST.
+        ops.pop()
         while len(asts) > 1:
-            ops.pop()
             asts = [AssertAST("term", ops[0], [asts[0], asts[1]])] + asts[2:]
+            ops.pop(0)
         return asts[0]
 
     def expression(self):
@@ -365,7 +366,7 @@ class AssertParser(object):
         t = self.term()
         ops = [self.sym[1]]
         asts = [t]
-        while self.sym[0] == "arith" and ops[0] in ["+", "-", "|", "^"]:
+        while self.sym[0] == "arith" and ops[-1] in ["+", "-", "|", "^"]:
             self.advance()
             t = self.term()
             ops.append(self.sym[1])
@@ -376,9 +377,10 @@ class AssertParser(object):
             return AssertAST("expr", ops[0], asts)
 
         # Merge the ASTs in a left-associative fashion into a single AST.
+        ops.pop()
         while len(asts) > 1:
-            ops.pop()
             asts = [AssertAST("expr", ops[0], [asts[0], asts[1]])] + asts[2:]
+            ops.pop(0)
         return asts[0]
 
     def comparison(self):
