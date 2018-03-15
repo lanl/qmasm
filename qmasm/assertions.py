@@ -338,24 +338,48 @@ class AssertParser(object):
         return AssertAST("unary", op, [self.power()])
 
     def term(self):
-        "Return a term (product of one or two unaries)."
-        f1 = self.unary()
-        op = self.sym[1]
-        if self.sym[0] == "arith" and op in ["*", "/", "%", "&", "<<", ">>"]:
+        "Return a term (product of an optional term and a unary)."
+        # Produce a list of ASTs representing unaries.
+        u = self.unary()
+        ops = [self.sym[1]]
+        asts = [u]
+        while self.sym[0] == "arith" and ops[0] in ["*", "/", "%", "&", "<<", ">>"]:
             self.advance()
-            f2 = self.term()
-            return AssertAST("term", op, [f1, f2])
-        return AssertAST("term", op, [f1])
+            u = self.unary()
+            ops.append(self.sym[1])
+            asts.append(u)
+
+        # Handle the trivial case of the identity operation.
+        if len(asts) == 1:
+            return AssertAST("term", ops[0], asts)
+
+        # Merge the ASTs in a left-associative fashion into a single AST.
+        while len(asts) > 1:
+            ops.pop()
+            asts = [AssertAST("term", ops[0], [asts[0], asts[1]])] + asts[2:]
+        return asts[0]
 
     def expression(self):
-        "Return an expression (sum of one or two terms)."
-        t1 = self.term()
-        op = self.sym[1]
-        if self.sym[0] != "arith" or op not in ["+", "-", "|", "^"]:
-            return AssertAST("expr", None, [t1])
-        self.advance()
-        t2 = self.expression()
-        return AssertAST("expr", op, [t1, t2])
+        "Return an expression (sum of an optional expression and a term)."
+        # Produce a list of ASTs representing terms.
+        t = self.term()
+        ops = [self.sym[1]]
+        asts = [t]
+        while self.sym[0] == "arith" and ops[0] in ["+", "-", "|", "^"]:
+            self.advance()
+            t = self.term()
+            ops.append(self.sym[1])
+            asts.append(t)
+
+        # Handle the trivial case of the identity operation.
+        if len(asts) == 1:
+            return AssertAST("expr", ops[0], asts)
+
+        # Merge the ASTs in a left-associative fashion into a single AST.
+        while len(asts) > 1:
+            ops.pop()
+            asts = [AssertAST("expr", ops[0], [asts[0], asts[1]])] + asts[2:]
+        return asts[0]
 
     def comparison(self):
         "Return a comparison of exactly two expressions."
