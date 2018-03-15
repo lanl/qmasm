@@ -38,11 +38,20 @@ def macro_to_coeffs(macro):
     syms = set()
     for m in macro:
         if m.__class__ == qmasm.Weight:
-            h[m.sym] = m.weight
+            try:
+                h[m.sym] += m.weight
+            except KeyError:
+                h[m.sym] = m.weight
             syms.add(m.sym)
         elif m.__class__ == qmasm.Strength:
-            J[(m.sym1, m.sym2)] = m.strength
-            J[(m.sym2, m.sym1)] = m.strength
+            try:
+                J[(m.sym1, m.sym2)] += m.strength
+            except KeyError:
+                J[(m.sym1, m.sym2)] = m.strength
+            try:
+                J[(m.sym2, m.sym1)] += m.strength
+            except KeyError:
+                J[(m.sym2, m.sym1)] = m.strength
             syms.add(m.sym1)
             syms.add(m.sym2)
         else:
