@@ -383,12 +383,13 @@ for snum in range(n_solns_to_output):
 
 # Output information about the raw solutions.
 if cl_args.verbose >= 1:
+    digits = len(str(len(energies)))
     sys.stderr.write("Number of solutions found:\n\n")
-    sys.stderr.write("    %6d total\n" % len(energies))
-    sys.stderr.write("    %6d with no broken chains or broken pins\n" % num_not_broken)
-    sys.stderr.write("    %6d at minimal energy\n" % n_low_energies)
-    sys.stderr.write("    %6d with no failed assertions\n" % (n_low_energies - n_assertion_violations))
-    sys.stderr.write("    %6d excluding duplicate variable assignments\n" % len(id2solution))
+    sys.stderr.write("    %*d total\n" % (digits, len(energies)))
+    sys.stderr.write("    %*d with no broken chains or broken pins\n" % (digits, num_not_broken))
+    sys.stderr.write("    %*d at minimal energy\n" % (digits, n_low_energies))
+    sys.stderr.write("    %*d with no failed assertions\n" % (digits, n_low_energies - n_assertion_violations))
+    sys.stderr.write("    %*d excluding duplicate variable assignments\n" % (digits, len(id2solution)))
     sys.stderr.write("\n")
 
 # Output energy tallies.  We first recompute these because some entries seem to
