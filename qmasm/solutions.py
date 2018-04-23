@@ -3,7 +3,10 @@
 # By Scott Pakin <pakin@lanl.gov>      #
 ########################################
 
-from dwave_sapi2.embedding import unembed_answer
+try:
+    from dwave_sapi2.embedding import unembed_answer
+except ImportError:
+    from .fake_dwave import *
 import qmasm
 
 # Specify the minimum distinguishable difference between energy readings.
