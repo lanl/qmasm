@@ -29,12 +29,8 @@ def parse_command_line():
                            help="optimize the layout; at -O1, remove unnecessary qubits; at -O2 additionally pack into fewer unit cells")
     cl_parser.add_argument("-p", "--pin", action="append",
                            help="pin a set of qubits to a set of true or false values")
-    cl_parser.add_argument("-d", "--discard", choices=["yes", "no", "maybe"], default="yes",
-                           help="always, never, or if otherwise no solutions, discard solutions with broken chains or broken pins (default: yes)")
     cl_parser.add_argument("--values", choices=["bools", "ints"], default="bools",
                            help="output solution values as Booleans or integers (default: bools)")
-    cl_parser.add_argument("-a", "--all-solns", action="store_true",
-                           help='output all solutions, not just those at the minimal energy level (implied by "-v -v"')
     cl_parser.add_argument("-C", "--chain-strength", metavar="NEG_NUM", type=float,
                            help="negative-valued chain strength (default: automatic)")
     cl_parser.add_argument("-P", "--pin-strength", metavar="NEG_NUM", type=float,
@@ -56,6 +52,8 @@ def parse_command_line():
     cl_parser.add_argument("--postproc", choices=["none", "sample", "opt"],
                            default="none",
                            help='type of postprocessing to perform (default: "none")')
+    cl_parser.add_argument("--show", choices=["valid", "all", "best"], default="valid",
+                           help='show valid solutions, all solutions, or the best (even if invalid) solutions (default: "valid")')
 
     # Parse the command line.
     cl_args = cl_parser.parse_args()

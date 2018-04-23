@@ -389,7 +389,8 @@ def write_output(problem, oname, oformat, as_qubo):
     if oname != "<stdout>":
         outfile.close()
 
-def output_energy_tallies(physical_ising, answer, energies):
+def output_energy_tallies(physical_ising, answer):
+    energies = answer["energies"]
     try:
         tallies = answer["num_occurrences"]
     except KeyError:
@@ -522,20 +523,19 @@ def _output_solution_asserts(soln, verbosity):
         print("    [none]")
     print("")
 
-def output_solution(id2solution, num_occurrences, style, verbosity, show_asserts):
+def output_solution(solutions, style, verbosity, show_asserts):
     "Output a user-readable solution to the standard output device."
-    soln_key = lambda s: (id2solution[s].energy, s)
-    sorted_solns = [id2solution[s] for s in sorted(id2solution.keys(), key=soln_key)]
+    # Sort the solutions first by energy then by ID.
+    soln_key = lambda s: (s.energy, s.id)
+    sorted_solns = sorted(solutions.solutions, key=soln_key)
+
+    # Output each solution in turn.
     if len(sorted_solns) == 0:
         print("No valid solutions found.")
-        sys.exit(0)
+        return
     for snum in range(len(sorted_solns)):
         soln = sorted_solns[snum]
-        try:
-            num_seen = "%d" % num_occurrences[tuple(soln.solution)]
-        except KeyError:
-            num_seen = "?"
-        print("Solution #%d (energy = %.2f, tally = %s):\n" % (snum + 1, soln.energy, num_seen))
+        print("Solution #%d (energy = %.2f, tally = %s):\n" % (snum + 1, soln.energy, soln.tally))
         if style == "bools":
             _output_solution_bool(soln)
         elif style == "ints":

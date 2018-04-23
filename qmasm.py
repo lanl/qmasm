@@ -5,9 +5,10 @@
 # By Scott Pakin <pakin@lanl.gov>                #
 ##################################################
 
-import qmasm
+import copy
 import os
 import os.path
+import qmasm
 import string
 import sys
 
@@ -275,19 +276,17 @@ if not cl_args.run:
 # Submit the problem to the D-Wave.
 if cl_args.verbose >= 1:
     sys.stderr.write("Submitting the problem to the %s solver.\n\n" % qmasm.solver_name)
-dwave_response = qmasm.submit_dwave_problem(cl_args.verbose,
-                                            physical_ising,
-                                            cl_args.samples,
-                                            cl_args.anneal_time,
-                                            cl_args.spin_revs,
-                                            cl_args.postproc,
-                                            cl_args.discard)
-answer, final_answer, num_occurrences, num_not_broken = dwave_response
+solutions = qmasm.submit_dwave_problem(cl_args.verbose,
+                                       physical_ising,
+                                       cl_args.samples,
+                                       cl_args.anneal_time,
+                                       cl_args.spin_revs,
+                                       cl_args.postproc)
 
 # Output solver timing information.
 if cl_args.verbose >= 1:
     try:
-        timing_info = list(answer["timing"].items())
+        timing_info = list(solutions.answer["timing"].items())
         sys.stderr.write("Timing information:\n\n")
         sys.stderr.write("    %-30s %-10s\n" % ("Measurement", "Value (us)"))
         sys.stderr.write("    %s %s\n" % ("-" * 30, "-" * 10))
@@ -298,106 +297,56 @@ if cl_args.verbose >= 1:
         # Not all solvers provide timing information.
         pass
 
-# Define a class to represent a valid solution.
-class ValidSolution:
-    "Represent a minimal state of a spin system."
+# Define a function to keep track of the solutions we want to output.
+final_solns = copy.copy(solutions)
+def update_final_solns():
+    global final_solns, solutions
+    if cl_args.show == "valid":
+        final_solns = copy.copy(solutions)
+    elif cl_args.show == "best" and len(solutions.solutions) > 0:
+        final_solns = copy.copy(solutions)
+    elif cl_args.show == "all":
+        pass
+    else:
+        qmasm.abend("Internal error: Unexpected --show=%s" % repr(cl_args.show))
 
-    def __init__(self, problem, soln, energy):
-        # Map named variables to spins.
-        self.problem = problem
-        self.solution = soln
-        self.energy = energy
-        self.names = []       # List of names for each named row
-        self.spins = []       # Spin for each named row
-        self.all_names = []   # List of names for each named row, including "$" names
-        self.all_spins = []   # Spin for each named row, including "$" names
-        self.id = 0           # Map from spins to an int
-        self._checked_asserts = None  # Memoized result of check_assertions
-        for q in range(len(soln)):
-            # Add all names to all_num2syms.
-            if all_num2syms[q] == []:
-                continue
-            self.all_names.append(" ".join(all_num2syms[q]))
-            self.all_spins.append(soln[q])
-
-            # Add only non-"$" names to num2syms.
-            if num2syms[q] == []:
-                continue
-            self.names.append(" ".join(num2syms[q]))
-            self.spins.append(soln[q])
-            self.id = self.id*2 + (soln[q] + 1)/2
-
-        # Additionally map the spins computed during simplification.
-        for nm, s in problem.known_values.items():
-            self.all_names.append(nm)
-            self.all_spins.append(s)
-            if cl_args.verbose < 2 and "$" in nm:
-                continue
-            self.names.append(nm)
-            self.spins.append(s)
-            self.id = self.id*2 + (s + 1)/2
-
-    def check_assertions(self):
-        "Return the result of applying each assertion."
-        # Return the previous result, if any.
-        if self._checked_asserts != None:
-            return self._checked_asserts
-
-        # Construct a mapping from names to bits.
-        name2bit = {}
-        for i in range(len(self.all_spins)):
-            names = self.all_names[i].split()
-            spin = self.all_spins[i]
-            if spin in [-1, 1]:
-                spin = (spin + 1)//2
-            else:
-                spin = None
-            for nm in names:
-                name2bit[nm] = spin
-
-        # Test each assertion in turn.
-        results = []
-        for a in self.problem.assertions:
-            results.append((str(a), a.evaluate(name2bit)))
-        self._checked_asserts = results
-        return self._checked_asserts
-
-# Determine the set of solutions to output.
-energies = [e + physical_ising.simple_offset for e in answer["energies"]]
-n_low_energies = len([e for e in energies if abs(e - energies[0]) < min_energy_delta])
-if cl_args.all_solns:
-    n_solns_to_output = len(final_answer)
-else:
-    n_solns_to_output = min(n_low_energies, len(final_answer))
-n_assertion_violations = 0
-id2solution = {}   # Map from an int to a solution
-for snum in range(n_solns_to_output):
-    soln = ValidSolution(physical_ising, final_answer[snum], energies[snum])
-    bad_assert = any([not a[1] for a in soln.check_assertions()])
-    if bad_assert:
-        n_assertion_violations += 1
-        if not cl_args.all_solns:
-            continue
-    if soln.id not in id2solution:
-        id2solution[soln.id] = soln
-
-# Output information about the raw solutions.
+# Filter the solutions as directed by the user.
 if cl_args.verbose >= 1:
-    digits = len(str(len(energies)))
+    digits = len(str(cl_args.samples))
     sys.stderr.write("Number of solutions found:\n\n")
-    sys.stderr.write("    %*d total\n" % (digits, len(energies)))
-    sys.stderr.write("    %*d with no broken chains or broken pins\n" % (digits, num_not_broken))
-    sys.stderr.write("    %*d at minimal energy\n" % (digits, n_low_energies))
-    sys.stderr.write("    %*d with no failed assertions\n" % (digits, n_low_energies - n_assertion_violations))
-    sys.stderr.write("    %*d excluding duplicate variable assignments\n" % (digits, len(id2solution)))
+    sys.stderr.write("    %*d total solutions\n" % (digits, cl_args.samples))
+    sys.stderr.write("    %*d unique solutions\n" % (digits, len(solutions.solutions)))
+solutions.discard_broken_chains()
+update_final_solns()
+if cl_args.verbose >= 1:
+    sys.stderr.write("    %*d with no broken chains\n" % (digits, len(solutions.solutions)))
+solutions.discard_broken_user_chains()
+update_final_solns()
+if cl_args.verbose >= 1:
+    sys.stderr.write("    %*d with no broken user-specified chains\n" % (digits, len(solutions.solutions)))
+solutions.discard_broken_pins()
+update_final_solns()
+if cl_args.verbose >= 1:
+    sys.stderr.write("    %*d with no broken pins\n" % (digits, len(solutions.solutions)))
+solutions.discard_failed_assertions()
+update_final_solns()
+if cl_args.verbose >= 1:
+    sys.stderr.write("    %*d with no failed assertions\n" % (digits, len(solutions.solutions)))
+solutions.discard_non_minimal()
+update_final_solns()
+if cl_args.verbose >= 1:
+    sys.stderr.write("    %*d at minimal energy\n" % (digits, len(solutions.solutions)))
+solutions.discard_duplicates()
+update_final_solns()
+if cl_args.verbose >= 1:
+    sys.stderr.write("    %*d excluding duplicate variable assignments\n" % (digits, len(solutions.solutions)))
     sys.stderr.write("\n")
 
 # Output energy tallies.  We first recompute these because some entries seem to
 # be multiply listed.
 if cl_args.verbose >= 2:
-    qmasm.output_energy_tallies(physical_ising, answer, energies)
+    qmasm.output_energy_tallies(physical_ising, final_solns.answer)
 
 # Output the solution to the standard output device.
-show_asserts = (cl_args.all_solns or cl_args.verbose >= 2) and len(physical_ising.assertions) > 0
-qmasm.output_solution(id2solution, num_occurrences, cl_args.values,
-                      cl_args.verbose, show_asserts)
+show_asserts = cl_args.verbose >= 2 or cl_args.show in ["best", "all"]
+qmasm.output_solution(final_solns, cl_args.values, cl_args.verbose, show_asserts)

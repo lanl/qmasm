@@ -5,5 +5,6 @@ from .dwave import *
 from .output import *
 from .parse import *
 from .problem import *
+from .solutions import *
 from .utils import *
 from .globals import *

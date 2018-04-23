@@ -658,7 +658,7 @@ def merge_answers(answers):
     }
     return merged_answers
 
-def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, postproc, discard):
+def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, postproc):
     "Submit a QMI to the D-Wave."
     # Map abbreviated to full names for postprocessing types.
     postproc = {"none": "", "opt": "optimization", "sample": "sampling"}[postproc]
@@ -732,26 +732,8 @@ def submit_dwave_problem(verbosity, physical, samples, anneal_time, spin_revs, p
         sys.stderr.write("\n")
     answers = [p.result() for p in problems]
 
-    # Tally the occurrences of each solution
+    # Merge the result of seperate runs into a composite answer.
     answer = merge_answers(answers)
-    solutions = answer["solutions"]
-    semifinal_answer = unembed_answer(solutions, physical.embedding,
-                                      broken_chains="minimize_energy",
-                                      h=physical.weights, j=physical.strengths)
-    try:
-        num_occurrences = {tuple(k): v
-                           for k, v in zip(semifinal_answer, answer["num_occurrences"])}
-    except KeyError:
-        num_occurrences = {tuple(a): 1 for a in semifinal_answer}
 
-    # Discard solutions with broken pins or broken chains unless instructed
-    # not to.
-    valid_solns = [s for s in solutions if solution_is_intact(physical, s)]
-    num_not_broken = len(valid_solns)
-    if discard in ["yes", "maybe"]:
-        final_answer = unembed_answer(valid_solns, physical.embedding,
-                                      broken_chains="discard",
-                                      h=physical.weights, j=physical.strengths)
-    if discard == "no" or (discard == "maybe" and len(final_answer) == 0):
-        final_answer = semifinal_answer
-    return answer, final_answer, num_occurrences, num_not_broken
+    # Return a Solutions object for further processing.
+    return qmasm.Solutions(answer, physical, verbosity >= 2)
