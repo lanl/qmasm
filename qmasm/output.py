@@ -404,8 +404,7 @@ def output_energy_tallies(physical_ising, answer):
         except KeyError:
             new_energy_tallies[e] = t
     new_energies = sorted(new_energy_tallies.keys())
-    min_energy_possible = -sum([abs(w) for w in physical_ising.weights] + [abs(s) for s in physical_ising.strengths.values()])
-    sys.stderr.write("Energy histogram (theoretical minimum = %.4f):\n\n" % min_energy_possible)
+    sys.stderr.write("Energy histogram:\n\n")
     sys.stderr.write("    Energy      Tally\n")
     sys.stderr.write("    ----------  ------\n")
     for e in new_energies:
