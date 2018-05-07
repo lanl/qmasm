@@ -12,6 +12,11 @@ import copy
 import qmasm
 import random
 import string
+try:
+    import pulp
+    have_pulp = True
+except ImportError:
+    have_pulp = False
 
 def new_internal_sym():
     "Create a new internal symbol."
@@ -261,3 +266,52 @@ class Problem(object):
             if num not in valid_nums:
                 invalid_syms.update(qmasm.sym_map.to_symbols(num))
         return invalid_syms
+
+    def estimate_energy(self):
+        "Estimate minimum energy by constructing and solving a majorization problem."
+        # Do nothing if the pulp module isn't available.
+        if not have_pulp:
+            return None
+
+        # Convert from Ising to QUBO.
+        if self.qubo:
+            qubo = self
+        else:
+            qubo = self.convert_to_qubo()
+
+        # Allocate all of the variables we'll need, one x per linear term and
+        # one y per quadratic term.
+        all_vars = set(qubo.weights.keys())
+        for (q0, q1) in qubo.strengths.keys():
+            all_vars.add(q0)
+            all_vars.add(q1)
+        x = {q: pulp.LpVariable("x_%d" % q, cat="Continuous", lowBound=0.0, upBound=1.0) for q in all_vars}
+        y = {(q0, q1): pulp.LpVariable("y_%d_%d" % (q0, q1), cat="Continuous", lowBound=0.0, upBound=1.0)
+             for q0 in all_vars
+             for q1 in all_vars
+             if q0 < q1}
+
+        # Specify the objective function.
+        prob = pulp.LpProblem("major", pulp.LpMinimize)
+        lterms = pulp.LpAffineExpression([(xi, qubo.weights[i])
+                                          for i, xi in x.items()
+                                          if qubo.weights[i] != 0.0])
+        qterms = pulp.LpAffineExpression([(yij, qubo.strengths[(i, j)])
+                                          for (i, j), yij in y.items()
+                                          if qubo.strengths[(i, j)] != 0.0])
+        prob += qubo.offset + lterms + qterms
+
+        # Specify constraints on the (linearized) quadratic terms.
+        for (i, j), cij in qubo.strengths.items():
+            yij = y[(i, j)]
+            if cij > 0.0:
+                prob += yij >= x[i] + x[j] - 1.0
+                prob += yij >= 0.0
+            elif cij < 0.0:
+                prob += yij <= x[i]
+                prob += yij <= x[j]
+
+        # Solve the linear program.
+        if prob.solve() != pulp.LpStatusOptimal:
+            return None
+        return pulp.value(prob.objective)

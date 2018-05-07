@@ -252,6 +252,16 @@ if cl_args.verbose >= 1:
 # Manually scale the weights and strengths so Qubist doesn't complain.
 physical_ising = qmasm.scale_weights_strengths(physical_ising, cl_args.verbose)
 
+# Estimate the solution energy.
+if cl_args.verbose >= 2:
+    l_energy = logical_ising.estimate_energy()
+    p_energy = physical_ising.estimate_energy()
+    if l_energy != None and p_energy != None:
+        sys.stderr.write("Estimated lower bounds on solution energy:\n\n")
+        sys.stderr.write("    Logical problem:  %10.4f\n" % l_energy)
+        sys.stderr.write("    Physical problem: %10.4f\n" % p_energy)
+        sys.stderr.write("\n")
+
 # Process all classical solvers.  If we're here and the solver is classical,
 # then always_embed must be True.
 if cl_args.format in classical_solvers:
