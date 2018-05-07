@@ -14,6 +14,11 @@ try:
     from dwave_sapi2.util import linear_index_to_chimera
 except ImportError:
     from .fake_dwave import *
+try:
+    import pulp
+    have_pulp = True
+except ImportError:
+    have_pulp = False
 
 def open_output_file(oname):
     "Open a file or standard output."
@@ -389,6 +394,52 @@ def write_output(problem, oname, oformat, as_qubo):
     if oname != "<stdout>":
         outfile.close()
 
+def estimate_energy(ising_prob):
+    "Construct and solve a majorization problem."
+    # Do nothing if the pulp module isn't available.
+    if not have_pulp:
+        return None
+
+    # Convert from Ising to QUBO.
+    qubo = ising_prob.convert_to_qubo()
+
+    # Allocate all of the variables we'll need, one x per linear term and one y
+    # per quadratic term.
+    all_vars = set(qubo.weights.keys())
+    for (q0, q1) in qubo.strengths.keys():
+        all_vars.add(q0)
+        all_vars.add(q1)
+    x = {q: pulp.LpVariable("x_%d" % q, cat="Continuous", lowBound=0.0, upBound=1.0) for q in all_vars}
+    y = {(q0, q1): pulp.LpVariable("y_%d_%d" % (q0, q1), cat="Continuous", lowBound=0.0, upBound=1.0)
+         for q0 in all_vars
+         for q1 in all_vars
+         if q0 < q1}
+
+    # Specify the objective function.
+    prob = pulp.LpProblem("major", pulp.LpMinimize)
+    lterms = pulp.LpAffineExpression([(xi, qubo.weights[i])
+                                      for i, xi in x.items()
+                                      if qubo.weights[i] != 0.0])
+    qterms = pulp.LpAffineExpression([(yij, qubo.strengths[(i, j)])
+                                      for (i, j), yij in y.items()
+                                      if qubo.strengths[(i, j)] != 0.0])
+    prob += qubo.offset + lterms + qterms
+
+    # Specify constraints on the (linearized) quadratic terms.
+    for (i, j), cij in qubo.strengths.items():
+        yij = y[(i, j)]
+        if cij > 0.0:
+            prob += yij >= x[i] + x[j] - 1.0
+            prob += yij >= 0.0
+        elif cij < 0.0:
+            prob += yij <= x[i]
+            prob += yij <= x[j]
+
+    # Solve the linear program.
+    if prob.solve() != pulp.LpStatusOptimal:
+        return None
+    return pulp.value(prob.objective)
+
 def output_energy_tallies(physical_ising, answer):
     energies = answer["energies"]
     try:
@@ -404,7 +455,11 @@ def output_energy_tallies(physical_ising, answer):
         except KeyError:
             new_energy_tallies[e] = t
     new_energies = sorted(new_energy_tallies.keys())
-    sys.stderr.write("Energy histogram:\n\n")
+    energy_bound = qmasm.estimate_energy(physical_ising)
+    if energy_bound == None:
+        sys.stderr.write("Energy histogram:\n\n")
+    else:
+        sys.stderr.write("Energy histogram (estimated minimum = %.4f):\n\n" % energy_bound)
     sys.stderr.write("    Energy      Tally\n")
     sys.stderr.write("    ----------  ------\n")
     for e in new_energies:
