@@ -42,6 +42,7 @@ logical_stats = {
     "vars":      qmasm.sym_map.max_number() + 1,
     "strengths": len(logical_either.strengths),
     "eqs":       len(logical_either.chains),
+    "ineqs":     len(logical_either.antichains),
     "pins":      len(logical_either.pinned)
 }
 
@@ -51,8 +52,8 @@ if cl_args.qubo:
 else:
     logical_ising = logical_either
 
-# Define a strength for each user-specified chain, and assign strengths
-# to those chains.
+# Define a strength for each user-specified chain and anti-chain, and assign
+# strengths to those chains.
 qmasm.chain_strength = logical_ising.assign_chain_strength(cl_args.chain_strength)
 
 # Define a strength for each user-specified pinned variable.
@@ -90,6 +91,7 @@ if cl_args.O >= 1:
 logical_stats["vars"] = qmasm.sym_map.max_number() + 1
 logical_stats["strengths"] = len(logical_ising.strengths)
 logical_stats["eqs"] = len(logical_ising.chains)
+logical_stats["ineqs"] = len(logical_ising.antichains)
 logical_stats["pins"] = len(logical_ising.pinned)
 
 # Complain if we have no weights and no strengths.
@@ -230,15 +232,16 @@ if cl_args.verbose >= 1:
     # Output a table.
     phys_wts = [elt for lst in physical_ising.embedding for elt in lst]
     sys.stderr.write("Computed the following statistics of the logical-to-physical mapping:\n\n")
-    sys.stderr.write("    Type      Metric          Value\n")
-    sys.stderr.write("    --------  --------------  -----\n")
-    sys.stderr.write("    Logical   Variables       %5d\n" % logical_stats["vars"])
-    sys.stderr.write("    Logical   Strengths       %5d\n" % logical_stats["strengths"])
-    sys.stderr.write("    Logical     Equivalences  %5d\n" % logical_stats["eqs"])
-    sys.stderr.write("    Logical     Pins          %5d\n" % logical_stats["pins"])
-    sys.stderr.write("    Physical  Qubits          %5d\n" % len(phys_wts))
-    sys.stderr.write("    Physical  Couplers        %5d\n" % len(physical_ising.strengths))
-    sys.stderr.write("    Physical    Chains        %5d\n" % len(physical_ising.chains))
+    sys.stderr.write("    Type      Metric           Value\n")
+    sys.stderr.write("    --------  ---------------  -----\n")
+    sys.stderr.write("    Logical   Variables        %5d\n" % logical_stats["vars"])
+    sys.stderr.write("    Logical   Strengths        %5d\n" % logical_stats["strengths"])
+    sys.stderr.write("    Logical     Equivalences   %5d\n" % logical_stats["eqs"])
+    sys.stderr.write("    Logical     Inequivalences %5d\n" % logical_stats["ineqs"])
+    sys.stderr.write("    Logical     Pins           %5d\n" % logical_stats["pins"])
+    sys.stderr.write("    Physical  Qubits           %5d\n" % len(phys_wts))
+    sys.stderr.write("    Physical  Couplers         %5d\n" % len(physical_ising.strengths))
+    sys.stderr.write("    Physical    Chains         %5d\n" % len(physical_ising.chains))
     sys.stderr.write("\n")
 
     # Output some additional chain statistics.

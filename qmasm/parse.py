@@ -87,6 +87,25 @@ class Chain(Statement):
             num1, num2 = num2, num1
         problem.chains[(num1, num2)] = None   # Value is a don't-care.
 
+class AntiChain(Statement):
+    "AntiChain between qubits."
+    def __init__(self, filename, lineno, sym1, sym2):
+        super(AntiChain, self).__init__(filename, lineno)
+        self.sym1 = sym1
+        self.sym2 = sym2
+
+    def as_str(self, prefix=""):
+        return "%s%s /= %s%s" % (prefix, self.sym1, prefix, self.sym2)
+
+    def update_qmi(self, prefix, next_prefix, problem):
+        num1 = qmasm.symbol_to_number(prefix + self.sym1, prefix, next_prefix)
+        num2 = qmasm.symbol_to_number(prefix + self.sym2, prefix, next_prefix)
+        if num1 == num2:
+            self.error_in_line("An anti-chain cannot connect a spin to itself")
+        elif num1 > num2:
+            num1, num2 = num2, num1
+        problem.antichains[(num1, num2)] = None   # Value is a don't-care.
+
 class Pin(Statement):
     "Pinning of a qubit to true or false."
     def __init__(self, filename, lineno, sym, goal):
@@ -294,6 +313,14 @@ class FileParser(object):
             error_in_line(filename, lineno, "Internal error in parse_line_chain")
         self.target.extend(process_chain(filename, lineno, " ".join(fields[:3])))
 
+    def parse_line_antichain(self, filename, lineno, fields):
+        "Parse a qubit anti-chain."
+        # <symbol_1> /= <symbol_2> -- create an anti-chain between <symbol_1>
+        # and <symbol_2>.
+        if len(fields) < 3 or fields[1] != "/=":
+            error_in_line(filename, lineno, "Internal error in parse_line_antichain")
+        self.target.extend(process_antichain(filename, lineno, " ".join(fields[:3])))
+
     def parse_line_pin(self, filename, lineno, fields):
         "Parse a qubit pin."
         # <symbol> := <value> -- force symbol <symbol> to have value <value>.
@@ -386,6 +413,8 @@ class FileParser(object):
                     func = self.parse_line_weight
                 elif nfields == 3 and fields[1] == "=":
                     func = self.parse_line_chain
+                elif nfields == 3 and fields[1] == "/=":
+                    func = self.parse_line_antichain
                 elif nfields == 3 and fields[1] == ":=":
                     func = self.parse_line_pin
                 elif nfields == 3 and fields[1] == "<->":
@@ -518,6 +547,19 @@ def process_chain(filename, lineno, chain_str):
     if len(lhs_list) != len(rhs_list):
         qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
     return [Chain(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+
+def process_antichain(filename, lineno, antichain_str):
+    "Parse an anti-chain statement into one or more AntiChain objects and add these to the program."
+    # We use the LHS parser from PinParser to parse both sides of the anti-chain.
+    lhs_rhs = antichain_str.split("/=")
+    if len(lhs_rhs) != 2:
+        qmasm.abend('Failed to parse anti-chain statement "%s"' % antichain_str)
+    pin_parser = PinParser()
+    lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
+    rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
+    if len(lhs_list) != len(rhs_list):
+        qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (antichain_str, len(lhs_list), len(rhs_list)))
+    return [AntiChain(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
 
 def process_alias(filename, lineno, alias_str):
     "Parse an alias statement into one or more Alias objects and add these to the program."

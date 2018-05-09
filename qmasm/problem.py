@@ -66,6 +66,7 @@ class Problem(object):
         self.weights = defaultdict(lambda: 0.0)    # Map from a spin to a point weight
         self.strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
         self.chains = {}     # Subset of strengths keys that represents chains
+        self.antichains = {} # Subset of strengths keys that represents anti-chains
         self.pinned = []     # Pairs of {unique number, Boolean} to pin
         self.offset = 0.0    # Value to add to QUBO energy to convert to Ising energy or vice versa
         self.known_values = {}    # Map from symbol name to spin for values known a priori
@@ -73,9 +74,9 @@ class Problem(object):
         self.assertions = []      # List of assertions (as ASTs) to enforce
 
     def assign_chain_strength(self, ch_str):
-        """Define a strength for each user-specified and automatically generated
-        chain, and assign strengths to those chains.  Return the computed
-        chain strength."""
+        """Define a strength for each user-specified and automatically
+        generated chain, and assign strengths to those chains (and negative
+        strength to all anti-chains).  Return the computed chain strength."""
         chain_strength = ch_str
         if chain_strength == None:
             # Chain strength defaults to twice the maximum strength in the data.
@@ -94,6 +95,8 @@ class Problem(object):
             chain_strength /= 4.0
         for c in self.chains.keys():
             self.strengths[c] += chain_strength
+        for c in self.antichains.keys():
+            self.strengths[c] -= chain_strength
         return chain_strength
 
     def assign_pin_strength(self, pin_str, chain_str):
