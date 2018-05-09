@@ -133,7 +133,10 @@ class Solutions:
 
         # Construct one solution object per solution.
         self.solutions = []
-        tallies = answer["num_occurrences"]
+        try:
+            tallies = answer["num_occurrences"]
+        except KeyError:
+            tallies = [1]
         energies = [e + problem.simple_offset for e in answer["energies"]]
         for i in range(len(fixed_solns)):
             self.solutions.append(Solution(problem, num2syms, all_num2syms,
