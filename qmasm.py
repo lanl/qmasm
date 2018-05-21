@@ -253,7 +253,7 @@ if cl_args.verbose >= 1:
     sys.stderr.write("    Maximum chain length = %d (occurrences = %d)\n\n" % (max_chain_len, num_max_chains))
 
 # Manually scale the weights and strengths so Qubist doesn't complain.
-physical_ising = qmasm.scale_weights_strengths(physical_ising, cl_args.verbose)
+physical_ising.scale_weights_strengths(cl_args.verbose)
 
 # Estimate the solution energy.
 if cl_args.verbose >= 2:

@@ -448,25 +448,6 @@ def update_strengths_from_chains(physical):
     new_physical.strengths.update(new_physical.chains)
     return new_physical
 
-def scale_weights_strengths(physical, verbosity):
-    "Manually scale the weights and strengths so Qubist doesn't complain."
-    h_range = physical.h_range
-    j_range = physical.j_range
-    weight_list = qmasm.dict_to_list(physical.weights)
-    old_cap = max([abs(w) for w in weight_list + list(physical.strengths.values())])
-    new_cap = min(-h_range[0], h_range[1], -j_range[0], j_range[1])
-    if old_cap == 0.0:
-        # Handle the obscure case of a zero old_cap.
-        old_cap = new_cap
-    new_weights = qmasm.list_to_dict([w*new_cap/old_cap for w in weight_list])
-    new_strengths = {js: w*new_cap/old_cap for js, w in physical.strengths.items()}
-    if verbosity >= 1 and old_cap != new_cap:
-        sys.stderr.write("Scaling weights and strengths from [%.10g, %.10g] to [%.10g, %.10g].\n\n" % (-old_cap, old_cap, -new_cap, new_cap))
-    new_physical = copy.deepcopy(physical)
-    new_physical.weights = new_weights
-    new_physical.strengths = new_strengths
-    return new_physical
-
 # Define a function that says whether a solution contains no broken pins and no
 # broken (user-specified) chains.
 def solution_is_intact(physical, soln):

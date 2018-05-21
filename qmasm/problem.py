@@ -12,6 +12,7 @@ import copy
 import qmasm
 import random
 import string
+import sys
 try:
     import pulp
     have_pulp = True
@@ -318,3 +319,18 @@ class Problem(object):
         if prob.solve() != pulp.LpStatusOptimal:
             return None
         return pulp.value(prob.objective)
+
+    def scale_weights_strengths(self, verbosity):
+        "Manually scale the weights and strengths so Qubist doesn't complain."
+        h_range = self.h_range
+        j_range = self.j_range
+        weight_list = qmasm.dict_to_list(self.weights)
+        old_cap = max([abs(w) for w in weight_list + list(self.strengths.values())])
+        new_cap = min(-h_range[0], h_range[1], -j_range[0], j_range[1])
+        if old_cap == 0.0:
+            # Handle the obscure case of a zero old_cap.
+            old_cap = new_cap
+        self.weights = qmasm.list_to_dict([w*new_cap/old_cap for w in weight_list])
+        self.strengths = {js: w*new_cap/old_cap for js, w in self.strengths.items()}
+        if verbosity >= 1 and old_cap != new_cap:
+            sys.stderr.write("Scaling weights and strengths from [%.10g, %.10g] to [%.10g, %.10g].\n\n" % (-old_cap, old_cap, -new_cap, new_cap))

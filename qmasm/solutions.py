@@ -23,10 +23,10 @@ class Solution:
         self.tally = tally
         self.energy = energy
         self.phys2log = phys2log
-        self.names = []       # List of names for each named row
-        self.spins = []       # Spin for each named row
-        self.all_names = []   # List of names for each named row, including "$" names
-        self.all_spins = []   # Spin for each named row, including "$" names
+        self.names = []       # List of names for each spin
+        self.spins = []       # Spin for each named variable
+        self.all_names = []   # List of names for each spin, including "$" names
+        self.all_spins = []   # Spin for each named variable, including "$" names
         self.id = 0           # Map from spins to an int
         self._checked_asserts = None  # Memoized result of check_assertions
         for q in range(len(soln)):
