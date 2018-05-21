@@ -100,18 +100,18 @@ class Problem(object):
             self.strengths[c] -= chain_strength
         return chain_strength
 
-    def assign_pin_strength(self, pin_str, chain_str):
+    def assign_pin_weight(self, pin_str, chain_str):
         """Define a strength for each explicitly pinned qubit.  Return the
         computed pin strength."""
-        pin_strength = pin_str
-        if pin_strength == None:
+        pin_weight = pin_str
+        if pin_weight == None:
             # Pin strength defaults to the chain strength.
-            pin_strength = chain_str
+            pin_weight = chain_str
         elif self.qubo:
             # With QUBO input we need to divide the chain strength by 4 for
             # consistency with the other coupler strengths.
-            pin_strength /= 4.0
-        return pin_strength
+            pin_weight /= 4.0
+        return pin_weight
 
     def pin_qubits(self, pin_str, chain_str):
         "Use a helper qubit to help pin values to true or false."
@@ -330,7 +330,8 @@ class Problem(object):
         if old_cap == 0.0:
             # Handle the obscure case of a zero old_cap.
             old_cap = new_cap
-        self.weights = qmasm.list_to_dict([w*new_cap/old_cap for w in weight_list])
-        self.strengths = {js: w*new_cap/old_cap for js, w in self.strengths.items()}
+        self.range_scale = new_cap/old_cap
+        self.weights = qmasm.list_to_dict([w*self.range_scale for w in weight_list])
+        self.strengths = {js: w*self.range_scale for js, w in self.strengths.items()}
         if verbosity >= 1 and old_cap != new_cap:
             sys.stderr.write("Scaling weights and strengths from [%.10g, %.10g] to [%.10g, %.10g].\n\n" % (-old_cap, old_cap, -new_cap, new_cap))

@@ -123,7 +123,7 @@ def output_qbsolv(outfile, problem):
                            range(max_node + 1, max_node + 1 + n_known)))
     max_node += n_known
     num_nonzero_weights += n_known
-    output_weights.update({num: problem.known_values[sym]*qmasm.pin_strength
+    output_weights.update({num: problem.known_values[sym]*qmasm.pin_weight
                            for sym, num in extra_nodes.items()})
     sym2num = dict(qmasm.sym_map.symbol_number_items())
     sym2num.update(extra_nodes)

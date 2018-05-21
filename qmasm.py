@@ -56,18 +56,18 @@ else:
 # strengths to those chains.
 qmasm.chain_strength = logical_ising.assign_chain_strength(cl_args.chain_strength)
 
-# Define a strength for each user-specified pinned variable.
-qmasm.pin_strength = logical_ising.assign_pin_strength(cl_args.pin_strength, qmasm.chain_strength)
+# Define a weight for each user-specified pinned variable.
+qmasm.pin_weight = logical_ising.assign_pin_weight(cl_args.pin_weight, qmasm.chain_strength)
 
 # Output the chain and pin strengths.
 if cl_args.verbose >= 1:
     sys.stderr.write("Computed the following strengths:\n\n")
     sys.stderr.write("    chain: %7.4f\n" % qmasm.chain_strength)
-    sys.stderr.write("    pin:   %7.4f\n" % qmasm.pin_strength)
+    sys.stderr.write("    pin:   %7.4f\n" % qmasm.pin_weight)
     sys.stderr.write("\n")
 
 # Use a helper bit to help pin values to true or false.
-logical_ising.pin_qubits(qmasm.pin_strength, qmasm.chain_strength)
+logical_ising.pin_qubits(qmasm.pin_weight, qmasm.chain_strength)
 
 # Convert chains to aliases where possible.
 if cl_args.O >= 1:

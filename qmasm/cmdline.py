@@ -33,8 +33,8 @@ def parse_command_line():
                            help="output solution values as Booleans or integers (default: bools)")
     cl_parser.add_argument("-C", "--chain-strength", metavar="NEG_NUM", type=float,
                            help="negative-valued chain strength (default: automatic)")
-    cl_parser.add_argument("-P", "--pin-strength", metavar="NEG_NUM", type=float,
-                           help="negative-valued pin strength (default: automatic)")
+    cl_parser.add_argument("-P", "--pin-weight", metavar="NEG_NUM", type=float,
+                           help="negative-valued pin weight (default: automatic)")
     cl_parser.add_argument("-q", "--qubo", action="store_true",
                            help="treat inputs as QUBOs rather than Ising systems")
     cl_parser.add_argument("-s", "--samples", metavar="POS_INT", type=int, default=1000,
@@ -61,8 +61,8 @@ def parse_command_line():
     # Perform a few sanity checks on the parameters.
     if cl_args.chain_strength != None and cl_args.chain_strength >= 0.0:
         sys.stderr.write("%s: Warning: A non-negative chain strength (%.20g) was specified\n" % (qmasm.progname, cl_args.chain_strength))
-    if cl_args.pin_strength != None and cl_args.pin_strength >= 0.0:
-        sys.stderr.write("%s: Warning: A non-negative pin strength (%.20g) was specified\n" % (qmasm.progname, cl_args.pin_strength))
+    if cl_args.pin_weight != None and cl_args.pin_weight >= 0.0:
+        sys.stderr.write("%s: Warning: A non-negative pin strength (%.20g) was specified\n" % (qmasm.progname, cl_args.pin_weight))
     if cl_args.spin_revs > cl_args.samples:
         qmasm.abend("The number of spin reversals is not allowed to exceed the number of samples")
     return cl_args
@@ -103,5 +103,6 @@ def report_command_line(cl_args):
     sys.stderr.write("    %-*s  %-*s\n" % (klen, "Option", vlen, "Value(s)"))
     sys.stderr.write("    %s  %s\n" % ("-" * klen, "-" * vlen))
     for k in sorted(params.keys()):
-        sys.stderr.write("    %-*s  %-*s\n" % (klen, "--" + k, vlen, repr(params[k])))
+        kname = k.replace("_", "-")
+        sys.stderr.write("    %-*s  %-*s\n" % (klen, "--" + kname, vlen, repr(params[k])))
     sys.stderr.write("\n")
