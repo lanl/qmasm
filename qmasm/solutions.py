@@ -63,12 +63,13 @@ class Solution:
         return False
 
     def broken_user_chains(self):
-        "Return True if the solution contains broken user-specified chains."
+        "Return True if the solution contains broken user-specified chains or anti-chains."
         # Compare logical qubits for equal values.
-        for pq1, pq2 in self.problem.chains:
-            lq1 = self.phys2log[pq1]
-            lq2 = self.phys2log[pq2]
+        for lq1, lq2 in self.problem.chains:
             if self.soln_spins[lq1] != self.soln_spins[lq2]:
+                return True
+        for lq1, lq2 in self.problem.antichains:
+            if self.soln_spins[lq1] == self.soln_spins[lq2]:
                 return True
         return False
 

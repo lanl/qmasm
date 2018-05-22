@@ -66,8 +66,8 @@ class Problem(object):
         self.qubo = qubo     # True=QUBO; False=Ising
         self.weights = defaultdict(lambda: 0.0)    # Map from a spin to a point weight
         self.strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
-        self.chains = set()     # Subset of strengths keys that represents chains
-        self.antichains = set() # Subset of strengths keys that represents anti-chains
+        self.chains = set()     # Subset of strengths keys that represents user-defined chains (always logical)
+        self.antichains = set() # Subset of strengths keys that represents user-defined anti-chains (always logical)
         self.pinned = []     # Pairs of {unique number, Boolean} to pin
         self.offset = 0.0    # Value to add to QUBO energy to convert to Ising energy or vice versa
         self.known_values = {}    # Map from symbol name to spin for values known a priori
@@ -125,6 +125,7 @@ class Problem(object):
             else:
                 self.weights[q_helper] += pin_str
             self.strengths[(q1, q2)] += -chain_str
+            self.antichains.add((q1, q2))
 
     def convert_to_ising(self):
         """Transform a QUBO problem into an Ising problem.  Return the new
@@ -338,4 +339,4 @@ class Problem(object):
 
     def update_strengths_from_chains(self):
         "Update strengths using the chains introduced by embedding."
-        self.strengths.update({c: qmasm.chain_strength for c in self.chains})
+        self.strengths.update({c: qmasm.chain_strength for c in self.embedder_chains})

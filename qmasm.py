@@ -173,7 +173,8 @@ if not cl_args.always_embed and cl_args.format in classical_solvers:
     sys.exit(0)
 
 # Embed the problem onto the D-Wave.
-physical_ising = qmasm.embed_problem_on_dwave(logical_ising, cl_args.O,
+physical_ising = qmasm.embed_problem_on_dwave(logical_ising,
+                                              cl_args.O,
                                               cl_args.verbose,
                                               cl_args.topology_file)
 
@@ -182,10 +183,10 @@ physical_ising = qmasm.embed_problem_on_dwave(logical_ising, cl_args.O,
 physical_ising.update_strengths_from_chains()
 if cl_args.verbose >= 2:
     sys.stderr.write("Introduced the following new chains:\n\n")
-    if len(physical_ising.chains) == 0:
+    if len(physical_ising.embedder_chains) == 0:
         sys.stderr.write("    [none]\n")
     else:
-        for c in physical_ising.chains:
+        for c in physical_ising.embedder_chains:
             num1, num2 = c
             if num1 > num2:
                 num1, num2 = num2, num1
@@ -241,7 +242,7 @@ if cl_args.verbose >= 1:
     sys.stderr.write("    Logical     Pins           %5d\n" % logical_stats["pins"])
     sys.stderr.write("    Physical  Qubits           %5d\n" % len(phys_wts))
     sys.stderr.write("    Physical  Couplers         %5d\n" % len(physical_ising.strengths))
-    sys.stderr.write("    Physical    Chains         %5d\n" % len(physical_ising.chains))
+    sys.stderr.write("    Physical    Chains         %5d\n" % len(physical_ising.embedder_chains))
     sys.stderr.write("\n")
 
     # Output some additional chain statistics.
@@ -336,7 +337,7 @@ if cl_args.verbose >= 1:
 solutions.discard_broken_user_chains()
 update_final_solns()
 if cl_args.verbose >= 1:
-    sys.stderr.write("    %*d with no broken user-specified chains\n" % (digits, len(solutions.solutions)))
+    sys.stderr.write("    %*d with no broken user-specified chains or anti-chains\n" % (digits, len(solutions.solutions)))
 solutions.discard_broken_pins()
 update_final_solns()
 if cl_args.verbose >= 1:

@@ -426,8 +426,8 @@ def embed_problem_on_dwave(logical, optimization, verbosity, hw_adj_file):
 
     # Construct a physical Problem object.
     physical = copy.deepcopy(logical)
-    physical.chains = set(new_chains)
     physical.embedding = new_embedding
+    physical.embedder_chains = set(new_chains)
     physical.h_range = h_range
     physical.j_range = j_range
     physical.strengths = new_strengths
@@ -439,23 +439,6 @@ def embed_problem_on_dwave(logical, optimization, verbosity, hw_adj_file):
     for l, v in logical.pinned:
         physical.pinned.extend([(p, v) for p in physical.embedding[l]])
     return physical
-
-# Define a function that says whether a solution contains no broken pins and no
-# broken (user-specified) chains.
-def solution_is_intact(physical, soln):
-    # Reject broken pins.
-    bool2spin = [-1, +1]
-    for pnum, pin in physical.pinned:
-        if soln[pnum] != bool2spin[pin]:
-            return False
-
-    # Reject broken chains.
-    for q1, q2 in physical.chains:
-        if soln[q1] != soln[q2]:
-            return False
-
-    # The solution looks good!
-    return True
 
 # Determine a suitable annealing time to use if none was specified.
 def get_default_annealing_time():
