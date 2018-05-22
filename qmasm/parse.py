@@ -85,7 +85,7 @@ class Chain(Statement):
             self.error_in_line("A chain cannot connect a spin to itself")
         elif num1 > num2:
             num1, num2 = num2, num1
-        problem.chains[(num1, num2)] = None   # Value is a don't-care.
+        problem.chains.add((num1, num2))
 
 class AntiChain(Statement):
     "AntiChain between qubits."
@@ -104,7 +104,7 @@ class AntiChain(Statement):
             self.error_in_line("An anti-chain cannot connect a spin to itself")
         elif num1 > num2:
             num1, num2 = num2, num1
-        problem.antichains[(num1, num2)] = None   # Value is a don't-care.
+        problem.antichains.add((num1, num2))
 
 class Pin(Statement):
     "Pinning of a qubit to true or false."

@@ -226,9 +226,9 @@ def simplify_problem(logical, verbosity):
         qubits_used.add(q1)
         qubits_used.add(q2)
     qmap = dict(zip(sorted(qubits_used), range(len(qubits_used))))
-    new_obj.chains = {(qmap[q1], qmap[q2]): None
-                      for q1, q2 in new_obj.chains.keys()
-                      if q1 in qmap and q2 in qmap}
+    new_obj.chains = set([(qmap[q1], qmap[q2])
+                          for q1, q2 in new_obj.chains
+                          if q1 in qmap and q2 in qmap])
     new_obj.weights = defaultdict(lambda: 0.0,
                                   {qmap[i]: hs[i]
                                    for i in range(len(hs))
@@ -426,7 +426,7 @@ def embed_problem_on_dwave(logical, optimization, verbosity, hw_adj_file):
 
     # Construct a physical Problem object.
     physical = copy.deepcopy(logical)
-    physical.chains = new_chains
+    physical.chains = set(new_chains)
     physical.embedding = new_embedding
     physical.h_range = h_range
     physical.j_range = j_range
@@ -450,7 +450,7 @@ def solution_is_intact(physical, soln):
             return False
 
     # Reject broken chains.
-    for q1, q2 in physical.chains.keys():
+    for q1, q2 in physical.chains:
         if soln[q1] != soln[q2]:
             return False
 

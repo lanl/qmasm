@@ -65,7 +65,7 @@ class Solution:
     def broken_user_chains(self):
         "Return True if the solution contains broken user-specified chains."
         # Compare logical qubits for equal values.
-        for pq1, pq2 in self.problem.chains.keys():
+        for pq1, pq2 in self.problem.chains:
             lq1 = self.phys2log[pq1]
             lq2 = self.phys2log[pq2]
             if self.soln_spins[lq1] != self.soln_spins[lq2]:

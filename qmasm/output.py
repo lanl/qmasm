@@ -354,7 +354,7 @@ def output_bqpjson(outfile, as_qubo, problem):
         L, M, N = qmasm.chimera_topology(qmasm.solver)
         metadata["chimera_cell_size"] = L*2
         metadata["chimera_degree"] = max(M, N)
-        metadata["equivalent_ids"] = sorted(problem.chains.keys())
+        metadata["equivalent_ids"] = sorted(problem.chains)
         metadata["variable_names"] = {s: problem.embedding[n]
                                       for s, n in qmasm.sym_map.symbol_number_items()}
     else:

@@ -66,8 +66,8 @@ class Problem(object):
         self.qubo = qubo     # True=QUBO; False=Ising
         self.weights = defaultdict(lambda: 0.0)    # Map from a spin to a point weight
         self.strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
-        self.chains = {}     # Subset of strengths keys that represents chains
-        self.antichains = {} # Subset of strengths keys that represents anti-chains
+        self.chains = set()     # Subset of strengths keys that represents chains
+        self.antichains = set() # Subset of strengths keys that represents anti-chains
         self.pinned = []     # Pairs of {unique number, Boolean} to pin
         self.offset = 0.0    # Value to add to QUBO energy to convert to Ising energy or vice versa
         self.known_values = {}    # Map from symbol name to spin for values known a priori
@@ -94,9 +94,9 @@ class Problem(object):
             # With QUBO input we need to divide the chain strength by 4 for
             # consistency with the other coupler strengths.
             chain_strength /= 4.0
-        for c in self.chains.keys():
+        for c in self.chains:
             self.strengths[c] += chain_strength
-        for c in self.antichains.keys():
+        for c in self.antichains:
             self.strengths[c] -= chain_strength
         return chain_strength
 
@@ -176,7 +176,7 @@ class Problem(object):
 
         # Regenerate our chains, discarding any that have been merged into a
         # single qubit.
-        new_chains = {}
+        new_chains = set()
         for q1, q2 in self.chains:
             try:
                 new_q1 = num2alias[q1].find().contents
@@ -190,7 +190,7 @@ class Problem(object):
                 continue
             if new_q1 > new_q2:
                 new_q1, new_q2 = new_q2, new_q1
-            new_chains[(new_q1, new_q2)] = None
+            new_chains.add((new_q1, new_q2))
         self.chains = new_chains
 
         # Regenerate our weights.
@@ -247,7 +247,7 @@ class Problem(object):
             qubits_used.add(q1)
             qubits_used.add(q2)
         qmap = dict(zip(sorted(qubits_used), range(len(qubits_used))))
-        self.chains = {(qmap[q1], qmap[q2]): None for q1, q2 in self.chains.keys()}
+        self.chains.update([(qmap[q1], qmap[q2]) for q1, q2 in self.chains])
         self.weights = defaultdict(lambda: 0.0,
                                    {qmap[q]: wt for q, wt in self.weights.items()})
         self.strengths = qmasm.canonicalize_strengths({(qmap[q1], qmap[q2]): wt for (q1, q2), wt in self.strengths.items()})
@@ -338,5 +338,4 @@ class Problem(object):
 
     def update_strengths_from_chains(self):
         "Update strengths using the chains introduced by embedding."
-        self.chains = {c: qmasm.chain_strength for c in self.chains.keys()}
-        self.strengths.update(self.chains)
+        self.strengths.update({c: qmasm.chain_strength for c in self.chains})
