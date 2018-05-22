@@ -440,14 +440,6 @@ def embed_problem_on_dwave(logical, optimization, verbosity, hw_adj_file):
         physical.pinned.extend([(p, v) for p in physical.embedding[l]])
     return physical
 
-def update_strengths_from_chains(physical):
-    """Update strengths using the chains introduced by embedding.  Return a new
-    physical Problem object."""
-    new_physical = copy.deepcopy(physical)
-    new_physical.chains = {c: qmasm.chain_strength for c in physical.chains.keys()}
-    new_physical.strengths.update(new_physical.chains)
-    return new_physical
-
 # Define a function that says whether a solution contains no broken pins and no
 # broken (user-specified) chains.
 def solution_is_intact(physical, soln):

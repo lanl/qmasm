@@ -179,7 +179,7 @@ physical_ising = qmasm.embed_problem_on_dwave(logical_ising, cl_args.O,
 
 # Set all chains to the user-specified strength then combine user-specified
 # chains with embedder-created chains.
-physical_ising = qmasm.update_strengths_from_chains(physical_ising)
+physical_ising.update_strengths_from_chains()
 if cl_args.verbose >= 2:
     sys.stderr.write("Introduced the following new chains:\n\n")
     if len(physical_ising.chains) == 0:

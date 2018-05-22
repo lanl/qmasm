@@ -335,3 +335,8 @@ class Problem(object):
         self.strengths = {js: w*self.range_scale for js, w in self.strengths.items()}
         if verbosity >= 1 and old_cap != new_cap:
             sys.stderr.write("Scaling weights and strengths from [%.10g, %.10g] to [%.10g, %.10g].\n\n" % (-old_cap, old_cap, -new_cap, new_cap))
+
+    def update_strengths_from_chains(self):
+        "Update strengths using the chains introduced by embedding."
+        self.chains = {c: qmasm.chain_strength for c in self.chains.keys()}
+        self.strengths.update(self.chains)
