@@ -66,11 +66,17 @@ class Solution:
         "Return True if the solution contains broken user-specified chains or anti-chains."
         # Compare logical qubits for equal values.
         for lq1, lq2 in self.problem.chains:
-            if self.soln_spins[lq1] != self.soln_spins[lq2]:
-                return True
+            try:
+                if self.soln_spins[lq1] != self.soln_spins[lq2]:
+                    return True
+            except IndexError:
+                pass   # Elided logical qubit
         for lq1, lq2 in self.problem.antichains:
-            if self.soln_spins[lq1] == self.soln_spins[lq2]:
-                return True
+            try:
+                if self.soln_spins[lq1] == self.soln_spins[lq2]:
+                    return True
+            except IndexError:
+                pass   # Elided logical qubit
         return False
 
     def failed_assertions(self):

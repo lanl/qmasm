@@ -68,6 +68,7 @@ class Problem(object):
         self.strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
         self.chains = set()     # Subset of strengths keys that represents user-defined chains (always logical)
         self.antichains = set() # Subset of strengths keys that represents user-defined anti-chains (always logical)
+        self.pin_chains = set() # Subset of strengths keys that represents {helper, pinned variable} pairs (always logical)
         self.pinned = []     # Pairs of {unique number, Boolean} to pin
         self.offset = 0.0    # Value to add to QUBO energy to convert to Ising energy or vice versa
         self.known_values = {}    # Map from symbol name to spin for values known a priori
@@ -126,6 +127,7 @@ class Problem(object):
                 self.weights[q_helper] += pin_str
             self.strengths[(q1, q2)] += -chain_str
             self.antichains.add((q1, q2))
+            self.pin_chains.add((q_helper, q_user))
 
     def convert_to_ising(self):
         """Transform a QUBO problem into an Ising problem.  Return the new
@@ -271,6 +273,24 @@ class Problem(object):
             if num not in valid_nums:
                 invalid_syms.update(qmasm.sym_map.to_symbols(num))
         return invalid_syms
+
+    def couplers_to_strengths(self, couplers):
+        """Convert a set of logical couplers to a set of physical strengths.
+        Ignore couplers involving elided variables."""
+        strengths = set()
+        for lqs in couplers:
+            try:
+                pq1_list = self.embedding[lqs[0]]
+                pq2_list = self.embedding[lqs[1]]
+            except IndexError:
+                continue   # One of the logical qubits was elided.
+            for pq1 in pq1_list:
+                for pq2 in pq2_list:
+                    if pq1 > pq2:
+                        pq1, pq2 = pq2, pq1
+                    if (pq1, pq2) in self.strengths:
+                        strengths.add((pq1, pq2))
+        return strengths
 
     def estimate_energy(self):
         "Estimate minimum energy by constructing and solving a majorization problem."
