@@ -317,8 +317,9 @@ def update_final_solns():
     global final_solns, solutions
     if cl_args.show == "valid":
         final_solns = copy.copy(solutions)
-    elif cl_args.show == "best" and len(solutions.solutions) > 0:
-        final_solns = copy.copy(solutions)
+    elif cl_args.show == "best":
+        if len(solutions.solutions) > 0:
+            final_solns = copy.copy(solutions)
     elif cl_args.show == "all":
         pass
     else:
