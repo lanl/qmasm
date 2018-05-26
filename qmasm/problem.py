@@ -169,7 +169,7 @@ class Problem(object):
 
         # Group qubits that can be aliased.
         num2alias = {}  # Map from a qubit number to a disjoint set (which maps to a qubit number)
-        for q1, q2 in self.chains:
+        for q1, q2 in self.chains.union(self.antichains):
             if self.weights[q1] == self.weights[q2]:
                 if q1 not in num2alias:
                     num2alias[q1] = DisjointSet(q1)
@@ -195,6 +195,25 @@ class Problem(object):
                 new_q1, new_q2 = new_q2, new_q1
             new_chains.add((new_q1, new_q2))
         self.chains = new_chains
+
+        # Regenerate our anti-chains, discarding any that have been merged into
+        # a single qubit.
+        new_antichains = set()
+        for q1, q2 in self.antichains:
+            try:
+                new_q1 = num2alias[q1].find().contents
+            except KeyError:
+                new_q1 = q1
+            try:
+                new_q2 = num2alias[q2].find().contents
+            except KeyError:
+                new_q2 = q2
+            if new_q1 == new_q2:
+                continue
+            if new_q1 > new_q2:
+                new_q1, new_q2 = new_q2, new_q1
+            new_antichains.add((new_q1, new_q2))
+        self.antichains = new_antichains
 
         # Regenerate our weights.
         new_weights = defaultdict(lambda: 0.0)
@@ -251,6 +270,7 @@ class Problem(object):
             qubits_used.add(q2)
         qmap = dict(zip(sorted(qubits_used), range(len(qubits_used))))
         self.chains.update([(qmap[q1], qmap[q2]) for q1, q2 in self.chains])
+        self.antichains.update([(qmap[q1], qmap[q2]) for q1, q2 in self.antichains])
         self.weights = defaultdict(lambda: 0.0,
                                    {qmap[q]: wt for q, wt in self.weights.items()})
         self.strengths = qmasm.canonicalize_strengths({(qmap[q1], qmap[q2]): wt for (q1, q2), wt in self.strengths.items()})
