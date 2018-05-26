@@ -169,7 +169,7 @@ class Problem(object):
 
         # Group qubits that can be aliased.
         num2alias = {}  # Map from a qubit number to a disjoint set (which maps to a qubit number)
-        for q1, q2 in self.chains.union(self.antichains):
+        for q1, q2 in self.chains:
             if self.weights[q1] == self.weights[q2]:
                 if q1 not in num2alias:
                     num2alias[q1] = DisjointSet(q1)
