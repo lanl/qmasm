@@ -269,8 +269,8 @@ class Problem(object):
             qubits_used.add(q1)
             qubits_used.add(q2)
         qmap = dict(zip(sorted(qubits_used), range(len(qubits_used))))
-        self.chains.update([(qmap[q1], qmap[q2]) for q1, q2 in self.chains])
-        self.antichains.update([(qmap[q1], qmap[q2]) for q1, q2 in self.antichains])
+        self.chains = [(qmap[q1], qmap[q2]) for q1, q2 in self.chains]
+        self.antichains= [(qmap[q1], qmap[q2]) for q1, q2 in self.antichains]
         self.weights = defaultdict(lambda: 0.0,
                                    {qmap[q]: wt for q, wt in self.weights.items()})
         self.strengths = qmasm.canonicalize_strengths({(qmap[q1], qmap[q2]): wt for (q1, q2), wt in self.strengths.items()})
