@@ -7,6 +7,7 @@ try:
     from dwave_sapi2.embedding import unembed_answer
 except ImportError:
     from .fake_dwave import *
+import copy
 import qmasm
 
 # Specify the minimum distinguishable difference between energy readings.
@@ -16,10 +17,11 @@ min_energy_delta = 0.005
 class Solution:
     "Represent a near-minimal state of a spin system."
 
-    def __init__(self, problem, num2syms, all_num2syms, phys2log, all_vars, soln, tally, energy):
+    def __init__(self, problem, num2syms, all_num2syms, phys2log, all_vars, phys_soln, log_soln, tally, energy):
         # Map named variables to spins.
         self.problem = problem
-        self.soln_spins = soln
+        self.soln_spins = log_soln
+        self.raw_spins = phys_soln
         self.tally = tally
         self.energy = energy
         self.phys2log = phys2log
@@ -29,19 +31,19 @@ class Solution:
         self.all_spins = []   # Spin for each named variable, including "$" names
         self.id = 0           # Map from spins to an int
         self._checked_asserts = None  # Memoized result of check_assertions
-        for q in range(len(soln)):
+        for q in range(len(log_soln)):
             # Add all names to all_names and all_spins.
             if all_num2syms[q] == []:
                 continue
             self.all_names.append(" ".join(all_num2syms[q]))
-            self.all_spins.append(soln[q])
+            self.all_spins.append(log_soln[q])
 
             # Add only non-"$" names to names and spins.
             if num2syms[q] == []:
                 continue
             self.names.append(" ".join(num2syms[q]))
-            self.spins.append(soln[q])
-            self.id = self.id*2 + (soln[q] + 1)/2
+            self.spins.append(log_soln[q])
+            self.id = self.id*2 + (log_soln[q] + 1)/2
 
         # Additionally map the spins computed during simplification.
         for nm, s in problem.known_values.items():
@@ -108,6 +110,41 @@ class Solution:
         self._checked_asserts = results
         return self._checked_asserts
 
+
+    def energy_func(self):
+        "Return a symbolic energy function as {constant, pin factor, chain factor)}."
+        # Determine the set of helper qubits for pins.
+        problem = self.problem
+        pin_dict = {k: v for k, v in problem.pinned}
+        pinners = set()
+        for q1, q2 in problem.couplers_to_strengths(problem.pin_chains):
+            if q1 in pin_dict:
+                pinners.add(q2)
+            else:
+                pinners.add(q1)
+
+        # Compute the contribution to energy from the pin weight.
+        linear_pin = 0.0
+        for q, wt in problem.weights.items():
+            if q in pinners:
+                linear_pin += wt*self.raw_spins[q]
+
+        # Compute the contribution to energy from the chain strength.
+        chains = copy.deepcopy(problem.embedder_chains)
+        chains.update(problem.couplers_to_strengths(problem.chains))
+        antichains = set()
+        antichains.update(problem.couplers_to_strengths(problem.antichains))
+        quad_chain = 0.0
+        for qs, wt in problem.strengths.items():
+            q0, q1 = qs
+            if qs in chains or qs in antichains:
+                quad_chain += wt*self.raw_spins[q0]*self.raw_spins[q1]
+
+        # Return the constant, pin, and chain terms.
+        return (self.energy - linear_pin - quad_chain,
+                linear_pin/qmasm.pin_weight,
+                quad_chain/qmasm.chain_strength)
+
 class Solutions:
     "Represent all near-minimal states of a spin system."
 
@@ -147,7 +184,8 @@ class Solutions:
         energies = [e + problem.simple_offset for e in answer["energies"]]
         for i in range(len(fixed_solns)):
             self.solutions.append(Solution(problem, num2syms, all_num2syms,
-                                           phys2log, all_vars, fixed_solns[i],
+                                           phys2log, all_vars,
+                                           raw_solns[i], fixed_solns[i],
                                            tallies[i], energies[i]))
 
     def discard_broken_chains(self):

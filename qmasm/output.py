@@ -522,6 +522,16 @@ def _output_solution_asserts(soln, verbosity):
         print("    [none]")
     print("")
 
+def _prettify_energy_func_str(str):
+    "Remove zeroes and additions of negative values from a string."
+    str = str.replace("+ -", "- ")
+    str = str.replace(" - 0.00*P", "")
+    str = str.replace(" + 0.00*P", "")
+    str = str.replace(" - 0.00*C", "")
+    str = str.replace(" + 0.00*C", "")
+    str = str.replace("0*", "*")
+    return str
+
 def output_solution(solutions, style, verbosity, show_asserts):
     "Output a user-readable solution to the standard output device."
     # Sort the solutions first by energy then by ID.
@@ -534,7 +544,12 @@ def output_solution(solutions, style, verbosity, show_asserts):
         return
     for snum in range(len(sorted_solns)):
         soln = sorted_solns[snum]
-        print("Solution #%d (energy = %.2f, tally = %s):\n" % (snum + 1, soln.energy, soln.tally))
+        if verbosity >= 2:
+            efunc = soln.energy_func()
+            str = "Solution #%d (energy = %.2f = %.2f + %.2f*P + %.2f*C, tally = %s):\n" % (snum + 1, soln.energy, efunc[0], efunc[1], efunc[2], soln.tally)
+            print(_prettify_energy_func_str(str))
+        else:
+            print("Solution #%d (energy = %.2f, tally = %s):\n" % (snum + 1, soln.energy, soln.tally))
         if style == "bools":
             _output_solution_bool(soln)
         elif style == "ints":
