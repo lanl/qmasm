@@ -28,3 +28,5 @@ The following scripts can be used to construct files that can be used as an argu
 * [`qmasm-gen-chimera`](qmasm-gen-chimera) generates a complete Chimera graph of arbitrary size.  It takes three arguments: the width of the Chimera graph in unit cells, the height of the Chimera graph in unit cells, and the number of vertices in each of a unit cell's two partitions.  For example, a complete D-Wave 2000Q could be generated with `qmasm-gen-chimera 16 16 4`.
 
 * [`qmasm-gen-current`](qmasm-gen-current) outputs the current topology.  It takes no arguments but expects the various `DW_INTERNAL__*` environment variables to be set properly.
+
+* [`qmasm-gen-all-to-all`](qmasm-gen-all-to-all) outputs a complete graph of a given number of vertices.  The script takes one argument, which is the number of vertices.
