@@ -69,6 +69,15 @@ if cl_args.verbose >= 1:
 # Use a helper bit to help pin values to true or false.
 logical_ising.pin_qubits(qmasm.pin_weight, qmasm.chain_strength)
 
+# Abort if we encounter any stray (disconnected) variables.
+stray_nums = logical_either.find_stray_variables()
+if len(stray_nums) > 0:
+    stray_vars = set()
+    for n in stray_nums:
+        stray_vars = stray_vars.union(qmasm.sym_map.to_symbols(n))
+    stray_str = " ".join(sorted(stray_vars))
+    qmasm.abend("Disconnected variables: %s" % stray_str)
+
 # Convert chains to aliases where possible.
 if cl_args.O >= 1:
     # Say what we're about to do

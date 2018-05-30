@@ -380,3 +380,24 @@ class Problem(object):
     def update_strengths_from_chains(self):
         "Update strengths using the chains introduced by embedding."
         self.strengths.update({c: qmasm.chain_strength for c in self.embedder_chains})
+
+    def find_stray_variables(self):
+        "Return a list of variables that are not coupled to any other variable."
+        # Tally the number of times each variable is coupled.
+        coupled_vars = defaultdict(lambda: 0.0)
+        for q0, q1 in self.strengths:
+            coupled_vars[q0] += 1
+            coupled_vars[q1] += 1
+
+        # Any variable with no couplings is a stray.
+        strays = set()
+        for q in self.weights:
+            if q not in coupled_vars:
+                strays.add(q)
+
+        # Any pinned variable with exactly one coupling (to its helper
+        # variable) is a stray.
+        for q_helper, q_user in self.pin_chains:
+            if coupled_vars[q_user] <= 1:
+                strays.add(q_user)
+        return strays
