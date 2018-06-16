@@ -194,33 +194,56 @@ class MacroUse(Statement):
     def as_str(self, prefix=""):
         stmt_strs = []
         nprefixes = len(self.prefixes)
-        for p in range(nprefixes):
-            pfx = self.prefixes[p]
+        if nprefixes == 0:
+            # No prefixes -- display the macro body in the current scope (i.e.,
+            # using the given prefix).
             for stmt in self.body:
-                sstr = stmt.as_str(prefix + pfx)
-                if "!next." in sstr:
-                    if p == nprefixes - 1:
-                        # Drop statements that use "!next." if there's
-                        # no next prefix.
-                        continue
-                    next_pfx = self.prefixes[p + 1]
-                    sstr = sstr.replace(prefix + pfx + "!next.", prefix + next_pfx)
-                stmt_strs.append(sstr)
+                sstr = stmt.as_str(prefix)
+                if "!next." not in sstr:
+                    stmt_strs.append(sstr)
+        else:
+            # At least one prefix -- disaply the macro body in a new scope
+            # (i.e., by augmenting the given prefix with each new prefix in
+            # turn).
+            for p in range(nprefixes):
+                pfx = self.prefixes[p]
+                for stmt in self.body:
+                    sstr = stmt.as_str(prefix + pfx)
+                    if "!next." in sstr:
+                        if p == nprefixes - 1:
+                            # Drop statements that use "!next." if there's
+                            # no next prefix.
+                            continue
+                        next_pfx = self.prefixes[p + 1]
+                        sstr = sstr.replace(prefix + pfx + "!next.", prefix + next_pfx)
+                    stmt_strs.append(sstr)
         return "\n".join(stmt_strs)
 
     def update_qmi(self, prefix, next_prefix, problem):
         nprefixes = len(self.prefixes)
-        for p in range(nprefixes):
-            pfx = prefix + self.prefixes[p]
-            if p == nprefixes - 1:
-                next_pfx = None
-            else:
-                next_pfx = prefix + self.prefixes[p + 1]
+        if nprefixes == 0:
+            # No prefixes -- import the macro body into the current scope
+            # (i.e., using the given prefix).
             for stmt in self.body:
                 try:
-                    stmt.update_qmi(pfx, next_pfx, problem)
+                    stmt.update_qmi(prefix, None, problem)
                 except qmasm.utils.RemainingNextException:
                     pass
+        else:
+            # At least one prefix -- import the macro body into a new scope
+            # (i.e., by augmenting the given prefix with each new prefix in
+            # turn).
+            for p in range(nprefixes):
+                pfx = prefix + self.prefixes[p]
+                if p == nprefixes - 1:
+                    next_pfx = None
+                else:
+                    next_pfx = prefix + self.prefixes[p + 1]
+                for stmt in self.body:
+                    try:
+                        stmt.update_qmi(pfx, next_pfx, problem)
+                    except qmasm.utils.RemainingNextException:
+                        pass
 
 class FileParser(object):
     "Parse a QMASM file."
@@ -348,10 +371,10 @@ class FileParser(object):
 
     def parse_line_use_macro(self, filename, lineno, fields):
         "Parse a !use_macro directive."
-        # "!use_macro" <macro_name> <instance_name> -- instantiate a macro using
-        # <instance_name> as each variable's prefix.
-        if len(fields) < 3:
-            error_in_line(filename, lineno, "Expected a macro name and at least one instance name to follow !use_macro")
+        # "!use_macro" <macro_name> [<instance_name> ...] -- instantiate a
+        # macro using <instance_name> as each variable's prefix.
+        if len(fields) < 2:
+            error_in_line(filename, lineno, "Expected a macro name to follow !use_macro")
         name = fields[1]
         prefixes = [p + "." for p in fields[2:]]
         try:
