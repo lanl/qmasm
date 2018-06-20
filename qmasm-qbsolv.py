@@ -18,6 +18,8 @@ infile = None
 nargs = len(sys.argv)
 style = "bools"
 verbosity = 0
+pin_weight = -1
+chain_strength = -1
 qbsolv_args = []   # Subset of sys.argv to pass to qbsolv
 for i in range(1, nargs):
     arg = sys.argv[i]
@@ -34,6 +36,14 @@ for i in range(1, nargs):
     elif arg[:12] == "--verbosity=":
         # Accept a variation of qmasm's --verbose argument.
         verbosity = int(arg[12:])
+        qbsolv_args.pop()
+    elif arg[:13] == "--pin-weight=":
+        # Accept qmasm's --pin-weight argument.
+        pin_weight = float(arg[13:])
+        qbsolv_args.pop()
+    elif arg[:17] == "--chain-strength=":
+        # Accept qmasm's --chain-strength argument.
+        chain_strength = float(arg[17:])
         qbsolv_args.pop()
 if infile == None:
     # No input file: Let qbsolv issue the error message.
@@ -89,6 +99,8 @@ elif retcode > 0:
 sys.stderr.write("\n")
 
 # Fake various QMASM objects.
+qmasm.pin_weight = pin_weight
+qmasm.chain_strength = chain_strength
 for n, q in sorted(name2qubit.items(), key=lambda k: k[1]):
     qmasm.sym_map.new_symbol(n)
 answer = {"num_occurrences": [1],
@@ -96,6 +108,7 @@ answer = {"num_occurrences": [1],
           "solutions": [[2*b - 1 for b in bits]]}
 problem = qmasm.Problem(False)
 problem.embedding = [[i] for i in range(len(bits))]
+problem.embedder_chains = set()
 solutions = qmasm.Solutions(answer, problem, verbosity >= 2)
 
 # Output the solution.  For now, we hard-wire show_asserts to False.

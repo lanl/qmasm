@@ -131,9 +131,12 @@ def process_classical(ising, cl_args):
     # The only formats we need to process at this point are qbsolv and minizinc.
     if format == "qbsolv":
         if run:
+            # Pass both user-supplied and computed arguments to qbsolv.
             args = shlex.split(extra_args)
             args.append("--verbosity=%d" % verbosity)
             args.append("--values=%s" % style)
+            args.append("--pin-weight=%f" % qmasm.pin_weight)
+            args.append("--chain-strength=%f" % qmasm.chain_strength)
             qmasm.run_qbsolv(ising, oname, args, verbosity)
         else:
             qmasm.write_output(ising, oname, format, as_qubo)
