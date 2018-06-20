@@ -117,8 +117,17 @@ def run_minizinc(ising, oname, extra_args, verbosity):
     # Delete the .mzn file.
     os.remove(mzn_fname)
 
-def process_classical(ising, format, oname, run, extra_args, as_qubo, verbosity):
+def process_classical(ising, cl_args):
     "Write a file for classical solution and optionally run it."
+    # Extract variables we need from the command-line arguments,
+    format = cl_args.format
+    oname = cl_args.output
+    run = cl_args.run
+    extra_args = cl_args.extra_args
+    as_qubo = cl_args.qubo
+    verbosity = cl_args.verbose
+
+    # The only formats we need to process at this point are qbsolv and minizinc.
     if format == "qbsolv":
         if run:
             qmasm.run_qbsolv(ising, oname, shlex.split(extra_args), verbosity)

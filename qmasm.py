@@ -176,9 +176,7 @@ if write_output_file and cl_args.format == "bqpjson" and not cl_args.always_embe
 
 # Process all classical solvers unless we were told to do so post-embedding.
 if not cl_args.always_embed and cl_args.format in classical_solvers:
-    qmasm.process_classical(logical_ising, cl_args.format, cl_args.output,
-                            cl_args.run, cl_args.extra_args, cl_args.qubo,
-                            cl_args.verbose)
+    qmasm.process_classical(logical_ising, cl_args)
     sys.exit(0)
 
 # Embed the problem onto the D-Wave.
@@ -278,9 +276,7 @@ if cl_args.verbose >= 2:
 # Process all classical solvers.  If we're here and the solver is classical,
 # then always_embed must be True.
 if cl_args.format in classical_solvers:
-    qmasm.process_classical(physical_ising, cl_args.format, cl_args.output,
-                            cl_args.run, cl_args.extra_args, cl_args.qubo,
-                            cl_args.verbose)
+    qmasm.process_classical(physical_ising, cl_args)
     sys.exit(0)
 
 # Output a file in any of a variety of formats.  Note that a few cases
