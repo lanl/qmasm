@@ -91,3 +91,7 @@ def fix_variables(Q, method="optimized"):
     return {"new_Q": Q,
             "offset": 0.0,
             "fixed_variables": {}}
+
+def unembed_answer(solutions, embeddings, broken_chains=None, h=None, j=None):
+    "Return the original solutions unmodified."
+    return solutions
