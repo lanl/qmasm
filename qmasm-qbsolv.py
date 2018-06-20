@@ -8,23 +8,37 @@
 ###################################
 
 import os
+import qmasm
 import re
 import subprocess
 import sys
 
-# Extract the name of the input file from the command line.
+# Parse the command line.
 infile = None
 nargs = len(sys.argv)
+style = "bools"
+verbosity = 0
+qbsolv_args = []   # Subset of sys.argv to pass to qbsolv
 for i in range(1, nargs):
-    if sys.argv[i] == "-i" and i < nargs - 1:
+    arg = sys.argv[i]
+    qbsolv_args.append(arg)
+    if arg == "-i" and i < nargs - 1:
         infile = sys.argv[i + 1]
-    if sys.argv[i] == "-o":
+    elif arg == "-o":
         sys.stderr.write("%s: qbsolv's -o option is not supported.  Aborting.\n" % sys.argv[0])
         sys.exit(1)
+    elif arg[:9] == "--values=":
+        # Accept qmasm's --values argument.
+        style = arg[9:]
+        qbsolv_args.pop()
+    elif arg[:12] == "--verbosity=":
+        # Accept a variation of qmasm's --verbose argument.
+        verbosity = int(arg[12:])
+        qbsolv_args.pop()
 if infile == None:
     # No input file: Let qbsolv issue the error message.
     try:
-        proc = subprocess.Popen(["qbsolv"] + sys.argv[1:], stderr=sys.stderr, stdout=sys.stdout)
+        proc = subprocess.Popen(["qbsolv"] + qbsolv_args, stderr=sys.stderr, stdout=sys.stdout)
     except OSError as e:
         sys.stderr.write("qbsolv: %s\n" % str(e))
         sys.exit(1)
@@ -47,7 +61,7 @@ if len(name2qubit) == 0:
 
 # Run qbsolv and store the solution bits and solution energy it outputs.
 try:
-    proc = subprocess.Popen(["qbsolv"] + sys.argv[1:], stdout=subprocess.PIPE, stderr=sys.stderr)
+    proc = subprocess.Popen(["qbsolv"] + qbsolv_args, stdout=subprocess.PIPE, stderr=sys.stderr)
 except OSError as e:
     sys.stderr.write("qbsolv: %s\n" % str(e))
     sys.exit(1)
@@ -74,14 +88,15 @@ elif retcode > 0:
     sys.exit(retcode)
 sys.stderr.write("\n")
 
-# Report the output bits symbolically in QMASM style.
-max_name_width = max([len(nm) for nm in list(name2qubit.keys())])
-max_name_width = max(max_name_width, 7)
-print("Solution #1 (energy = %.2f, tally = 1):\n" % energy)
-print("    %-*s  Spin  Boolean" % (max_name_width, "Name(s)"))
-print("    %s  ----  -------" % ("-" * max_name_width))
-for name in sorted(name2qubit.keys()):
-    num = name2qubit[name]
-    spin = bits[num]*2 - 1
-    print("    %-*s  %+4d  %s" % (max_name_width, name, spin, str(spin == +1)))
-print("")
+# Fake various QMASM objects.
+for n, q in sorted(name2qubit.items(), key=lambda k: k[1]):
+    qmasm.sym_map.new_symbol(n)
+answer = {"num_occurrences": [1],
+          "energies": [energy],
+          "solutions": [[2*b - 1 for b in bits]]}
+problem = qmasm.Problem(False)
+problem.embedding = [[i] for i in range(len(bits))]
+solutions = qmasm.Solutions(answer, problem, verbosity >= 2)
+
+# Output the solution.  For now, we hard-wire show_asserts to False.
+qmasm.output_solution(solutions, style, verbosity, False)

@@ -126,11 +126,15 @@ def process_classical(ising, cl_args):
     extra_args = cl_args.extra_args
     as_qubo = cl_args.qubo
     verbosity = cl_args.verbose
+    style = cl_args.values
 
     # The only formats we need to process at this point are qbsolv and minizinc.
     if format == "qbsolv":
         if run:
-            qmasm.run_qbsolv(ising, oname, shlex.split(extra_args), verbosity)
+            args = shlex.split(extra_args)
+            args.append("--verbosity=%d" % verbosity)
+            args.append("--values=%s" % style)
+            qmasm.run_qbsolv(ising, oname, args, verbosity)
         else:
             qmasm.write_output(ising, oname, format, as_qubo)
     elif format == "minizinc":
