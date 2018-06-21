@@ -74,14 +74,17 @@ def qubo_to_ising(qs):
             hs[j] += s/4.0
 
     # Convert hs to a list and elide zeroes from js.
-    mh = max(hs.keys())
+    try:
+        mh = max(hs.keys())
+    except ValueError:
+        mh = -1
     hlist = [0] * (mh + 1)
     for i, s in hs.items():
         hlist[i] = s
     js = {k: v for k, v in js.items() if v != 0.0}
 
     # QMASM doesn't use an offset so ignore it.
-    return hs, js, None
+    return hlist, js, None
 
 def get_hardware_adjacency(solver):
     qmasm.abend("Without D-Wave's libraries, QMASM can do little more than output qbsolv, MiniZinc, and flattened QMASM files")

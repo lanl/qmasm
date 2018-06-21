@@ -93,7 +93,7 @@ if retcode < 0:
     os.kill(os.getpid(), -retcode)
 elif retcode > 0:
     # Some qbsolv errors go to stdout, not stderr.
-    for line in output:
+    for line in proc.stdout:
         sys.stderr.write("qbsolv: %s\n" % line)
     sys.exit(retcode)
 sys.stderr.write("\n")
