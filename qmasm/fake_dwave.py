@@ -56,10 +56,9 @@ def qubo_to_ising(qs):
     hs = {}  # We'll convert to a list later.
     js = {}
     for (i, j), s in qs.items():
-        if i == j:
-            hs[i] = 0.0
+        hs[i] = 0.0
+        if i != j:
             hs[j] = 0.0
-        else:
             js[(i, j)] = 0.0
 
     # Peform an initial conversion.
