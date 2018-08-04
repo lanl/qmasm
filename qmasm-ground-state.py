@@ -54,6 +54,8 @@ def macro_to_coeffs(macro):
                 J[(m.sym2, m.sym1)] = m.strength
             syms.add(m.sym1)
             syms.add(m.sym2)
+        elif m.__class__ == qmasm.Assert:
+            pass
         else:
             qmasm.abend("Only weights and strengths are currently supported")
     return sorted(syms, key=lambda s: ("$" in s, s)), h, J
