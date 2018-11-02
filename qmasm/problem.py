@@ -121,6 +121,8 @@ class Problem(object):
             q1, q2 = q_helper, q_user
             if q1 > q2:
                 q1, q2 = q2, q1
+            if q_helper not in self.weights:
+                self.weights[q_helper] = 0
             if b:
                 self.weights[q_helper] -= pin_str
             else:
@@ -139,7 +141,7 @@ class Problem(object):
         qmatrix.update(new_obj.strengths)
         hvals, new_obj.strengths, qoffset = qubo_to_ising(qmatrix)
         new_obj.strengths = qmasm.canonicalize_strengths(new_obj.strengths)
-        new_obj.weights.update({i: hvals[i] for i in range(len(hvals))})
+        new_obj.weights = {i: hvals[i] for i in range(len(hvals))}
         new_obj.offset = qoffset
         new_obj.qubo = False
         return new_obj
@@ -374,6 +376,7 @@ class Problem(object):
         self.range_scale = new_cap/old_cap
         self.weights = qmasm.list_to_dict([w*self.range_scale for w in weight_list])
         self.strengths = {js: w*self.range_scale for js, w in self.strengths.items()}
+        self.offset *= self.range_scale
         if verbosity >= 1 and old_cap != new_cap:
             sys.stderr.write("Scaling weights and strengths from [%.10g, %.10g] to [%.10g, %.10g].\n\n" % (-old_cap, old_cap, -new_cap, new_cap))
 

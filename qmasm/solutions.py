@@ -181,7 +181,7 @@ class Solutions:
             tallies = answer["num_occurrences"]
         except KeyError:
             tallies = [1]
-        energies = [e + problem.simple_offset for e in answer["energies"]]
+        energies = [(e + problem.simple_offset + problem.offset)/problem.range_scale for e in answer["energies"]]
         for i in range(len(fixed_solns)):
             self.solutions.append(Solution(problem, num2syms, all_num2syms,
                                            phys2log, all_vars,
