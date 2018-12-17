@@ -165,19 +165,16 @@ class Problem(object):
         return new_obj
 
     def convert_chains_to_aliases(self):
-        """Convert chains to aliases where possible.  A chain is
-        convertible if the qubits on either end have the same point weight
-        applied to them."""
+        "Replace user-specified chains with aliases."
 
         # Group qubits that can be aliased.
         num2alias = {}  # Map from a qubit number to a disjoint set (which maps to a qubit number)
         for q1, q2 in self.chains:
-            if self.weights[q1] == self.weights[q2]:
-                if q1 not in num2alias:
-                    num2alias[q1] = DisjointSet(q1)
-                if q2 not in num2alias:
-                    num2alias[q2] = DisjointSet(q2)
-                num2alias[q1].union(num2alias[q2])
+            if q1 not in num2alias:
+                num2alias[q1] = DisjointSet(q1)
+            if q2 not in num2alias:
+                num2alias[q2] = DisjointSet(q2)
+            num2alias[q1].union(num2alias[q2])
 
         # Regenerate our chains, discarding any that have been merged into a
         # single qubit.
