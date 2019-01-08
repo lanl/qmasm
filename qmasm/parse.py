@@ -40,6 +40,25 @@ def is_float(str):
     except ValueError:
         return False
 
+# I'm too lazy to write another parser so let's simply define an
+# alternative entry point to the assertion parser.
+class ExprParser(qmasm.AssertParser):
+    "Parse an arithmetic expression."
+
+    def parse(self, filename, lineno, s):
+        "Parse an arithmetic expression into an AST"
+        self.tokens = self.lex(s)
+        self.tokidx = -1
+        self.advance()
+        try:
+            ast = self.expression()
+            if self.sym[0] != "EOF":
+                raise self.ParseError('Parse error at "%s"' % self.sym[1])
+        except self.ParseError as e:
+            sys.stderr.write('%s:%d: error: %s in "%s"\n' % (filename, lineno, e, s))
+            sys.exit(1)
+        return ast
+
 class Statement(object):
     "One statement in a QMASM source file."
 
@@ -253,6 +272,8 @@ class FileParser(object):
         self.current_macro = (None, [])   # Macro currently being defined (name and statements)
         self.aliases = {}       # Map from a symbol to its textual expansion
         self.target = qmasm.program   # Reference to either the program or the current macro
+        self.env_stack = [{}]   # Stack of maps from compile-time variable names to values
+        self.expr_parser = qmasm.ExprParser()  # Expression parser
 
     def parse_line_include(self, filename, lineno, fields):
         "Parse an !include directive."
@@ -290,6 +311,16 @@ class FileParser(object):
             error_in_line(filename, lineno, "Expected an expression to follow !assert")
         self.target.append(Assert(filename, lineno, " ".join(fields[1:])))
 
+    def parse_line_let(self, filename, lineno, fields):
+        "Parse a !let directive."
+        # "!let" <name> := <expr> -- evaluate <expr> and assign the result to <name>.
+        if len(fields) < 4 or fields[2] != ":=":
+            error_in_line(filename, lineno, 'Expected a variable name, ":=", and an expression to follow !let')
+        lhs = fields[1]
+        ast = self.expr_parser.parse(filename, lineno, " ".join(fields[3:]))
+        rhs = ast.evaluate(self.env_stack[-1])
+        self.env_stack[-1][lhs] = rhs
+
     def parse_line_begin_macro(self, filename, lineno, fields):
         "Parse a !begin_macro directive."
         # "!begin_macro" <name> -- begin a macro definition.
@@ -302,6 +333,7 @@ class FileParser(object):
             error_in_line(filename, lineno, "Nested macros are not supported")
         self.current_macro = (name, [])
         self.target = self.current_macro[1]
+        self.env_stack.append(copy.copy(self.env_stack[-1]))
 
     def parse_line_end_macro(self, filename, lineno, fields):
         "Parse an !end_macro directive."
@@ -316,6 +348,7 @@ class FileParser(object):
         self.macros[name] = self.current_macro[1]
         self.target = qmasm.program
         self.current_macro = (None, [])
+        self.env_stack.pop()
 
     def parse_line_weight(self, filename, lineno, fields):
         "Parse a qubit weight."
@@ -396,6 +429,7 @@ class FileParser(object):
         dir_to_func = {
             "!include":     self.parse_line_include,
             "!assert":      self.parse_line_assert,
+            "!let":         self.parse_line_let,
             "!begin_macro": self.parse_line_begin_macro,
             "!end_macro":   self.parse_line_end_macro,
             "!use_macro":   self.parse_line_use_macro,
