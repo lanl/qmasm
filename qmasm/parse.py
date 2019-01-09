@@ -40,6 +40,39 @@ def is_float(str):
     except ValueError:
         return False
 
+class Environment(object):
+    "Maintain a variable environment as a stack of scopes."
+
+    def __init__(self):
+        self.stack = [{}]
+
+    def __getitem__(self, key):
+        "Search each scope in turn for the given key."
+        for i in range(len(self.stack) - 1, -1, -1):
+            try:
+                return self.stack[i][key]
+            except KeyError:
+                pass
+        raise KeyError(key)
+
+    def __setitem__(self, key, val):
+        self.stack[-1][key] = val
+
+    def push(self):
+        "Push a new scope onto the stack."
+        self.stack.append({})
+
+    def pop(self):
+        "Pop the most recent scope off the stack."
+        self.stack.pop()
+
+    def keys(self):
+        "Return all keys in all scopes."
+        d = set()
+        for s in self.stack:
+            d.update(s.keys())
+        return list(d)
+
 # I'm too lazy to write another parser so let's simply define an
 # alternative entry point to the assertion parser.
 class ExprParser(qmasm.AssertParser):
@@ -272,7 +305,7 @@ class FileParser(object):
         self.current_macro = (None, [])   # Macro currently being defined (name and statements)
         self.aliases = {}       # Map from a symbol to its textual expansion
         self.target = qmasm.program   # Reference to either the program or the current macro
-        self.env_stack = [{}]   # Stack of maps from compile-time variable names to values
+        self.env_stack = Environment()    # Stack of maps from compile-time variable names to values
         self.expr_parser = qmasm.ExprParser()  # Expression parser
 
     def parse_line_include(self, filename, lineno, fields):
@@ -318,8 +351,8 @@ class FileParser(object):
             error_in_line(filename, lineno, 'Expected a variable name, ":=", and an expression to follow !let')
         lhs = fields[1]
         ast = self.expr_parser.parse(filename, lineno, " ".join(fields[3:]))
-        rhs = ast.evaluate(self.env_stack[-1])
-        self.env_stack[-1][lhs] = rhs
+        rhs = ast.evaluate(dict(self.env_stack))
+        self.env_stack[lhs] = rhs
 
     def parse_line_begin_macro(self, filename, lineno, fields):
         "Parse a !begin_macro directive."
@@ -333,7 +366,7 @@ class FileParser(object):
             error_in_line(filename, lineno, "Nested macros are not supported")
         self.current_macro = (name, [])
         self.target = self.current_macro[1]
-        self.env_stack.append(copy.copy(self.env_stack[-1]))
+        self.env_stack.push()
 
     def parse_line_end_macro(self, filename, lineno, fields):
         "Parse an !end_macro directive."
