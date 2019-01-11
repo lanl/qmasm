@@ -43,8 +43,11 @@ def is_float(str):
 class Environment(object):
     "Maintain a variable environment as a stack of scopes."
 
+    toks_re = re.compile(r'([\w$]+)')  # Regex to split a symbol into tokens
+
     def __init__(self):
         self.stack = [{}]
+        self.prev = None
 
     def __getitem__(self, key):
         "Search each scope in turn for the given key."
@@ -59,12 +62,15 @@ class Environment(object):
         self.stack[-1][key] = val
 
     def push(self):
-        "Push a new scope onto the stack."
-        self.stack.append({})
+        "Return a copy of the environment with a new scope pushed on it."
+        e = copy.deepcopy(self)
+        e.stack.append({})
+        e.prev = self
+        return e
 
     def pop(self):
-        "Pop the most recent scope off the stack."
-        self.stack.pop()
+        "Return the environment as it was before the previous scope was pushed on it."
+        return self.prev
 
     def keys(self):
         "Return all keys in all scopes."
@@ -73,7 +79,23 @@ class Environment(object):
             d.update(s.keys())
         return list(d)
 
-# I'm too lazy to write another parser so let's simply define an
+    def set(self, key, val):
+        "Return a copy of the environment but with key=val."
+        e = copy.deepcopy(self)
+        e[key] = val
+        return e
+
+    def sub_sym(self, sym):
+        "Substitute values for variables encountered in a given symbol name."
+        toks = self.toks_re.split(sym)
+        for i in range(len(toks)):
+            try:
+                toks[i] = str(self[toks[i]])
+            except KeyError:
+                pass
+        return "".join(toks)
+
+# I'm too lazy to write another parser so I'll simply define an
 # alternative entry point to the assertion parser.
 class ExprParser(qmasm.AssertParser):
     "Parse an arithmetic expression."
@@ -95,9 +117,10 @@ class ExprParser(qmasm.AssertParser):
 class Statement(object):
     "One statement in a QMASM source file."
 
-    def __init__(self, filename, lineno):
+    def __init__(self, filename, lineno, env):
         self.filename = filename
         self.lineno = lineno
+        self.env = env
 
     def error_in_line(self, msg):
         if self.lineno == None:
@@ -108,9 +131,9 @@ class Statement(object):
 
 class Weight(Statement):
     "Represent a point weight on a qubit."
-    def __init__(self, filename, lineno, sym, weight):
-        super(Weight, self).__init__(filename, lineno)
-        self.sym = sym
+    def __init__(self, filename, lineno, env, sym, weight):
+        super(Weight, self).__init__(filename, lineno, env)
+        self.sym = self.env.sub_sym(sym)
         self.weight = weight
 
     def as_str(self, prefix=""):
@@ -122,10 +145,10 @@ class Weight(Statement):
 
 class Chain(Statement):
     "Chain between qubits."
-    def __init__(self, filename, lineno, sym1, sym2):
-        super(Chain, self).__init__(filename, lineno)
-        self.sym1 = sym1
-        self.sym2 = sym2
+    def __init__(self, filename, lineno, env, sym1, sym2):
+        super(Chain, self).__init__(filename, lineno, env)
+        self.sym1 = self.env.sub_sym(sym1)
+        self.sym2 = self.env.sub_sym(sym2)
 
     def as_str(self, prefix=""):
         return "%s%s = %s%s" % (prefix, self.sym1, prefix, self.sym2)
@@ -141,10 +164,10 @@ class Chain(Statement):
 
 class AntiChain(Statement):
     "AntiChain between qubits."
-    def __init__(self, filename, lineno, sym1, sym2):
-        super(AntiChain, self).__init__(filename, lineno)
-        self.sym1 = sym1
-        self.sym2 = sym2
+    def __init__(self, filename, lineno, env, sym1, sym2):
+        super(AntiChain, self).__init__(filename, lineno, env)
+        self.sym1 = self.env.sub_sym(sym1)
+        self.sym2 = self.env.sub_sym(sym2)
 
     def as_str(self, prefix=""):
         return "%s%s /= %s%s" % (prefix, self.sym1, prefix, self.sym2)
@@ -160,9 +183,9 @@ class AntiChain(Statement):
 
 class Pin(Statement):
     "Pinning of a qubit to true or false."
-    def __init__(self, filename, lineno, sym, goal):
-        super(Pin, self).__init__(filename, lineno)
-        self.sym = sym
+    def __init__(self, filename, lineno, env, sym, goal):
+        super(Pin, self).__init__(filename, lineno, env)
+        self.sym = self.env.sub_sym(sym)
         self.goal = goal
 
     def as_str(self, prefix=""):
@@ -174,10 +197,10 @@ class Pin(Statement):
 
 class Alias(Statement):
     "Alias of one symbol to another."
-    def __init__(self, filename, lineno, sym1, sym2):
-        super(Alias, self).__init__(filename, lineno)
-        self.sym1 = sym1
-        self.sym2 = sym2
+    def __init__(self, filename, lineno, env, sym1, sym2):
+        super(Alias, self).__init__(filename, lineno, env)
+        self.sym1 = self.env.sub_sym(sym1)
+        self.sym2 = self.env.sub_sym(sym2)
 
     def as_str(self, prefix=""):
         return "%s%s <-> %s%s" % (prefix, self.sym1, prefix, self.sym2)
@@ -192,10 +215,10 @@ class Alias(Statement):
 
 class Strength(Statement):
     "Coupler strength between two qubits."
-    def __init__(self, filename, lineno, sym1, sym2, strength):
-        super(Strength, self).__init__(filename, lineno)
-        self.sym1 = sym1
-        self.sym2 = sym2
+    def __init__(self, filename, lineno, env, sym1, sym2, strength):
+        super(Strength, self).__init__(filename, lineno, env)
+        self.sym1 = self.env.sub_sym(sym1)
+        self.sym2 = self.env.sub_sym(sym2)
         self.strength = strength
 
     def as_str(self, prefix=""):
@@ -214,8 +237,8 @@ class Assert(Statement):
     "Instantiation of a run-time assertion."
     parser = qmasm.AssertParser()
 
-    def __init__(self, filename, lineno, expr):
-        super(Assert, self).__init__(filename, lineno)
+    def __init__(self, filename, lineno, env, expr):
+        super(Assert, self).__init__(filename, lineno, env)
         self.expr = expr
         self.ast = self.parser.parse(expr)
 
@@ -237,8 +260,8 @@ class Assert(Statement):
 
 class MacroUse(Statement):
     "Instantiation of a macro definition."
-    def __init__(self, filename, lineno, name, body, prefixes):
-        super(MacroUse, self).__init__(filename, lineno)
+    def __init__(self, filename, lineno, env, name, body, prefixes):
+        super(MacroUse, self).__init__(filename, lineno, env)
         self.name = name
         self.body = body
         self.prefixes = prefixes
@@ -305,7 +328,7 @@ class FileParser(object):
         self.current_macro = (None, [])   # Macro currently being defined (name and statements)
         self.aliases = {}       # Map from a symbol to its textual expansion
         self.target = qmasm.program   # Reference to either the program or the current macro
-        self.env_stack = Environment()    # Stack of maps from compile-time variable names to values
+        self.env = Environment()    # Stack of maps from compile-time variable names to values
         self.expr_parser = qmasm.ExprParser()  # Expression parser
 
     def parse_line_include(self, filename, lineno, fields):
@@ -351,8 +374,8 @@ class FileParser(object):
             error_in_line(filename, lineno, 'Expected a variable name, ":=", and an expression to follow !let')
         lhs = fields[1]
         ast = self.expr_parser.parse(filename, lineno, " ".join(fields[3:]))
-        rhs = ast.evaluate(dict(self.env_stack))
-        self.env_stack[lhs] = rhs
+        rhs = ast.evaluate(dict(self.env))
+        self.env = self.env.set(lhs, rhs)
 
     def parse_line_begin_macro(self, filename, lineno, fields):
         "Parse a !begin_macro directive."
@@ -366,7 +389,7 @@ class FileParser(object):
             error_in_line(filename, lineno, "Nested macros are not supported")
         self.current_macro = (name, [])
         self.target = self.current_macro[1]
-        self.env_stack.push()
+        self.env = self.env.push()
 
     def parse_line_end_macro(self, filename, lineno, fields):
         "Parse an !end_macro directive."
@@ -381,7 +404,7 @@ class FileParser(object):
         self.macros[name] = self.current_macro[1]
         self.target = qmasm.program
         self.current_macro = (None, [])
-        self.env_stack.pop()
+        self.env = self.env.pop()
 
     def parse_line_weight(self, filename, lineno, fields):
         "Parse a qubit weight."
@@ -392,7 +415,7 @@ class FileParser(object):
             val = float(fields[1])
         except ValueError:
             error_in_line(filename, lineno, 'Failed to parse "%s %s" as a symbol followed by a numerical weight' % (fields[0], fields[1]))
-        self.target.append(Weight(filename, lineno, fields[0], val))
+        self.target.append(Weight(filename, lineno, self.env, fields[0], val))
 
     def parse_line_chain(self, filename, lineno, fields):
         "Parse a qubit chain."
@@ -400,7 +423,7 @@ class FileParser(object):
         # and <symbol_2>.
         if len(fields) < 3 or fields[1] != "=":
             error_in_line(filename, lineno, "Internal error in parse_line_chain")
-        self.target.extend(process_chain(filename, lineno, " ".join(fields[:3])))
+        self.target.extend(process_chain(filename, lineno, self.env, " ".join(fields[:3])))
 
     def parse_line_antichain(self, filename, lineno, fields):
         "Parse a qubit anti-chain."
@@ -408,21 +431,21 @@ class FileParser(object):
         # and <symbol_2>.
         if len(fields) < 3 or fields[1] != "/=":
             error_in_line(filename, lineno, "Internal error in parse_line_antichain")
-        self.target.extend(process_antichain(filename, lineno, " ".join(fields[:3])))
+        self.target.extend(process_antichain(filename, lineno, self.env, " ".join(fields[:3])))
 
     def parse_line_pin(self, filename, lineno, fields):
         "Parse a qubit pin."
         # <symbol> := <value> -- force symbol <symbol> to have value <value>.
         if len(fields) < 3 or fields[1] != ":=":
             error_in_line(filename, lineno, "Internal error in parse_line_pin")
-        self.target.extend(process_pin(filename, lineno, " ".join(fields[:3])))
+        self.target.extend(process_pin(filename, lineno, self.env, " ".join(fields[:3])))
 
     def parse_line_alias(self, filename, lineno, fields):
         "Parse a qubit alias."
         # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of <symbol_2>.
         if len(fields) < 3 or fields[1] != "<->":
             error_in_line(filename, lineno, "Internal error in parse_line_alias")
-        self.target.extend(process_alias(filename, lineno, " ".join(fields[:3])))
+        self.target.extend(process_alias(filename, lineno, self.env, " ".join(fields[:3])))
 
     def parse_line_strength(self, filename, lineno, fields):
         "Parse a coupler strength."
@@ -433,7 +456,7 @@ class FileParser(object):
             strength = float(fields[2])
         except ValueError:
             error_in_line(filename, lineno, 'Failed to parse "%s" as a number' % fields[2])
-        self.target.append(Strength(filename, lineno, fields[0], fields[1], strength))
+        self.target.append(Strength(filename, lineno, self.env, fields[0], fields[1], strength))
 
     def parse_line_use_macro(self, filename, lineno, fields):
         "Parse a !use_macro directive."
@@ -444,7 +467,7 @@ class FileParser(object):
         name = fields[1]
         prefixes = [p + "." for p in fields[2:]]
         try:
-            self.target.append(MacroUse(filename, lineno, name, self.macros[name], prefixes))
+            self.target.append(MacroUse(filename, lineno, self.env, name, self.macros[name], prefixes))
         except KeyError:
             error_in_line(filename, lineno, "Unknown macro %s" % name)
 
@@ -613,7 +636,7 @@ class PinParser(object):
                 qmasm.abend('Unexpected "%s" in pin right-hand side "%s"' % (inter, rhs))
         return [qmasm.str2bool[t.upper()] for t in self.bool_re.findall(rhs)]
 
-def process_pin(filename, lineno, pin_str):
+def process_pin(filename, lineno, env, pin_str):
     "Parse a pin statement into one or more Pin objects and add these to the program."
     lhs_rhs = pin_str.split(":=")
     if len(lhs_rhs) != 2:
@@ -623,9 +646,9 @@ def process_pin(filename, lineno, pin_str):
     rhs_list = pin_parser.parse_rhs(lhs_rhs[1])
     if len(lhs_list) != len(rhs_list):
         qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin_str, len(lhs_list), len(rhs_list)))
-    return [Pin(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+    return [Pin(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
 
-def process_chain(filename, lineno, chain_str):
+def process_chain(filename, lineno, env, chain_str):
     "Parse a chain statement into one or more Chain objects and add these to the program."
     # We use the LHS parser from PinParser to parse both sides of the chain.
     lhs_rhs = chain_str.split("=")
@@ -636,9 +659,9 @@ def process_chain(filename, lineno, chain_str):
     rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
     if len(lhs_list) != len(rhs_list):
         qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
-    return [Chain(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+    return [Chain(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
 
-def process_antichain(filename, lineno, antichain_str):
+def process_antichain(filename, lineno, env, antichain_str):
     "Parse an anti-chain statement into one or more AntiChain objects and add these to the program."
     # We use the LHS parser from PinParser to parse both sides of the anti-chain.
     lhs_rhs = antichain_str.split("/=")
@@ -649,9 +672,9 @@ def process_antichain(filename, lineno, antichain_str):
     rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
     if len(lhs_list) != len(rhs_list):
         qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (antichain_str, len(lhs_list), len(rhs_list)))
-    return [AntiChain(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+    return [AntiChain(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
 
-def process_alias(filename, lineno, alias_str):
+def process_alias(filename, lineno, env, alias_str):
     "Parse an alias statement into one or more Alias objects and add these to the program."
     # We use the LHS parser from PinParser to parse both sides of the alias.
     lhs_rhs = alias_str.split("<->")
@@ -662,4 +685,4 @@ def process_alias(filename, lineno, alias_str):
     rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
     if len(lhs_list) != len(rhs_list):
         qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (alias_str, len(lhs_list), len(rhs_list)))
-    return [Alias(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+    return [Alias(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
