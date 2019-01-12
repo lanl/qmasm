@@ -331,6 +331,17 @@ class FileParser(object):
         self.env = Environment()    # Stack of maps from compile-time variable names to values
         self.expr_parser = qmasm.ExprParser()  # Expression parser
 
+        # Establish a mapping from a first-field directive to a parsing function.
+        self.dir_to_func = {
+            "!include":     self.parse_line_include,
+            "!assert":      self.parse_line_assert,
+            "!let":         self.parse_line_let,
+            "!begin_macro": self.parse_line_begin_macro,
+            "!end_macro":   self.parse_line_end_macro,
+            "!use_macro":   self.parse_line_use_macro,
+            "!alias":       self.parse_line_sym_alias
+        }
+
     def parse_line_include(self, filename, lineno, fields):
         "Parse an !include directive."
         # "!include" "<filename>" -- process a named auxiliary file.
@@ -477,24 +488,10 @@ class FileParser(object):
             error_in_line(filename, lineno, "Expected a symbol name and replacement to follow !alias")
         self.aliases[fields[1]] = fields[2]
 
-    def parse_file(self, filename, infile):
-        """Define a function that parses an input file into an internal
-        representation.  This function can be called recursively (due to !include
-        directives)."""
-        # Establish a mapping from a first-field directive to a parsing function.
-        dir_to_func = {
-            "!include":     self.parse_line_include,
-            "!assert":      self.parse_line_assert,
-            "!let":         self.parse_line_let,
-            "!begin_macro": self.parse_line_begin_macro,
-            "!end_macro":   self.parse_line_end_macro,
-            "!use_macro":   self.parse_line_use_macro,
-            "!alias":       self.parse_line_sym_alias
-        }
-
-        # Process the file line-by-line.
-        lineno = 0
-        for line in infile:
+    def parse_file_contents(self, filename, all_lines, lineno):
+        """Parse the contents of a file.  Contents are passed as a list plus an
+        initial line number."""
+        for line in all_lines:
             # Split the line into fields and apply text aliases.
             lineno += 1
             if line.strip() == "":
@@ -513,7 +510,7 @@ class FileParser(object):
                 continue
             try:
                 # Parse first-field directives.
-                func = dir_to_func[fields[0]]
+                func = self.dir_to_func[fields[0]]
             except KeyError:
                 # Prohibit "!next." outside of macros.
                 if self.current_macro[0] == None:
@@ -538,6 +535,15 @@ class FileParser(object):
                     # None of the above
                     error_in_line(filename, lineno, 'Failed to parse "%s"' % line.strip())
             func(filename, lineno, fields)
+
+    def parse_file(self, filename, infile):
+        """Define a function that parses an input file into an internal
+        representation.  This function can be called recursively (due to !include
+        directives)."""
+
+        # Read the entire file into a list.
+        all_lines = list(infile)
+        self.parse_file_contents(filename, all_lines, 1)
 
     def parse_files(self, file_list):
         "Parse a list of file(s) into an internal representation."
