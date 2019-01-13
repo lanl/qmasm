@@ -17,10 +17,6 @@ def error_in_line(filename, lineno, str):
     sys.stderr.write('%s:%d: error: %s\n' % (filename, lineno, str))
     sys.exit(1)
 
-# Define synonyms for "true" and "false".
-str2bool = {s: True for s in ["1", "+1", "T", "TRUE"]}
-str2bool.update({s: False for s in ["0", "-1", "F", "FALSE"]})
-
 class Environment(object):
     "Maintain a variable environment as a stack of scopes."
 
@@ -323,7 +319,7 @@ class FileParser(object):
             "!alias":       self.parse_line_sym_alias
         }
 
-    def is_float(str):
+    def is_float(self, str):
         "Return True if a string can be treated as a float."
         try:
             float(str)
@@ -331,7 +327,7 @@ class FileParser(object):
         except ValueError:
             return False
 
-    def find_file_in_path(pathnames, filename):
+    def find_file_in_path(self, pathnames, filename):
         "Search a list of directories for a file."
         for pname in pathnames:
             fname = os.path.join(pname, filename)
@@ -571,6 +567,10 @@ class PinParser(object):
         self.bracket_re = re.compile(r'^\s*(\d+)(\s*(?:\.\.|:)\s*(\d+))?\s*$')
         self.bool_re = re.compile(r'TRUE|FALSE|T|F|0|[-+]?1', re.IGNORECASE)
 
+        # Define synonyms for "true" and "false".
+        self.str2bool = {s: True for s in ["1", "+1", "T", "TRUE"]}
+        self.str2bool.update({s: False for s in ["0", "-1", "F", "FALSE"]})
+
     def expand_brackets(self, vars, expr):
         """Repeat one or more variables for each bracketed expression.  For
         example, expanding ("hello", "1 .. 3") should produce
@@ -640,7 +640,7 @@ class PinParser(object):
         for inter in [t.strip() for t in self.bool_re.split(rhs)]:
             if inter != "":
                 qmasm.abend('Unexpected "%s" in pin right-hand side "%s"' % (inter, rhs))
-        return [qmasm.str2bool[t.upper()] for t in self.bool_re.findall(rhs)]
+        return [self.str2bool[t.upper()] for t in self.bool_re.findall(rhs)]
 
 def process_pin(filename, lineno, env, pin_str):
     "Parse a pin statement into one or more Pin objects and add these to the program."
