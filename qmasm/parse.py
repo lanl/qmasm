@@ -21,17 +21,6 @@ def error_in_line(filename, lineno, str):
 str2bool = {s: True for s in ["1", "+1", "T", "TRUE"]}
 str2bool.update({s: False for s in ["0", "-1", "F", "FALSE"]})
 
-# Define a function that searches a list of directories for a file.
-def find_file_in_path(pathnames, filename):
-    for pname in pathnames:
-        fname = os.path.join(pname, filename)
-        if os.path.exists(fname):
-            return fname
-        fname_qmasm = fname + ".qmasm"
-        if os.path.exists(fname_qmasm):
-            return fname_qmasm
-    return None
-
 class Environment(object):
     "Maintain a variable environment as a stack of scopes."
 
@@ -342,6 +331,17 @@ class FileParser(object):
         except ValueError:
             return False
 
+    def find_file_in_path(pathnames, filename):
+        "Search a list of directories for a file."
+        for pname in pathnames:
+            fname = os.path.join(pname, filename)
+            if os.path.exists(fname):
+                return fname
+            fname_qmasm = fname + ".qmasm"
+            if os.path.exists(fname_qmasm):
+                return fname_qmasm
+        return None
+
     def parse_line_include(self, filename, lineno, fields):
         "Parse an !include directive."
         # "!include" "<filename>" -- process a named auxiliary file.
@@ -356,12 +356,12 @@ class FileParser(object):
                 qmasmpath.append(".")
             except KeyError:
                 qmasmpath = ["."]
-            found_incname = find_file_in_path(qmasmpath, incname)
+            found_incname = self.find_file_in_path(qmasmpath, incname)
             if found_incname != None:
                 incname = found_incname
         elif len(incname) >= 2:
             # Search only the current directory for the filename.
-            found_incname = find_file_in_path(["."], incname)
+            found_incname = self.find_file_in_path(["."], incname)
             if found_incname != None:
                 incname = found_incname
         try:
