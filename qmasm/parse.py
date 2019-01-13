@@ -32,14 +32,6 @@ def find_file_in_path(pathnames, filename):
             return fname_qmasm
     return None
 
-# Define a function that says if a string can be treated as a float.
-def is_float(str):
-    try:
-        float(str)
-        return True
-    except ValueError:
-        return False
-
 class Environment(object):
     "Maintain a variable environment as a stack of scopes."
 
@@ -342,6 +334,14 @@ class FileParser(object):
             "!alias":       self.parse_line_sym_alias
         }
 
+    def is_float(str):
+        "Return True if a string can be treated as a float."
+        try:
+            float(str)
+            return True
+        except ValueError:
+            return False
+
     def parse_line_include(self, filename, lineno, fields):
         "Parse an !include directive."
         # "!include" "<filename>" -- process a named auxiliary file.
@@ -461,7 +461,7 @@ class FileParser(object):
     def parse_line_strength(self, filename, lineno, fields):
         "Parse a coupler strength."
         # <symbol_1> <symbol_2> <strength> -- increment a coupler strength.
-        if len(fields) < 3 or not is_float(fields[2]):
+        if len(fields) < 3 or not self.is_float(fields[2]):
             error_in_line(filename, lineno, "Internal error in parse_line_strength")
         try:
             strength = float(fields[2])
@@ -529,7 +529,7 @@ class FileParser(object):
                     func = self.parse_line_pin
                 elif nfields == 3 and fields[1] == "<->":
                     func = self.parse_line_alias
-                elif nfields == 3 and is_float(fields[2]):
+                elif nfields == 3 and self.is_float(fields[2]):
                     func = self.parse_line_strength
                 else:
                     # None of the above
