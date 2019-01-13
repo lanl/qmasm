@@ -91,6 +91,80 @@ class ExprParser(qmasm.AssertParser):
             sys.exit(1)
         return ast
 
+class LoopIterator(object):
+    """Iterate over arbitrary symbols, arithmetic integer sequences, and geometric
+    integer sequences."""
+
+    def __init__(self, filename, lineno, rhs):
+        # If the right-hand side contains "...", ensure that it's the
+        # penultimate item and that all other items are integers.
+        if "..." in rhs:
+            rhs_ints = []   # Integers or "..."
+            for i in range(len(rhs)):
+                try:
+                    rhs_ints.append(int(rhs[i]))
+                except ValueError:
+                    if rhs[i] == "...":
+                        if i != len(rhs) - 2:
+                            error_in_line(filename, lineno, 'Invalid placement of "..." in !begin_loop')
+                        rhs_ints.append("...")
+                    else:
+                        error_in_line(filename, lineno, 'A !begin_loop with "..." accepts only integers (not %s)' % rhs[i])
+
+        # Prepare the iterations we intend to perform.
+        if "..." in rhs:
+            # Loop over integers, where not all values are specified explicitly.
+            self.first_val = rhs_ints[0]
+            last_val = rhs_ints[-1]
+            if self.first_val < last_val:
+                self.finished = lambda x: x > last_val
+            else:
+                self.finished = lambda x: x < last_val
+            if len(rhs_ints) == 3:
+                # "<x_0> ... <x_n>" indicates an arithmetic progression with a
+                # delta of +/- 1.
+                if self.first_val < last_val:
+                    self.increment = lambda x: x + 1
+                else:
+                    self.increment = lambda x: x - 1
+            else:
+                # For "<x_0> <x_1> <x_2> ... <x_n>", compute the progression
+                # type and increment.
+                adeltas = set([rhs_ints[i + 1] - rhs_ints[i] for i in range(len(rhs_ints) - 3)])
+                if len(adeltas) == 1:
+                    # Arithmetic progression
+                    delta = list(adeltas)[0]
+                    self.increment = lambda x: x + delta
+                else:
+                    # Geometric progression
+                    try:
+                        mdeltas = set([rhs_ints[i + 1] // rhs_ints[i] for i in range(len(rhs_ints) - 3)])
+                    except ZeroDivisionError:
+                        mdeltas = set(["multiple", "values"])  # Force the next test to fail.
+                    if len(mdeltas) != 1:
+                        error_in_line(filename, lineno, 'Failed to interpret "%s" as either an arithmetic or geometric progression' % (" ".join(rhs_ints[:-2])))
+                    delta = list(mdeltas)[0]
+                    if delta == 0:
+                        error_in_line(filename, lineno, "Decreasing geometric progressions are not currently supported")
+                    self.increment = lambda x: x * delta
+        else:
+            # Loop over a fixed sequences of symbols, specified explicitly.
+            self.symbols = rhs
+
+    def __iter__(self):
+        try:
+            return iter(self.symbols)
+        except AttributeError:
+            self.next_val = self.first_val
+            return self
+
+    def next(self):
+        if self.finished(self.next_val):
+            raise StopIteration
+        head = self.next_val
+        self.next_val = self.increment(head)
+        return head
+
 class Statement(object):
     "One statement in a QMASM source file."
 
