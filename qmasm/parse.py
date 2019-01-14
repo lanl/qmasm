@@ -558,10 +558,10 @@ class FileParser(object):
             error_in_line(filename, lineno, "Expected a symbol name and replacement to follow !alias")
         self.aliases[fields[1]] = fields[2]
 
-    def parse_file_contents(self, filename, all_lines, lineno):
+    def parse_file_contents(self, filename, all_lines):
         """Parse the contents of a file.  Contents are passed as a list plus an
         initial line number."""
-        for line in all_lines:
+        for lineno, line in all_lines:
             # Split the line into fields and apply text aliases.
             lineno += 1
             if line.strip() == "":
@@ -612,8 +612,12 @@ class FileParser(object):
         directives)."""
 
         # Read the entire file into a list.
-        all_lines = list(infile)
-        self.parse_file_contents(filename, all_lines, 1)
+        all_lines = []
+        lineno = 1
+        for line in infile:
+            all_lines.append((lineno, line))
+            lineno += 1
+        self.parse_file_contents(filename, all_lines)
 
     def parse_files(self, file_list):
         "Parse a list of file(s) into an internal representation."
