@@ -314,6 +314,8 @@ class AssertParser(object):
             child = self.unary()
         elif self.sym[0] == "if":
             child = self.if_expr()
+        elif val == "EOF":
+            raise self.ParseError("Parse error at end of expression")
         else:
             raise self.ParseError('Parse error at "%s"' % val)
         return AssertAST("factor", None, [child])

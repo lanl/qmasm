@@ -111,71 +111,49 @@ class RelationParser(qmasm.AssertParser):
         return ast
 
 class LoopIterator(object):
-    """Iterate over arbitrary symbols, arithmetic integer sequences, and geometric
-    integer sequences."""
+    '''Iterate over arithmetic and geometric integer sequences.  It is
+    assumed that the penultimate element of the input list is the string
+    "...".'''
 
     def __init__(self, filename, lineno, rhs):
-        # If the right-hand side contains "...", ensure that it's the
-        # penultimate item and that all other items are integers.
-        if "..." in rhs:
-            rhs_ints = []   # Integers or "..."
-            for i in range(len(rhs)):
-                try:
-                    rhs_ints.append(int(rhs[i]))
-                except ValueError:
-                    if rhs[i] == "...":
-                        if i != len(rhs) - 2:
-                            error_in_line(filename, lineno, 'Invalid placement of "..." in !begin_loop')
-                        rhs_ints.append("...")
-                    else:
-                        error_in_line(filename, lineno, 'A !begin_loop with "..." accepts only integers (not %s)' % rhs[i])
-
         # Prepare the iterations we intend to perform.
-        if "..." in rhs:
-            # Loop over integers, where not all values are specified explicitly.
-            self.first_val = rhs_ints[0]
-            last_val = rhs_ints[-1]
-            if self.first_val < last_val:
-                self.finished = lambda x: x > last_val
-            else:
-                self.finished = lambda x: x < last_val
-            if len(rhs_ints) == 3:
-                # "<x_0> ... <x_n>" indicates an arithmetic progression with a
-                # delta of +/- 1.
-                if self.first_val < last_val:
-                    self.increment = lambda x: x + 1
-                else:
-                    self.increment = lambda x: x - 1
-            else:
-                # For "<x_0> <x_1> <x_2> ... <x_n>", compute the progression
-                # type and increment.
-                adeltas = set([rhs_ints[i + 1] - rhs_ints[i] for i in range(len(rhs_ints) - 3)])
-                if len(adeltas) == 1:
-                    # Arithmetic progression
-                    delta = list(adeltas)[0]
-                    self.increment = lambda x: x + delta
-                else:
-                    # Geometric progression
-                    try:
-                        mdeltas = set([rhs_ints[i + 1] // rhs_ints[i] for i in range(len(rhs_ints) - 3)])
-                    except ZeroDivisionError:
-                        mdeltas = set(["multiple", "values"])  # Force the next test to fail.
-                    if len(mdeltas) != 1:
-                        error_in_line(filename, lineno, 'Failed to interpret "%s" as either an arithmetic or geometric progression' % (" ".join(rhs_ints[:-2])))
-                    delta = list(mdeltas)[0]
-                    if delta == 0:
-                        error_in_line(filename, lineno, "Decreasing geometric progressions are not currently supported")
-                    self.increment = lambda x: x * delta
+        self.first_val = rhs[0]
+        last_val = rhs[-1]
+        if self.first_val < last_val:
+            self.finished = lambda x: x > last_val
         else:
-            # Loop over a fixed sequences of symbols, specified explicitly.
-            self.symbols = rhs
+            self.finished = lambda x: x < last_val
+        if len(rhs) == 3:
+            # "<x_0> ... <x_n>" indicates an arithmetic progression with a
+            # delta of +/- 1.
+            if self.first_val < last_val:
+                self.increment = lambda x: x + 1
+            else:
+                self.increment = lambda x: x - 1
+        else:
+            # For "<x_0> <x_1> <x_2> ... <x_n>", compute the progression
+            # type and increment.
+            adeltas = set([rhs[i + 1] - rhs[i] for i in range(len(rhs) - 3)])
+            if len(adeltas) == 1:
+                # Arithmetic progression
+                delta = list(adeltas)[0]
+                self.increment = lambda x: x + delta
+            else:
+                # Geometric progression
+                try:
+                    mdeltas = set([rhs[i + 1] // rhs[i] for i in range(len(rhs) - 3)])
+                except ZeroDivisionError:
+                    mdeltas = set(["multiple", "values"])  # Force the next test to fail.
+                if len(mdeltas) != 1:
+                    error_in_line(filename, lineno, 'Failed to interpret "%s" as either an arithmetic or geometric progression' % (" ".join(rhs[:-2])))
+                delta = list(mdeltas)[0]
+                if delta == 0:
+                    error_in_line(filename, lineno, "Decreasing geometric progressions are not currently supported")
+                self.increment = lambda x: x * delta
 
     def __iter__(self):
-        try:
-            return iter(self.symbols)
-        except AttributeError:
-            self.next_val = self.first_val
-            return self
+        self.next_val = self.first_val
+        return self
 
     def next(self):
         if self.finished(self.next_val):
@@ -432,6 +410,17 @@ class FileParser(object):
                 return fname_qmasm
         return None
 
+    def split_and_alias(self, line):
+        "Split a line into space-separated fields, applying text aliases to each field."
+        fields = shlex.split(line, True)
+        nfields = len(fields)
+        for i in range(nfields):
+            try:
+                fields[i] = self.aliases[fields[i]]
+            except KeyError:
+                pass
+        return fields
+
     def parse_line_include(self, filename, lineno, fields):
         "Parse an !include directive."
         # "!include" "<filename>" -- process a named auxiliary file.
@@ -592,7 +581,7 @@ class FileParser(object):
             lno, line = all_lines[idx]
             if line == "":
                 continue
-            flds = shlex.split(line, True)
+            flds = self.split_and_alias(line)
             if flds[0] == "!if":
                 ends_needed += 1
             elif flds[0] == "!else":
@@ -633,6 +622,61 @@ class FileParser(object):
         # Process the rest of the file.
         self.process_file_contents(filename, all_lines[end_idx+1:])
 
+    def process_for(self, filename, lineno, fields, all_lines):
+        """Parse and process a !for directive.  Recursively parse the remaining
+        file contents."""
+        # Parse the !for line.
+        if len(fields) < 4 or fields[2] != ":=":
+            error_in_line(filename, lineno, 'Expected a variable name, an ":=", and a comma-separated list to follow !for')
+        seq = [s.strip() for s in " ".join(fields[3:]).split(",")]
+        for i in range(len(seq)):
+            if seq[i] == "..." and i != len(seq) - 2:
+                error_in_line(filename, lineno, '"..." can appear only in the penultimate position in a sequence')
+
+        # Construct an iterator based on the given sequence.
+        if "..." in seq:
+            seq_ints = []
+            for i in range(len(seq)):
+                if seq[i] == "...":
+                    seq_ints.append("...")
+                else:
+                    ast = self.expr_parser.parse(filename, lineno, seq_ints[i])
+                    val = ast.evaluate(dict(self.env))
+                    seq_ints.append(val)
+            iter = LoopIterator(filename, lineno, seq_ints)
+        else:
+            iter = seq
+
+        # Scan ahead for the matching !end_for.
+        ends_needed = 1
+        for idx in range(1, len(all_lines)):
+            # Split the line into fields and apply text aliases.
+            lno, line = all_lines[idx]
+            if line == "":
+                continue
+            flds = self.split_and_alias(line)
+            if flds[0] == "!for":
+                ends_needed += 1
+            elif flds[0] == "!end_for":
+                if len(flds) != 1:
+                    error_in_line(filename, lno, "Unexpected text after !end_for")
+                ends_needed -= 1
+                if ends_needed == 0:
+                    break
+
+        # Parse the body once per iterator element.
+        if ends_needed != 0:
+            error_in_line(filename, lineno, "Failed to find a matching !end_for directive")
+        end_idx = idx
+        for val in iter:
+            self.env = self.env.push()
+            self.env = self.env.set(fields[1], val)
+            self.process_file_contents(filename, all_lines[1:end_idx])
+            self.env = self.env.pop()
+
+        # Process the rest of the file.
+        self.process_file_contents(filename, all_lines[end_idx+1:])
+
     def process_file_contents(self, filename, all_lines):
         """Parse the contents of a file.  Contents are passed as a list plus an
         initial line number."""
@@ -641,18 +685,10 @@ class FileParser(object):
             lineno, line = all_lines[idx]
             if line == "":
                 continue
-            fields = shlex.split(line, True)
+            fields = self.split_and_alias(line)
             nfields = len(fields)
-            for i in range(nfields):
-                try:
-                    fields[i] = self.aliases[fields[i]]
-                except KeyError:
-                    pass
 
             # Process the line.
-            if nfields == 0:
-                # Ignore empty lines.
-                continue
             if fields[0] == "!if":
                 # Special case for !if directives
                 return self.process_if(filename, lineno, fields, all_lines[idx:])
