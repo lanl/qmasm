@@ -660,6 +660,13 @@ class FileParser(object):
                 # Parse first-field directives.
                 func = self.dir_to_func[fields[0]]
             except KeyError:
+                # Reject unrecognized directives.
+                if fields[0][0] == "!":
+                    if fields[0] in ["!else", "!end_if"]:
+                        error_in_line(filename, lineno, "Encountered an %s without a matching !if" % fields[0])
+                    else:
+                        error_in_line(filename, lineno, "Unrecognized directive %s" % fields[0])
+
                 # Prohibit "!next." outside of macros.
                 if self.current_macro[0] == None:
                     for f in fields:
