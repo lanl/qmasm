@@ -398,8 +398,9 @@ class FileParser(object):
         self.current_macro = (None, [])   # Macro currently being defined (name and statements)
         self.aliases = {}       # Map from a symbol to its textual expansion
         self.target = qmasm.program   # Reference to either the program or the current macro
-        self.env = Environment()    # Stack of maps from compile-time variable names to values
-        self.expr_parser = qmasm.ExprParser()  # Expression parser
+        self.env = Environment()      # Stack of maps from compile-time variable names to values
+        self.expr_parser = ExprParser()     # Expression parser
+        self.rel_parser = RelationParser()  # Relation parser
 
         # Establish a mapping from a first-field directive to a parsing function.
         self.dir_to_func = {
@@ -585,15 +586,24 @@ class FileParser(object):
 
         # Scan ahead for the matching !end_if.
         ends_needed = 1
-        for idx in range(len(all_lines)):
+        else_idx = -1
+        for idx in range(1, len(all_lines)):
             # Split the line into fields and apply text aliases.
-            line = all_lines[idx][1]
+            lno, line = all_lines[idx]
             if line == "":
                 continue
-            fields = shlex.split(line, True)
-            if fields[0] == "!if":
+            flds = shlex.split(line, True)
+            if flds[0] == "!if":
                 ends_needed += 1
-            elif fields[0] == "!end_if":
+            elif flds[0] == "!else":
+                if len(flds) != 1:
+                    error_in_line(filename, lno, "Unexpected text after !else")
+                if else_idx != -1:
+                    error_in_line(filename, lno, "An !else matching line %d's !if already appeared in line %d" % (lineno, all_lines[else_idx][0]))
+                else_idx = idx
+            elif flds[0] == "!end_if":
+                if len(flds) != 1:
+                    error_in_line(filename, lno, "Unexpected text after !end_if")
                 ends_needed -= 1
                 if ends_needed == 0:
                     break
@@ -601,14 +611,34 @@ class FileParser(object):
         # If the condition is true, parse the body.  Otherwise do nothing.
         if ends_needed != 0:
             error_in_line(filename, lineno, "Failed to find a matching !end_if directive")
-        
+        end_idx = idx
+        ast = self.rel_parser.parse(filename, lineno, " ".join(fields[1:]))
+        rhs = ast.evaluate(dict(self.env))
+        if rhs:
+            # Evaluate the then clause in a new scope.
+            self.env = self.env.push()
+            if else_idx == -1:
+                # No else clause
+                self.process_file_contents(filename, all_lines[1:end_idx])
+            else:
+                # else clause
+                self.process_file_contents(filename, all_lines[1:else_idx])
+            self.env = self.env.pop()
+        elif else_idx != -1:
+            # Evaluate the else clause in a new scope.
+            self.env = self.env.push()
+            self.process_file_contents(filename, all_lines[else_idx+1:end_idx])
+            self.env = self.env.pop()
+
+        # Process the rest of the file.
+        self.process_file_contents(filename, all_lines[end_idx+1:])
+
     def process_file_contents(self, filename, all_lines):
         """Parse the contents of a file.  Contents are passed as a list plus an
         initial line number."""
         for idx in range(len(all_lines)):
             # Split the line into fields and apply text aliases.
             lineno, line = all_lines[idx]
-            lineno += 1
             if line == "":
                 continue
             fields = shlex.split(line, True)
@@ -623,6 +653,9 @@ class FileParser(object):
             if nfields == 0:
                 # Ignore empty lines.
                 continue
+            if fields[0] == "!if":
+                # Special case for !if directives
+                return self.process_if(filename, lineno, fields, all_lines[idx:])
             try:
                 # Parse first-field directives.
                 func = self.dir_to_func[fields[0]]
