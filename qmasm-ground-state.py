@@ -27,7 +27,7 @@ prec = cl_args.precision
 
 # Parse the original input file(s) into an internal representation.
 fparse = qmasm.FileParser()
-fparse.parse_files(cl_args.input)
+fparse.process_files(cl_args.input)
 if cl_args.macro not in fparse.macros:
     qmasm.abend('Macro "%s" not found' % cl_args.macro)
 

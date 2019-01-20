@@ -91,6 +91,25 @@ class ExprParser(qmasm.AssertParser):
             sys.exit(1)
         return ast
 
+# I'm too lazy to write another parser so I'll simply define an
+# alternative entry point to the assertion parser.
+class RelationParser(qmasm.AssertParser):
+    "Parse a relational expression."
+
+    def parse(self, filename, lineno, s):
+        "Parse a relational expression into an AST"
+        self.tokens = self.lex(s)
+        self.tokidx = -1
+        self.advance()
+        try:
+            ast = self.conjunction()
+            if self.sym[0] != "EOF":
+                raise self.ParseError('Parse error at "%s"' % self.sym[1])
+        except self.ParseError as e:
+            sys.stderr.write('%s:%d: error: %s in "%s"\n' % (filename, lineno, e, s))
+            sys.exit(1)
+        return ast
+
 class LoopIterator(object):
     """Iterate over arbitrary symbols, arithmetic integer sequences, and geometric
     integer sequences."""
@@ -438,7 +457,7 @@ class FileParser(object):
             incfile = open(incname)
         except IOError:
             error_in_line(filename, lineno, 'Failed to open %s for input' % incname)
-        self.parse_file(incname, incfile)
+        self.process_file(incname, incfile)
         incfile.close()
 
     def parse_line_assert(self, filename, lineno, fields):
@@ -558,13 +577,39 @@ class FileParser(object):
             error_in_line(filename, lineno, "Expected a symbol name and replacement to follow !alias")
         self.aliases[fields[1]] = fields[2]
 
-    def parse_file_contents(self, filename, all_lines):
+    def process_if(self, filename, lineno, fields, all_lines):
+        """Parse and process an !if directive.  Recursively parse the remaining
+        file contents."""
+        if len(fields) < 2:
+            error_in_line(filename, lineno, "Expected a relational expression to follow !if")
+
+        # Scan ahead for the matching !end_if.
+        ends_needed = 1
+        for idx in range(len(all_lines)):
+            # Split the line into fields and apply text aliases.
+            line = all_lines[idx][1]
+            if line == "":
+                continue
+            fields = shlex.split(line, True)
+            if fields[0] == "!if":
+                ends_needed += 1
+            elif fields[0] == "!end_if":
+                ends_needed -= 1
+                if ends_needed == 0:
+                    break
+
+        # If the condition is true, parse the body.  Otherwise do nothing.
+        if ends_needed != 0:
+            error_in_line(filename, lineno, "Failed to find a matching !end_if directive")
+        
+    def process_file_contents(self, filename, all_lines):
         """Parse the contents of a file.  Contents are passed as a list plus an
         initial line number."""
-        for lineno, line in all_lines:
+        for idx in range(len(all_lines)):
             # Split the line into fields and apply text aliases.
+            lineno, line = all_lines[idx]
             lineno += 1
-            if line.strip() == "":
+            if line == "":
                 continue
             fields = shlex.split(line, True)
             nfields = len(fields)
@@ -603,10 +648,10 @@ class FileParser(object):
                     func = self.parse_line_strength
                 else:
                     # None of the above
-                    error_in_line(filename, lineno, 'Failed to parse "%s"' % line.strip())
+                    error_in_line(filename, lineno, 'Failed to parse "%s"' % line)
             func(filename, lineno, fields)
 
-    def parse_file(self, filename, infile):
+    def process_file(self, filename, infile):
         """Define a function that parses an input file into an internal
         representation.  This function can be called recursively (due to !include
         directives)."""
@@ -615,15 +660,15 @@ class FileParser(object):
         all_lines = []
         lineno = 1
         for line in infile:
-            all_lines.append((lineno, line))
+            all_lines.append((lineno, line.strip()))
             lineno += 1
-        self.parse_file_contents(filename, all_lines)
+        self.process_file_contents(filename, all_lines)
 
-    def parse_files(self, file_list):
+    def process_files(self, file_list):
         "Parse a list of file(s) into an internal representation."
         if file_list == []:
             # No files were specified: Read from standard input.
-            self.parse_file("<stdin>", sys.stdin)
+            self.process_file("<stdin>", sys.stdin)
             if self.current_macro[0] != None:
                 error_in_line(filename, lineno, "Unterminated definition of macro %s" % self.current_macro[0])
         else:
@@ -633,7 +678,7 @@ class FileParser(object):
                     infile = open(infilename)
                 except IOError:
                     qmasm.abend('Failed to open %s for input' % infilename)
-                self.parse_file(infilename, infile)
+                self.process_file(infilename, infile)
                 if self.current_macro[0] != None:
                     error_in_line(filename, lineno, "Unterminated definition of macro %s" % self.current_macro[0])
                 infile.close()
