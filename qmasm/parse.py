@@ -119,14 +119,10 @@ class LoopIterator(object):
         # Prepare the iterations we intend to perform.
         self.first_val = rhs[0]
         last_val = rhs[-1]
-        if self.first_val < last_val:
-            self.finished = lambda x: x > last_val
-        else:
-            self.finished = lambda x: x < last_val
         if len(rhs) == 3:
             # "<x_0> ... <x_n>" indicates an arithmetic progression with a
             # delta of +/- 1.
-            if self.first_val < last_val:
+            if self.first_val <= last_val:
                 self.increment = lambda x: x + 1
             else:
                 self.increment = lambda x: x - 1
@@ -150,6 +146,13 @@ class LoopIterator(object):
                 if delta == 0:
                     error_in_line(filename, lineno, "Decreasing geometric progressions are not currently supported")
                 self.increment = lambda x: x * delta
+
+        # Determine when to stop.
+        second_val = self.increment(self.first_val)
+        if self.first_val < second_val:
+            self.finished = lambda x: x > last_val
+        else:
+            self.finished = lambda x: x < last_val
 
     def __iter__(self):
         self.next_val = self.first_val
