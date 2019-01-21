@@ -24,7 +24,7 @@ class Environment(object):
 
     def __init__(self):
         self.stack = [{}]
-        self.prev = None
+        self.self_copy = None   # Regenerate a copy of self if equal to None
 
     def __getitem__(self, key):
         "Search each scope in turn for the given key."
@@ -37,17 +37,17 @@ class Environment(object):
 
     def __setitem__(self, key, val):
         self.stack[-1][key] = val
+        self.self_copy = None
 
     def push(self):
-        "Return a copy of the environment with a new scope pushed on it."
-        e = copy.deepcopy(self)
-        e.stack.append({})
-        e.prev = self
-        return e
+        "Push a new scope on the environment stack."
+        self.stack.append({})
+        self.self_copy = None
 
     def pop(self):
-        "Return the environment as it was before the previous scope was pushed on it."
-        return self.prev
+        "Discard the top of the environment stack."
+        self.stack.pop()
+        self.self_copy = None
 
     def keys(self):
         "Return all keys in all scopes."
@@ -56,11 +56,11 @@ class Environment(object):
             d.update(s.keys())
         return list(d)
 
-    def set(self, key, val):
-        "Return a copy of the environment but with key=val."
-        e = copy.deepcopy(self)
-        e[key] = val
-        return e
+    def __copy__(self):
+        "Return an independent copy of the environment stack."
+        if self.self_copy == None:
+            self.self_copy = copy.deepcopy(self)
+        return self.self_copy
 
     def sub_sym(self, sym):
         "Substitute values for variables encountered in a given symbol name."
@@ -458,7 +458,7 @@ class FileParser(object):
         # "!assert" <expr> -- assert a property that must be true at run time.
         if len(fields) < 2:
             error_in_line(filename, lineno, "Expected an expression to follow !assert")
-        self.target.append(Assert(filename, lineno, " ".join(fields[1:])))
+        self.target.append(Assert(filename, lineno, copy.copy(self.env), " ".join(fields[1:])))
 
     def parse_line_let(self, filename, lineno, fields):
         "Parse a !let directive."
@@ -468,7 +468,7 @@ class FileParser(object):
         lhs = fields[1]
         ast = self.expr_parser.parse(filename, lineno, " ".join(fields[3:]))
         rhs = ast.evaluate(dict(self.env))
-        self.env = self.env.set(lhs, rhs)
+        self.env[lhs] = rhs
 
     def parse_line_begin_macro(self, filename, lineno, fields):
         "Parse a !begin_macro directive."
@@ -482,7 +482,7 @@ class FileParser(object):
             error_in_line(filename, lineno, "Nested macros are not supported")
         self.current_macro = (name, [])
         self.target = self.current_macro[1]
-        self.env = self.env.push()
+        self.env.push()
 
     def parse_line_end_macro(self, filename, lineno, fields):
         "Parse an !end_macro directive."
@@ -497,7 +497,7 @@ class FileParser(object):
         self.macros[name] = self.current_macro[1]
         self.target = qmasm.program
         self.current_macro = (None, [])
-        self.env = self.env.pop()
+        self.env.pop()
 
     def parse_line_weight(self, filename, lineno, fields):
         "Parse a qubit weight."
@@ -508,7 +508,7 @@ class FileParser(object):
             val = float(fields[1])
         except ValueError:
             error_in_line(filename, lineno, 'Failed to parse "%s %s" as a symbol followed by a numerical weight' % (fields[0], fields[1]))
-        self.target.append(Weight(filename, lineno, self.env, fields[0], val))
+        self.target.append(Weight(filename, lineno, copy.copy(self.env), fields[0], val))
 
     def parse_line_chain(self, filename, lineno, fields):
         "Parse a qubit chain."
@@ -516,7 +516,7 @@ class FileParser(object):
         # and <symbol_2>.
         if len(fields) < 3 or fields[1] != "=":
             error_in_line(filename, lineno, "Internal error in parse_line_chain")
-        self.target.extend(process_chain(filename, lineno, self.env, " ".join(fields[:3])))
+        self.target.extend(process_chain(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
 
     def parse_line_antichain(self, filename, lineno, fields):
         "Parse a qubit anti-chain."
@@ -524,21 +524,21 @@ class FileParser(object):
         # and <symbol_2>.
         if len(fields) < 3 or fields[1] != "/=":
             error_in_line(filename, lineno, "Internal error in parse_line_antichain")
-        self.target.extend(process_antichain(filename, lineno, self.env, " ".join(fields[:3])))
+        self.target.extend(process_antichain(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
 
     def parse_line_pin(self, filename, lineno, fields):
         "Parse a qubit pin."
         # <symbol> := <value> -- force symbol <symbol> to have value <value>.
         if len(fields) < 3 or fields[1] != ":=":
             error_in_line(filename, lineno, "Internal error in parse_line_pin")
-        self.target.extend(process_pin(filename, lineno, self.env, " ".join(fields[:3])))
+        self.target.extend(process_pin(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
 
     def parse_line_alias(self, filename, lineno, fields):
         "Parse a qubit alias."
         # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of <symbol_2>.
         if len(fields) < 3 or fields[1] != "<->":
             error_in_line(filename, lineno, "Internal error in parse_line_alias")
-        self.target.extend(process_alias(filename, lineno, self.env, " ".join(fields[:3])))
+        self.target.extend(process_alias(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
 
     def parse_line_strength(self, filename, lineno, fields):
         "Parse a coupler strength."
@@ -549,7 +549,7 @@ class FileParser(object):
             strength = float(fields[2])
         except ValueError:
             error_in_line(filename, lineno, 'Failed to parse "%s" as a number' % fields[2])
-        self.target.append(Strength(filename, lineno, self.env, fields[0], fields[1], strength))
+        self.target.append(Strength(filename, lineno, copy.copy(self.env), fields[0], fields[1], strength))
 
     def parse_line_use_macro(self, filename, lineno, fields):
         "Parse a !use_macro directive."
@@ -560,7 +560,7 @@ class FileParser(object):
         name = fields[1]
         prefixes = [p + "." for p in fields[2:]]
         try:
-            self.target.append(MacroUse(filename, lineno, self.env, name, self.macros[name], prefixes))
+            self.target.append(MacroUse(filename, lineno, copy.copy(self.env), name, self.macros[name], prefixes))
         except KeyError:
             error_in_line(filename, lineno, "Unknown macro %s" % name)
 
@@ -608,19 +608,19 @@ class FileParser(object):
         rhs = ast.evaluate(dict(self.env))
         if rhs:
             # Evaluate the then clause in a new scope.
-            self.env = self.env.push()
+            self.env.push()
             if else_idx == -1:
                 # No else clause
                 self.process_file_contents(filename, all_lines[1:end_idx])
             else:
                 # else clause
                 self.process_file_contents(filename, all_lines[1:else_idx])
-            self.env = self.env.pop()
+            self.env.pop()
         elif else_idx != -1:
             # Evaluate the else clause in a new scope.
-            self.env = self.env.push()
+            self.env.push()
             self.process_file_contents(filename, all_lines[else_idx+1:end_idx])
-            self.env = self.env.pop()
+            self.env.pop()
 
         # Process the rest of the file.
         self.process_file_contents(filename, all_lines[end_idx+1:])
@@ -674,10 +674,10 @@ class FileParser(object):
             error_in_line(filename, lineno, "Failed to find a matching !end_for directive")
         end_idx = idx
         for val in iter:
-            self.env = self.env.push()
-            self.env = self.env.set(fields[1], val)
+            self.env.push()
+            self.env[fields[1]] = val
             self.process_file_contents(filename, all_lines[1:end_idx])
-            self.env = self.env.pop()
+            self.env.pop()
 
         # Process the rest of the file.
         self.process_file_contents(filename, all_lines[end_idx+1:])
