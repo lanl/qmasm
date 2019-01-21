@@ -640,7 +640,7 @@ class FileParser(object):
                 if seq[i] == "...":
                     seq_ints.append("...")
                 else:
-                    ast = self.expr_parser.parse(filename, lineno, seq_ints[i])
+                    ast = self.expr_parser.parse(filename, lineno, seq[i])
                     val = ast.evaluate(dict(self.env))
                     seq_ints.append(val)
             iter = LoopIterator(filename, lineno, seq_ints)
@@ -692,6 +692,9 @@ class FileParser(object):
             if fields[0] == "!if":
                 # Special case for !if directives
                 return self.process_if(filename, lineno, fields, all_lines[idx:])
+            elif fields[0] == "!for":
+                # Special case for !for directives
+                return self.process_for(filename, lineno, fields, all_lines[idx:])
             try:
                 # Parse first-field directives.
                 func = self.dir_to_func[fields[0]]
@@ -700,6 +703,8 @@ class FileParser(object):
                 if fields[0][0] == "!":
                     if fields[0] in ["!else", "!end_if"]:
                         error_in_line(filename, lineno, "Encountered an %s without a matching !if" % fields[0])
+                    elif fields[0] == "!end_for":
+                        error_in_line(filename, lineno, "Encountered an !end_for without a matching !for")
                     else:
                         error_in_line(filename, lineno, "Unrecognized directive %s" % fields[0])
 
