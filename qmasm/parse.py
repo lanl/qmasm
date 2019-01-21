@@ -516,7 +516,7 @@ class FileParser(object):
         # and <symbol_2>.
         if len(fields) < 3 or fields[1] != "=":
             error_in_line(filename, lineno, "Internal error in parse_line_chain")
-        self.target.extend(process_chain(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
+        self.target.extend(self.process_chain(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
 
     def parse_line_antichain(self, filename, lineno, fields):
         "Parse a qubit anti-chain."
@@ -524,21 +524,21 @@ class FileParser(object):
         # and <symbol_2>.
         if len(fields) < 3 or fields[1] != "/=":
             error_in_line(filename, lineno, "Internal error in parse_line_antichain")
-        self.target.extend(process_antichain(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
+        self.target.extend(self.process_antichain(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
 
     def parse_line_pin(self, filename, lineno, fields):
         "Parse a qubit pin."
         # <symbol> := <value> -- force symbol <symbol> to have value <value>.
         if len(fields) < 3 or fields[1] != ":=":
             error_in_line(filename, lineno, "Internal error in parse_line_pin")
-        self.target.extend(process_pin(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
+        self.target.extend(self.process_pin(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
 
     def parse_line_alias(self, filename, lineno, fields):
         "Parse a qubit alias."
         # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of <symbol_2>.
         if len(fields) < 3 or fields[1] != "<->":
             error_in_line(filename, lineno, "Internal error in parse_line_alias")
-        self.target.extend(process_alias(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
+        self.target.extend(self.process_alias(filename, lineno, copy.copy(self.env), " ".join(fields[:3])))
 
     def parse_line_strength(self, filename, lineno, fields):
         "Parse a coupler strength."
@@ -682,6 +682,58 @@ class FileParser(object):
         # Process the rest of the file.
         self.process_file_contents(filename, all_lines[end_idx+1:])
 
+
+    def process_pin(self, filename, lineno, env, pin_str):
+        "Parse a pin statement into one or more Pin objects and add these to the program."
+        lhs_rhs = pin_str.split(":=")
+        if len(lhs_rhs) != 2:
+            qmasm.abend('Failed to parse pin statement "%s"' % pin_str)
+        pin_parser = PinParser()
+        lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
+        rhs_list = pin_parser.parse_rhs(lhs_rhs[1])
+        if len(lhs_list) != len(rhs_list):
+            qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin_str, len(lhs_list), len(rhs_list)))
+        return [Pin(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
+
+    def process_chain(self, filename, lineno, env, chain_str):
+        "Parse a chain statement into one or more Chain objects and add these to the program."
+        # We use the LHS parser from PinParser to parse both sides of the chain.
+        lhs_rhs = chain_str.split("=")
+        if len(lhs_rhs) != 2:
+            qmasm.abend('Failed to parse chain statement "%s"' % chain_str)
+        pin_parser = PinParser()
+        lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
+        rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
+        if len(lhs_list) != len(rhs_list):
+            qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
+        return [Chain(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
+
+    def process_antichain(self, filename, lineno, env, antichain_str):
+        "Parse an anti-chain statement into one or more AntiChain objects and add these to the program."
+        # We use the LHS parser from PinParser to parse both sides of the anti-chain.
+        lhs_rhs = antichain_str.split("/=")
+        if len(lhs_rhs) != 2:
+            qmasm.abend('Failed to parse anti-chain statement "%s"' % antichain_str)
+        pin_parser = PinParser()
+        lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
+        rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
+        if len(lhs_list) != len(rhs_list):
+            qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (antichain_str, len(lhs_list), len(rhs_list)))
+        return [AntiChain(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
+
+    def process_alias(self, filename, lineno, env, alias_str):
+        "Parse an alias statement into one or more Alias objects and add these to the program."
+        # We use the LHS parser from PinParser to parse both sides of the alias.
+        lhs_rhs = alias_str.split("<->")
+        if len(lhs_rhs) != 2:
+            qmasm.abend('Failed to parse alias statement "%s"' % alias_str)
+        pin_parser = PinParser()
+        lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
+        rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
+        if len(lhs_list) != len(rhs_list):
+            qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (alias_str, len(lhs_list), len(rhs_list)))
+        return [Alias(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
+
     def process_file_contents(self, filename, all_lines):
         """Parse the contents of a file.  Contents are passed as a list plus an
         initial line number."""
@@ -692,6 +744,8 @@ class FileParser(object):
                 continue
             fields = self.split_and_alias(line)
             nfields = len(fields)
+            if nfields == 0:
+                continue
 
             # Process the line.
             if fields[0] == "!if":
@@ -850,54 +904,3 @@ class PinParser(object):
             if inter != "":
                 qmasm.abend('Unexpected "%s" in pin right-hand side "%s"' % (inter, rhs))
         return [self.str2bool[t.upper()] for t in self.bool_re.findall(rhs)]
-
-def process_pin(filename, lineno, env, pin_str):
-    "Parse a pin statement into one or more Pin objects and add these to the program."
-    lhs_rhs = pin_str.split(":=")
-    if len(lhs_rhs) != 2:
-        qmasm.abend('Failed to parse pin statement "%s"' % pin_str)
-    pin_parser = PinParser()
-    lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
-    rhs_list = pin_parser.parse_rhs(lhs_rhs[1])
-    if len(lhs_list) != len(rhs_list):
-        qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin_str, len(lhs_list), len(rhs_list)))
-    return [Pin(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
-
-def process_chain(filename, lineno, env, chain_str):
-    "Parse a chain statement into one or more Chain objects and add these to the program."
-    # We use the LHS parser from PinParser to parse both sides of the chain.
-    lhs_rhs = chain_str.split("=")
-    if len(lhs_rhs) != 2:
-        qmasm.abend('Failed to parse chain statement "%s"' % chain_str)
-    pin_parser = PinParser()
-    lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
-    rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
-    if len(lhs_list) != len(rhs_list):
-        qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
-    return [Chain(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
-
-def process_antichain(filename, lineno, env, antichain_str):
-    "Parse an anti-chain statement into one or more AntiChain objects and add these to the program."
-    # We use the LHS parser from PinParser to parse both sides of the anti-chain.
-    lhs_rhs = antichain_str.split("/=")
-    if len(lhs_rhs) != 2:
-        qmasm.abend('Failed to parse anti-chain statement "%s"' % antichain_str)
-    pin_parser = PinParser()
-    lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
-    rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
-    if len(lhs_list) != len(rhs_list):
-        qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (antichain_str, len(lhs_list), len(rhs_list)))
-    return [AntiChain(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
-
-def process_alias(filename, lineno, env, alias_str):
-    "Parse an alias statement into one or more Alias objects and add these to the program."
-    # We use the LHS parser from PinParser to parse both sides of the alias.
-    lhs_rhs = alias_str.split("<->")
-    if len(lhs_rhs) != 2:
-        qmasm.abend('Failed to parse alias statement "%s"' % alias_str)
-    pin_parser = PinParser()
-    lhs_list = pin_parser.parse_lhs(lhs_rhs[0])
-    rhs_list = pin_parser.parse_lhs(lhs_rhs[1])  # Note use of parse_lhs to parse the RHS.
-    if len(lhs_list) != len(rhs_list):
-        qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (alias_str, len(lhs_list), len(rhs_list)))
-    return [Alias(filename, lineno, env, l, r) for l, r in zip(lhs_list, rhs_list)]
