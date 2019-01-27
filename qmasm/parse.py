@@ -301,7 +301,7 @@ class Assert(Statement):
         else:
             ast = copy.deepcopy(self.ast)
             ast.apply_prefix(prefix, None)
-        return str(ast)
+        return "!assert " + str(ast)
 
     def update_qmi(self, prefix, next_prefix, problem):
         if prefix == "":
