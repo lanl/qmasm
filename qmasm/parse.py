@@ -141,7 +141,9 @@ class LoopIterator(object):
                 except ZeroDivisionError:
                     mdeltas = set(["multiple", "values"])  # Force the next test to fail.
                 if len(mdeltas) != 1:
-                    error_in_line(filename, lineno, 'Failed to interpret "%s" as either an arithmetic or geometric progression' % (" ".join(rhs[:-2])))
+                    error_in_line(filename, lineno,
+                                  'Failed to interpret "%s, %d" as either an arithmetic or geometric progression' %
+                                  (", ".join([str(r) for r in rhs[:-2]]), last_val))
                 delta = list(mdeltas)[0]
                 if delta == 0:
                     error_in_line(filename, lineno, "Decreasing geometric progressions are not currently supported")
