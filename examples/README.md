@@ -3,6 +3,15 @@ QMASM examples
 
 This directory contains examples of QMASM code.
 
+Feature test
+------------
+
+* Main file: [`feature-test.qmasm`](feature-test.qmasm)
+
+* Command line: `qmasm --format=qmasm feature-test.qmasm`
+
+This program does nothing useful.  Rather, it provides a showcase of [all of QMASM's language constructs](//github.com/lanl/qmasm/wiki/File-format).  Read the [`feature-test.qmasm` source code](feature-test.qmasm) to see examples of the various mechanisms that a QMASM program can use.
+
 One of five
 -----------
 

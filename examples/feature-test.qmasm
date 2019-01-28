@@ -27,6 +27,9 @@ def /= jkl
 # Pins
 jkl := yes
 
+# Equivalences
+jkl <-> mno
+
 # Includes
 !include "comparator"
 
