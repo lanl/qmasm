@@ -1,0 +1,85 @@
+#################################################
+# This program does nothing useful.  It merely  #
+# serves as a showcase of QMASM's features.     #
+#                                               #
+# By Scott Pakin <pakin@lanl.gov>               #
+#################################################
+
+# Weights
+abc 0.5
+def 0.5
+
+# Strengths
+abc def 0.5
+
+# Assertions
+!assert abc = 0 || def = 0
+
+# Chains
+abc = ghi
+
+# Anti-chains
+def /= jkl
+
+# Let-binding to a symbol
+!let yes := True
+
+# Pins
+jkl := yes
+
+# Includes
+!include "comparator"
+
+# Macro definitions
+!begin_macro XOR
+!assert Y = A^B
+  A    0.5
+  B   -0.5
+  Y   -0.5
+  $a1  1
+
+  A B   -0.5
+  A Y   -0.5
+  A $a1  1
+  B Y    0.5
+  B $a1 -1
+  Y $a1 -1
+!end_macro XOR
+
+# Macro uses
+!use_macro XOR excl-or
+excl-or.A := true
+excl-or.B := FaLsE   # Note: case-insensitive
+
+# Let-binding to an expression
+!let idx1 := (6 + 1)*2*(4 - 1)
+!let idx2 := idx1/3
+alfa[idx1] = alfa[idx2]
+
+# Conditionals
+!if idx1 < idx2
+  alfa[idx1] = excl-or.Y
+!else
+  alfa[idx2] = excl-or.Y
+!end_if
+
+# Iteration over integer values
+!for idx := 0, 2, ..., 15
+  alfa[idx] = zulu
+!end_for
+
+# Iteration over symbols
+!for icao := alfa, bravo, charlie, delta, echo
+  icao[42] zulu -3.25
+!end_for
+
+# Chain of macros
+!begin_macro XOR_chain
+  !use_macro XOR xor
+  A = xor.A
+  B = xor.B
+  Y = xor.Y
+  Y = !next.A
+!end_macro XOR_chain
+!use_macro XOR_chain first second third
+# (In this chain, first.Y = second.A and second.Y = third.A.)
