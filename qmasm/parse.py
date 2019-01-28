@@ -20,7 +20,7 @@ def error_in_line(filename, lineno, str):
 class Environment(object):
     "Maintain a variable environment as a stack of scopes."
 
-    toks_re = re.compile(r'([\w$]+)')  # Regex to split a symbol into tokens
+    toks_re = re.compile(r'([\w$!]+)')  # Regex to split a symbol into tokens
 
     def __init__(self):
         self.stack = [{}]
@@ -456,7 +456,7 @@ class FileParser(object):
         # "!assert" <expr> -- assert a property that must be true at run time.
         if len(fields) < 2:
             error_in_line(filename, lineno, "Expected an expression to follow !assert")
-        self.target.append(Assert(filename, lineno, " ".join(fields[1:])))
+        self.target.append(Assert(filename, lineno, " ".join(self.env.sub_syms(fields[1:]))))
 
     def parse_line_let(self, filename, lineno, fields):
         "Parse a !let directive."
@@ -464,7 +464,7 @@ class FileParser(object):
         if len(fields) < 4 or fields[2] != ":=":
             error_in_line(filename, lineno, 'Expected a variable name, ":=", and an expression to follow !let')
         lhs = fields[1]
-        ast = self.expr_parser.parse(filename, lineno, " ".join(fields[3:]))
+        ast = self.expr_parser.parse(filename, lineno, " ".join(self.env.sub_syms(fields[3:])))
         rhs = ast.evaluate(dict(self.env))
         self.env[lhs] = rhs
 
