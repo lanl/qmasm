@@ -20,7 +20,7 @@ def error_in_line(filename, lineno, str):
 class Environment(object):
     "Maintain a variable environment as a stack of scopes."
 
-    toks_re = re.compile(r'([^-+*/%&\|^~!()<=>\s]+)')  # Regex to split a symbol into tokens (cf. AssertParser.ident_re)
+    toks_re = re.compile(r'([^-+*/%&\|^~!()<=>\s\[:\]]+)')  # Regex to split a symbol into tokens (cf. AssertParser.ident_re with square brackets and colons added)
 
     def __init__(self):
         self.stack = [{}]
