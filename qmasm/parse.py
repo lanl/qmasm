@@ -169,12 +169,16 @@ class LoopIterator(object):
         self.next_val = self.first_val
         return self
 
-    def next(self):
+    def __next__(self):
         if self.finished(self.next_val):
             raise StopIteration
         head = self.next_val
         self.next_val = self.increment(head)
         return head
+
+    def next(self):
+        # Python 2 wrapper for __next__
+        return self.__next__()
 
 class Statement(object):
     "One statement in a QMASM source file."
