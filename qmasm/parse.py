@@ -574,6 +574,7 @@ class FileParser(object):
 
     def parse_line_sym_alias(self, filename, lineno, fields):
         "Parse an !alias directive."
+        sys.stderr.write('%s:%d: warning: !alias is deprecated; use "!let %s := %s" instead\n' % (filename, lineno, fields[1], fields[2]))
         if len(fields) != 3:
             error_in_line(filename, lineno, "Expected a symbol name and replacement to follow !alias")
         self.env[fields[1]] = self.env.sub_syms(fields[2])
