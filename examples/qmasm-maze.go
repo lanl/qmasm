@@ -219,8 +219,8 @@ W $a1 0.50
 !end_macro room
 
 # Define some helpful aliases.
-!alias egress TRUE
-!alias wall   FALSE
+!let egress := TRUE
+!let wall   := FALSE
 `)
 }
 
