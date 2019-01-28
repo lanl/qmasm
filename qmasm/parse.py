@@ -464,6 +464,12 @@ class FileParser(object):
         if len(fields) < 4 or fields[2] != ":=":
             error_in_line(filename, lineno, 'Expected a variable name, ":=", and an expression to follow !let')
         lhs = fields[1]
+        if len(fields) == 4:
+            # Handle the case of "!let" <name> := <symbol>.
+            is_sym = self.env.toks_re.match(fields[3])
+            if is_sym != None and is_sym.group(0) == fields[3]:
+                self.env[lhs] = self.env.sub_syms(fields[3])
+                return
         ast = self.expr_parser.parse(filename, lineno, " ".join(self.env.sub_syms(fields[3:])))
         rhs = ast.evaluate(dict(self.env))
         self.env[lhs] = rhs
