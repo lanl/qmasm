@@ -13,7 +13,13 @@ sequences are
 end sequences
 
 keywords in Keyword_strong are
-    !begin_macro, !end_macro, !use_macro, !alias, !include
+    !begin_macro, !end_macro, !use_macro, !include, !assert,
+    !let, !if, !else, !end_if, !for, !end_for,
+    !alias
+end keywords
+
+keywords in Keyword are
+   "true", "false"
 end keywords
 
 optional operators are
