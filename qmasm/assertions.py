@@ -287,7 +287,16 @@ class AssertParser(object):
         """Advance to the next token if the current token matches a given
         token.  Otherwise, fail."""
         if not self.accept(ty):
-            raise self.ParseError("Expected %s but saw %s" % (ty, repr(self.sym)))
+            raise self.ParseError("Expected %s but saw %s" % (ty, repr(self.sym[1])))
+
+    def get_state(self):
+        "Return an opaque representation of our current state."
+        return self.tokidx
+
+    def set_state(self, state):
+        "Wind back to a previous state."
+        self.tokidx = state
+        self.sym = self.tokens[self.tokidx]
 
     def if_expr(self):
         "Return an if...then...else expression."
@@ -395,9 +404,27 @@ class AssertParser(object):
         e2 = self.expression()
         return AssertAST("rel", op, [e1, e2])
 
+    def primary_relation(self):
+        "Return a parenthesized relation."
+        val = self.sym[1]
+        if self.accept("lparen"):
+            try:
+                # Parenthesized relation
+                state = self.get_state()     # May need to backtrack.
+                child = self.conjunction()
+                self.expect("rparen")
+            except self.ParseError:
+                # Parenthesized expression
+                self.set_state(state)        # Backtrack and try again.
+                child = self.comparison()
+                self.expect("rparen")
+        else:
+            child = self.comparison()
+        return AssertAST("primary_rel", None, [child])
+
     def disjunction(self):
         "Return an disjunction of one or two comparisons."
-        c1 = self.comparison()
+        c1 = self.primary_relation()
         op = self.sym[1]
         if op != "&&":
             return AssertAST("conn", None, [c1])
