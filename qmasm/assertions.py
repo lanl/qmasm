@@ -7,7 +7,7 @@ import qmasm
 import re
 import sys
 
-class AssertAST(object):
+class AST(object):
     "Represent an abstract syntax tree."
 
     def __init__(self, type, value, kids=[]):
@@ -298,6 +298,29 @@ class AssertParser(object):
         self.tokidx = state
         self.sym = self.tokens[self.tokidx]
 
+    def generic_operator(self, return_type, child_method, sym_type, valid_ops):
+        "Match one or more somethings to produce something else."
+        # Produce a list of ASTs representing children.
+        c = child_method()
+        ops = [self.sym[1]]
+        asts = [c]
+        while self.sym[0] == sym_type and ops[-1] in valid_ops:
+            self.advance()
+            c = child_method()
+            ops.append(self.sym[1])
+            asts.append(c)
+
+        # Handle the trivial case of the identity operation.
+        if len(asts) == 1:
+            return AST(return_type, ops[0], asts)
+
+        # Merge the ASTs in a left-associative fashion into a single AST.
+        ops.pop()
+        while len(asts) > 1:
+            asts = [AST(return_type, ops[0], [asts[0], asts[1]])] + asts[2:]
+            ops.pop(0)
+        return asts[0]
+
     def if_expr(self):
         "Return an if...then...else expression."
         self.expect("if")
@@ -307,15 +330,15 @@ class AssertParser(object):
         self.expect("else")
         else_expr = self.expression()
         self.expect("endif")
-        return AssertAST("if_expr", None, [cond, then_expr, else_expr])
+        return AST("if_expr", None, [cond, then_expr, else_expr])
 
     def factor(self):
         "Return a factor (variable, integer, or expression)."
         val = self.sym[1]
         if self.accept("ident"):
-            child = AssertAST("ident", val)
+            child = AST("ident", val)
         elif self.accept("int"):
-            child = AssertAST("int", val)
+            child = AST("int", val)
         elif self.accept("lparen"):
             child = self.expression()
             self.expect("rparen")
@@ -327,7 +350,7 @@ class AssertParser(object):
             raise self.ParseError("Parse error at end of expression")
         else:
             raise self.ParseError('Parse error at "%s"' % val)
-        return AssertAST("factor", None, [child])
+        return AST("factor", None, [child])
 
     def power(self):
         "Return a factor or a factor raised to the power of a second factor."
@@ -336,8 +359,8 @@ class AssertParser(object):
         if self.sym[0] == "power" and op == "**":
             self.advance()
             f2 = self.power()
-            return AssertAST("power", op, [f1, f2])
-        return AssertAST("power", op, [f1])
+            return AST("power", op, [f1, f2])
+        return AST("power", op, [f1])
 
     def unary(self):
         "Return a unary operator applied to a power."
@@ -346,53 +369,15 @@ class AssertParser(object):
             self.advance()
         else:
             op = "id"
-        return AssertAST("unary", op, [self.power()])
+        return AST("unary", op, [self.power()])
 
     def term(self):
-        "Return a term (product of an optional term and a unary)."
-        # Produce a list of ASTs representing unaries.
-        u = self.unary()
-        ops = [self.sym[1]]
-        asts = [u]
-        while self.sym[0] == "arith" and ops[-1] in ["*", "/", "%", "&", "<<", ">>"]:
-            self.advance()
-            u = self.unary()
-            ops.append(self.sym[1])
-            asts.append(u)
-
-        # Handle the trivial case of the identity operation.
-        if len(asts) == 1:
-            return AssertAST("term", ops[0], asts)
-
-        # Merge the ASTs in a left-associative fashion into a single AST.
-        ops.pop()
-        while len(asts) > 1:
-            asts = [AssertAST("term", ops[0], [asts[0], asts[1]])] + asts[2:]
-            ops.pop(0)
-        return asts[0]
+        "Return a term (product of one or more unaries)."
+        return self.generic_operator("term", self.unary, "arith", ["*", "/", "%", "&", "<<", ">>"])
 
     def expression(self):
-        "Return an expression (sum of an optional expression and a term)."
-        # Produce a list of ASTs representing terms.
-        t = self.term()
-        ops = [self.sym[1]]
-        asts = [t]
-        while self.sym[0] == "arith" and ops[-1] in ["+", "-", "|", "^"]:
-            self.advance()
-            t = self.term()
-            ops.append(self.sym[1])
-            asts.append(t)
-
-        # Handle the trivial case of the identity operation.
-        if len(asts) == 1:
-            return AssertAST("expr", ops[0], asts)
-
-        # Merge the ASTs in a left-associative fashion into a single AST.
-        ops.pop()
-        while len(asts) > 1:
-            asts = [AssertAST("expr", ops[0], [asts[0], asts[1]])] + asts[2:]
-            ops.pop(0)
-        return asts[0]
+        "Return an expression (sum of one or more terms)."
+        return self.generic_operator("expr", self.term, "arith", ["+", "-", "|", "^"])
 
     def comparison(self):
         "Return a comparison of exactly two expressions."
@@ -402,7 +387,7 @@ class AssertParser(object):
             raise self.ParseError('Expected a relational operator but saw "%s"' % op)
         self.advance()
         e2 = self.expression()
-        return AssertAST("rel", op, [e1, e2])
+        return AST("rel", op, [e1, e2])
 
     def primary_relation(self):
         "Return a parenthesized relation."
@@ -411,36 +396,24 @@ class AssertParser(object):
             try:
                 # Parenthesized relation
                 state = self.get_state()     # May need to backtrack.
-                child = self.conjunction()
+                child = self.disjunction()
                 self.expect("rparen")
             except self.ParseError:
                 # Parenthesized expression
                 self.set_state(state)        # Backtrack and try again.
-                child = self.comparison()
+                child = self.expression()
                 self.expect("rparen")
         else:
             child = self.comparison()
-        return AssertAST("primary_rel", None, [child])
-
-    def disjunction(self):
-        "Return an disjunction of one or two comparisons."
-        c1 = self.primary_relation()
-        op = self.sym[1]
-        if op != "&&":
-            return AssertAST("conn", None, [c1])
-        self.advance()
-        c2 = self.disjunction()
-        return AssertAST("conn", op, [c1, c2])
+        return AST("primary_rel", None, [child])
 
     def conjunction(self):
-        "Return a conjunction of one or two disjunctions."
-        d1 = self.disjunction()
-        op = self.sym[1]
-        if op != "||":
-            return AssertAST("conn", None, [d1])
-        self.advance()
-        d2 = self.conjunction()
-        return AssertAST("conn", op, [d1, d2])
+        "Return a conjunction (logical AND of one or more primary relations)."
+        return self.generic_operator("conn", self.primary_relation, "conn", ["&&"])
+
+    def disjunction(self):
+        "Return a disjunction (logical OR of one or more conjunctions)."
+        return self.generic_operator("conn", self.conjunction, "conn", ["||"])
 
     def parse(self, s):
         "Parse a relational expression into an AST"
@@ -448,7 +421,7 @@ class AssertParser(object):
         self.tokidx = -1
         self.advance()
         try:
-            ast = self.conjunction()
+            ast = self.disjunction()
             if self.sym[0] != "EOF":
                 raise self.ParseError('Parse error at "%s"' % self.sym[1])
         except self.ParseError as e:
