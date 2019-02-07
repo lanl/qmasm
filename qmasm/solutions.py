@@ -83,7 +83,7 @@ class Solution:
 
     def failed_assertions(self):
         "Return True if the solution contains failed assertions."
-        return not all(self.check_assertions())
+        return not all([a[1] for a in self.check_assertions()])
 
     def check_assertions(self):
         "Return the result of applying each assertion."
