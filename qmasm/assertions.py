@@ -122,7 +122,7 @@ class AST(object):
         "Evaluate a relational expression."
         if self.value == "=":
             return kvals[0] == kvals[1]
-        elif self.value == "<>":
+        elif self.value == "/=":
             return kvals[0] != kvals[1]
         elif self.value == "<":
             return kvals[0] < kvals[1]
@@ -189,7 +189,7 @@ class AST(object):
 class AssertParser(object):
     int_re = re.compile(r'\d+')
     conn_re = re.compile(r'\|\||&&')
-    rel_re = re.compile(r'<[=>]?|>=?|=')
+    rel_re = re.compile(r'/?=|[<>]=?')
     arith_re = re.compile(r'[-+/%&\|^~!]|>>|<<|\*\*?')
     ident_re = re.compile(r'[^-+*/%&\|^~!()<=>\s]+')
     keyword_re = re.compile(r'\b(if|then|else|endif)\b')
