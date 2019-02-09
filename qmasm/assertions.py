@@ -16,26 +16,31 @@ class AST(object):
         self.kids = kids
         self._str = None   # Memoized string representation
 
+    def _needs_parens(self):
+        "Return True if an AST node should be parenthesized."
+        return self.type == "factor" and self.kids[0].type == "conn"
+
     def _str_helper(self):
         "Do most of the work for the __str__ method."
+        # Conditionally parenthesize all child strings.
         nkids = len(self.kids)
+        kids_str = [str(k) for k in self.kids]
+        for i in range(nkids):
+            if self.kids[i]._needs_parens():
+                kids_str[i] = "(" + kids_str[i] + ")"
+
+        # Return ourself as a string.
         if nkids == 0:
             return str(self.value)
         if nkids == 1:
-            if self.type == "unary" and self.value == "id":
-                return str(self.kids[0])
-            if self.type == "unary":
-                return "%s%s" % (self.value, str(self.kids[0]))
-            if self.type == "factor" and self.kids[0].type == "expr":
-                return "(%s)" % str(self.kids[0])
-            return str(self.kids[0])
+            if self.type == "unary" and self.value not in ["id", "int2bool"]:
+                return "%s%s" % (self.value, kids_str[0])
+            return kids_str[0]
         if nkids == 2:
             if self.value in ["*", "/", "%", "&", "<<", ">>", "**"]:
-                return "%s%s%s" % (str(self.kids[0]), self.value, str(self.kids[1]))
-            elif self.type == "conn":
-                return "(%s) %s (%s)" % (str(self.kids[0]), self.value, str(self.kids[1]))
+                return "%s%s%s" % (kids_str[0], self.value, kids_str[1])
             else:
-                return "%s %s %s" % (str(self.kids[0]), self.value, str(self.kids[1]))
+                return "%s %s %s" % (kids_str[0], self.value, kids_str[1])
         if nkids == 3:
             if self.type == "if_expr":
                 return "if %s then %s else %s endif" % (str(self.kids[0]), str(self.kids[1]), str(self.kids[2]))
@@ -74,6 +79,8 @@ class AST(object):
             return -kvals[0]
         elif self.value == "~":
             return ~kvals[0]
+        elif self.value == "int2bool":
+            return bool(kvals[0])
         elif self.value == "!":
             if kvals[0] == 0:
                 return 1
@@ -289,15 +296,6 @@ class AssertParser(object):
         if not self.accept(ty):
             raise self.ParseError("Expected %s but saw %s" % (ty, repr(self.sym[1])))
 
-    def get_state(self):
-        "Return an opaque representation of our current state."
-        return self.tokidx
-
-    def set_state(self, state):
-        "Wind back to a previous state."
-        self.tokidx = state
-        self.sym = self.tokens[self.tokidx]
-
     def generic_operator(self, return_type, child_method, sym_type, valid_ops):
         "Match one or more somethings to produce something else."
         # Produce a list of ASTs representing children.
@@ -312,7 +310,7 @@ class AssertParser(object):
 
         # Handle the trivial case of the identity operation.
         if len(asts) == 1:
-            return AST(return_type, ops[0], asts)
+            return AST(return_type, None, asts)
 
         # Merge the ASTs in a left-associative fashion into a single AST.
         ops.pop()
@@ -340,7 +338,7 @@ class AssertParser(object):
         elif self.accept("int"):
             child = AST("int", val)
         elif self.accept("lparen"):
-            child = self.expression()
+            child = self.disjunction()
             self.expect("rparen")
         elif self.sym[0] == "arith":
             child = self.unary()
@@ -360,7 +358,7 @@ class AssertParser(object):
             self.advance()
             f2 = self.power()
             return AST("power", op, [f1, f2])
-        return AST("power", op, [f1])
+        return AST("power", None, [f1])
 
     def unary(self):
         "Return a unary operator applied to a power."
@@ -384,32 +382,14 @@ class AssertParser(object):
         e1 = self.expression()
         op = self.sym[1]
         if self.sym[0] != "rel":
-            raise self.ParseError('Expected a relational operator but saw "%s"' % op)
+            return AST("unary", "int2bool", [e1])
         self.advance()
         e2 = self.expression()
         return AST("rel", op, [e1, e2])
 
-    def primary_relation(self):
-        "Return a parenthesized relation."
-        val = self.sym[1]
-        if self.accept("lparen"):
-            try:
-                # Parenthesized relation
-                state = self.get_state()     # May need to backtrack.
-                child = self.disjunction()
-                self.expect("rparen")
-            except self.ParseError:
-                # Parenthesized expression
-                self.set_state(state)        # Backtrack and try again.
-                child = self.expression()
-                self.expect("rparen")
-        else:
-            child = self.comparison()
-        return AST("primary_rel", None, [child])
-
     def conjunction(self):
-        "Return a conjunction (logical AND of one or more primary relations)."
-        return self.generic_operator("conn", self.primary_relation, "conn", ["&&"])
+        "Return a conjunction (logical AND of one or more comparisons)."
+        return self.generic_operator("conn", self.comparison, "conn", ["&&"])
 
     def disjunction(self):
         "Return a disjunction (logical OR of one or more conjunctions)."
