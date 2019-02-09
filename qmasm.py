@@ -336,27 +336,27 @@ if cl_args.verbose >= 1:
     sys.stderr.write("Number of solutions found:\n\n")
     sys.stderr.write("    %*d total solutions\n" % (digits, cl_args.samples))
     sys.stderr.write("    %*d unique solutions\n" % (digits, len(solutions.solutions)))
-solutions.discard_broken_chains()
+solutions.solutions = solutions.discard_broken_chains()
 update_final_solns()
 if cl_args.verbose >= 1:
     sys.stderr.write("    %*d with no broken chains\n" % (digits, len(solutions.solutions)))
-solutions.discard_broken_user_chains()
+solutions.solutions = solutions.discard_broken_user_chains()
 update_final_solns()
 if cl_args.verbose >= 1:
     sys.stderr.write("    %*d with no broken user-specified chains or anti-chains\n" % (digits, len(solutions.solutions)))
-solutions.discard_broken_pins()
+solutions.solutions = solutions.discard_broken_pins()
 update_final_solns()
 if cl_args.verbose >= 1:
     sys.stderr.write("    %*d with no broken pins\n" % (digits, len(solutions.solutions)))
-solutions.discard_failed_assertions()
+solutions.solutions = solutions.discard_failed_assertions()
 update_final_solns()
 if cl_args.verbose >= 1:
     sys.stderr.write("    %*d with no failed assertions\n" % (digits, len(solutions.solutions)))
-solutions.discard_non_minimal()
+solutions.solutions = solutions.discard_non_minimal()
 update_final_solns()
 if cl_args.verbose >= 1:
     sys.stderr.write("    %*d at minimal energy\n" % (digits, len(solutions.solutions)))
-solutions.discard_duplicates()
+solutions.solutions = solutions.discard_duplicates()
 update_final_solns()
 if cl_args.verbose >= 1:
     sys.stderr.write("    %*d excluding duplicate variable assignments\n" % (digits, len(solutions.solutions)))

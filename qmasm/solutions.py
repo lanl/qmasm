@@ -189,7 +189,7 @@ class Solutions:
                                            tallies[i], energies[i]))
 
     def discard_broken_chains(self):
-        "Discard solutions with broken chains."
+        "Discard solutions with broken chains.  Return the new solutions."
         # Tally the number of occurrences of each solution, because we lose the
         # association of solution to tally when we discard solutions.
         tallies = {tuple(s.soln_spins): s.tally for s in self.solutions}
@@ -212,33 +212,36 @@ class Solutions:
         for s in self.solutions:
             if tuple(s.soln_spins) in good_soln_set:
                 solutions.append(s)
-        self.solutions = solutions
+        return solutions
 
     def discard_broken_pins(self):
-        "Discard solutions with broken pins."
-        self.solutions = [s for s in self.solutions if not s.broken_pins()]
+        "Discard solutions with broken pins.  Return the new solutions."
+        return [s for s in self.solutions if not s.broken_pins()]
 
     def discard_broken_user_chains(self):
-        "Discard solutions with broken user-specified chains."
-        self.solutions = [s for s in self.solutions if not s.broken_user_chains()]
+        "Discard solutions with broken user-specified chains.  Return the new solutions."
+        return [s for s in self.solutions if not s.broken_user_chains()]
+
     def discard_failed_assertions(self):
-        "Discard solutions with failed assertions."
-        self.solutions = [s for s in self.solutions if not s.failed_assertions()]
+        "Discard solutions with failed assertions.  Return the new solutions."
+        return [s for s in self.solutions if not s.failed_assertions()]
 
     def discard_non_minimal(self):
-        "Discard all solutions with non-minimal energy."
+        "Discard all solutions with non-minimal energy.  Return the new solutions."
         if len(self.solutions) == 0:
-            return
+            return []
         min_e = self.solutions[0].energy  # Assume solutions are sorted by energy.
-        self.solutions = [s for s in self.solutions if abs(s.energy - min_e) < min_energy_delta]
+        return [s for s in self.solutions if abs(s.energy - min_e) < min_energy_delta]
 
     def discard_duplicates(self):
-        "Discard all duplicate solutions (same assignments to all non-ignored variables)."
+        """Discard all duplicate solutions (same assignments to all
+        non-ignored variables).  Return the new solutions."""
         id2soln = {}
         for s in self.solutions:
             if s.id in id2soln:
                 id2soln[s.id].tally += s.tally  # Accumulate the tallies of merged solutions.
             else:
                 id2soln[s.id] = s
-            self.solutions = id2soln.values()
-        self.solutions.sort(key=lambda s: s.energy)
+        solutions = id2soln.values()
+        solutions.sort(key=lambda s: s.energy)
+        return solutions
