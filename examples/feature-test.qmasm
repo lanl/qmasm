@@ -33,6 +33,12 @@ jkl <-> mno
 # Includes
 !include "comparator"
 
+# Assertions
+!assert 1 + 2 + 3 = 6 || 4 + 5 * 6 = 4 + (5 * 6) && 4 + 5 * 6 < (4 + 5) * 6
+!assert mno + 8 /= 3**(def + 1)
+!assert 56^1 = (1<<4 | 1<<1 | 1<<!99)*(7&~4)
+!assert 1 + 1 = 25 || 25/3 >= 25%7
+
 # Macro definitions
 !begin_macro XOR
 !assert Y = A^B
