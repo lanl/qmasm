@@ -33,7 +33,7 @@ class AST(object):
         if nkids == 0:
             return str(self.value)
         if nkids == 1:
-            if self.type == "unary" and self.value not in ["id", "int2bool"]:
+            if self.type == "unary" and self.value != "id":
                 return "%s%s" % (self.value, kids_str[0])
             return kids_str[0]
         if nkids == 2:
@@ -79,8 +79,6 @@ class AST(object):
             return -kvals[0]
         elif self.value == "~":
             return ~kvals[0]
-        elif self.value == "int2bool":
-            return bool(kvals[0])
         elif self.value == "!":
             if kvals[0] == 0:
                 return 1
@@ -382,7 +380,7 @@ class AssertParser(object):
         e1 = self.expression()
         op = self.sym[1]
         if self.sym[0] != "rel":
-            return AST("unary", "int2bool", [e1])
+            return AST("rel", None, [e1])
         self.advance()
         e2 = self.expression()
         return AST("rel", op, [e1, e2])
