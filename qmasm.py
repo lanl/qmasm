@@ -316,51 +316,8 @@ if cl_args.verbose >= 1:
         # Not all solvers provide timing information.
         pass
 
-# Define a function to keep track of the solutions we want to output.
-final_solns = copy.copy(solutions)
-def update_final_solns():
-    global final_solns, solutions
-    if cl_args.show == "valid":
-        final_solns = copy.copy(solutions)
-    elif cl_args.show == "best":
-        if len(solutions.solutions) > 0:
-            final_solns = copy.copy(solutions)
-    elif cl_args.show == "all":
-        pass
-    else:
-        qmasm.abend("Internal error: Unexpected --show=%s" % repr(cl_args.show))
-
 # Filter the solutions as directed by the user.
-if cl_args.verbose >= 1:
-    digits = len(str(cl_args.samples))
-    sys.stderr.write("Number of solutions found:\n\n")
-    sys.stderr.write("    %*d total solutions\n" % (digits, cl_args.samples))
-    sys.stderr.write("    %*d unique solutions\n" % (digits, len(solutions.solutions)))
-solutions.solutions = solutions.discard_broken_chains()
-update_final_solns()
-if cl_args.verbose >= 1:
-    sys.stderr.write("    %*d with no broken chains\n" % (digits, len(solutions.solutions)))
-solutions.solutions = solutions.discard_broken_user_chains()
-update_final_solns()
-if cl_args.verbose >= 1:
-    sys.stderr.write("    %*d with no broken user-specified chains or anti-chains\n" % (digits, len(solutions.solutions)))
-solutions.solutions = solutions.discard_broken_pins()
-update_final_solns()
-if cl_args.verbose >= 1:
-    sys.stderr.write("    %*d with no broken pins\n" % (digits, len(solutions.solutions)))
-solutions.solutions = solutions.discard_failed_assertions()
-update_final_solns()
-if cl_args.verbose >= 1:
-    sys.stderr.write("    %*d with no failed assertions\n" % (digits, len(solutions.solutions)))
-solutions.solutions = solutions.discard_non_minimal()
-update_final_solns()
-if cl_args.verbose >= 1:
-    sys.stderr.write("    %*d at minimal energy\n" % (digits, len(solutions.solutions)))
-solutions.solutions = solutions.discard_duplicates()
-update_final_solns()
-if cl_args.verbose >= 1:
-    sys.stderr.write("    %*d excluding duplicate variable assignments\n" % (digits, len(solutions.solutions)))
-    sys.stderr.write("\n")
+final_solns = solutions.filter(cl_args.show, cl_args.verbose, cl_args.samples)
 
 # Output energy tallies.  We first recompute these because some entries seem to
 # be multiply listed.

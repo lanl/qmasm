@@ -9,6 +9,7 @@ except ImportError:
     from .fake_dwave import *
 import copy
 import qmasm
+import sys
 
 # Specify the minimum distinguishable difference between energy readings.
 min_energy_delta = 0.005
@@ -245,3 +246,90 @@ class Solutions:
         solutions = id2soln.values()
         solutions.sort(key=lambda s: s.energy)
         return solutions
+
+    def filter(self, show, verbose, nsamples):
+        '''Return solutions as filtered according to the "show" parameter.
+        Output information about the filtering based on the "verbose"
+        parameter.'''
+        # Prepare various views of the solutions.
+        all_solns = copy.copy(self)
+        valid_solns = copy.copy(self)
+        best_solns = copy.copy(self)
+
+        # Output the total number and number of unique solutions.
+        if verbose >= 1:
+            ndigits = len(str(nsamples))
+            sys.stderr.write("Number of solutions found (filtered cumulatively):\n\n")
+            sys.stderr.write("    %*d total solutions\n" % (ndigits, nsamples))
+            sys.stderr.write("    %*d unique solutions\n" % (ndigits, len(all_solns.solutions)))
+
+        # Filter out broken chains.
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.discard_broken_chains()
+            if verbose >= 1:
+                sys.stderr.write("    %*d with no broken chains\n" % (ndigits, len(valid_solns.solutions)))
+        if show == "best":
+            filtered_best_solns = best_solns.discard_broken_chains()
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Filter out broken user-defined chains.
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.discard_broken_user_chains()
+            if verbose >= 1:
+                sys.stderr.write("    %*d with no broken user-specified chains or anti-chains\n" % (ndigits, len(valid_solns.solutions)))
+        if show == "best":
+            filtered_best_solns = best_solns.discard_broken_user_chains()
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Filter out broken pins.
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.discard_broken_pins()
+            if verbose >= 1:
+                sys.stderr.write("    %*d with no broken pins\n" % (ndigits, len(valid_solns.solutions)))
+        if show == "best":
+            filtered_best_solns = best_solns.discard_broken_pins()
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Filter out failed assertions.
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.discard_failed_assertions()
+            if verbose >= 1:
+                sys.stderr.write("    %*d with no failed assertions\n" % (ndigits, len(valid_solns.solutions)))
+        if show == "best":
+            filtered_best_solns = best_solns.discard_failed_assertions()
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Filter out solutions that are not at minimal energy.
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.discard_non_minimal()
+            if verbose >= 1:
+                sys.stderr.write("    %*d at minimal energy\n" % (ndigits, len(valid_solns.solutions)))
+        if show == "best":
+            filtered_best_solns = best_solns.discard_non_minimal()
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Filter out duplicate solutions.
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.discard_duplicates()
+            if verbose >= 1:
+                sys.stderr.write("    %*d excluding duplicate variable assignments\n" % (ndigits, len(valid_solns.solutions)))
+                sys.stderr.write("\n")
+        if show == "best":
+            filtered_best_solns = best_solns.discard_duplicates()
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Return the requested set of solutions.
+        if show == "valid":
+            return valid_solns
+        elif show == "all":
+            return all_solns
+        elif show == "best":
+            return best_solns
+        else:
+            raise Exception("Internal error processing --show=%s" % show)
