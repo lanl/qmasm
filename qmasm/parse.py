@@ -648,8 +648,6 @@ class FileParser(object):
         for i in range(len(seq)):
             if seq[i] == "..." and i != len(seq) - 2:
                 error_in_line(filename, lineno, '"..." can appear only in the penultimate position in a sequence')
-            if " " in seq[i]:
-                error_in_line(filename, lineno, 'Invalid loop element "%s" (missing commas?)' % seq[i])
 
         # Construct an iterator based on the given sequence.
         if "..." in seq:
