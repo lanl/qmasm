@@ -569,8 +569,8 @@ class FileParser(object):
         # macro using <instance_name> as each variable's prefix.
         if len(fields) < 2:
             error_in_line(filename, lineno, "Expected a macro name to follow !use_macro")
-        name = fields[1]
-        prefixes = [p + "." for p in fields[2:]]
+        name = self.env.sub_syms(fields[1])
+        prefixes = [self.env.sub_syms(p) + "." for p in fields[2:]]
         try:
             self.target.append(MacroUse(filename, lineno, name, self.macros[name], prefixes))
         except KeyError:
