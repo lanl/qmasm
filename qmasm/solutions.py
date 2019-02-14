@@ -82,11 +82,11 @@ class Solution:
                 pass   # Elided logical qubit
         return False
 
-    def failed_assertions(self):
+    def failed_assertions(self, stop_on_fail):
         "Return True if the solution contains failed assertions."
-        return not all([a[1] for a in self.check_assertions()])
+        return not all([a[1] for a in self.check_assertions(stop_on_fail)])
 
-    def check_assertions(self):
+    def check_assertions(self, stop_on_fail=False):
         "Return the result of applying each assertion."
         # Return the previous result, if any.
         if self._checked_asserts != None:
@@ -108,6 +108,8 @@ class Solution:
         results = []
         for a in self.problem.assertions:
             results.append((str(a), a.evaluate(name2bit)))
+            if stop_on_fail and not results[-1][1]:
+                return results
         self._checked_asserts = results
         return self._checked_asserts
 
@@ -223,9 +225,9 @@ class Solutions:
         "Discard solutions with broken user-specified chains.  Return the new solutions."
         return [s for s in self.solutions if not s.broken_user_chains()]
 
-    def discard_failed_assertions(self):
+    def discard_failed_assertions(self, stop_on_fail):
         "Discard solutions with failed assertions.  Return the new solutions."
-        return [s for s in self.solutions if not s.failed_assertions()]
+        return [s for s in self.solutions if not s.failed_assertions(stop_on_fail)]
 
     def discard_non_minimal(self):
         "Discard all solutions with non-minimal energy.  Return the new solutions."
@@ -294,12 +296,13 @@ class Solutions:
                 best_solns.solutions = filtered_best_solns
 
         # Filter out failed assertions.
+        stop_on_fail = show == "valid" and verbose < 2
         if verbose >= 1 or show == "valid":
-            valid_solns.solutions = valid_solns.discard_failed_assertions()
+            valid_solns.solutions = valid_solns.discard_failed_assertions(stop_on_fail)
             if verbose >= 1:
                 sys.stderr.write("    %*d with no failed assertions\n" % (ndigits, len(valid_solns.solutions)))
         if show == "best":
-            filtered_best_solns = best_solns.discard_failed_assertions()
+            filtered_best_solns = best_solns.discard_failed_assertions(stop_on_fail)
             if len(filtered_best_solns) > 1:
                 best_solns.solutions = filtered_best_solns
 
