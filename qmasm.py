@@ -82,7 +82,7 @@ if len(stray_nums) > 0:
 if cl_args.O >= 1:
     # Say what we're about to do
     if cl_args.verbose >= 2:
-        sys.stderr.write("Replaced chains of equally weighted qubits with aliases:\n\n")
+        sys.stderr.write("Replaced user-defined chains with aliases:\n\n")
         sys.stderr.write("  %6d logical qubits before optimization\n" % (qmasm.sym_map.max_number() + 1))
 
     # Replace chains with aliases wherever we can.

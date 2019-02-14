@@ -229,6 +229,9 @@ def simplify_problem(logical, verbosity):
     new_obj.chains = set([(qmap[q1], qmap[q2])
                           for q1, q2 in new_obj.chains
                           if q1 in qmap and q2 in qmap])
+    new_obj.antichains = set([(qmap[q1], qmap[q2])
+                              for q1, q2 in new_obj.antichains
+                              if q1 in qmap and q2 in qmap])
     new_obj.weights = defaultdict(lambda: 0.0,
                                   {qmap[i]: hs[i]
                                    for i in range(len(hs))
