@@ -238,9 +238,9 @@ class Solutions:
         """Discard all duplicate solutions (same assignments to all
         non-ignored variables).  Return the new solutions."""
         id2soln = {}
-        for s in self.solutions:
+        for s in copy.deepcopy(self.solutions):  # Deep copy because of destructive update of tally
             if s.id in id2soln:
-                id2soln[s.id].tally += s.tally  # Accumulate the tallies of merged solutions.
+                id2soln[s.id].tally += s.tally   # Accumulate the tallies of merged solutions.
             else:
                 id2soln[s.id] = s
         solutions = id2soln.values()
