@@ -263,7 +263,8 @@ class Problem(object):
         qmasm.sym_map.overwrite_with(new_sym2num)
 
         # Renumber all of the above to compact the qubit numbers.
-        qubits_used = set(self.weights.keys())
+        qubits_used = set([q.find().contents for q in num2alias.values()])
+        qubits_used.update(self.weights.keys())
         for q1, q2 in self.strengths.keys():
             qubits_used.add(q1)
             qubits_used.add(q2)
