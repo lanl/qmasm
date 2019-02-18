@@ -98,11 +98,13 @@ class Solution:
             names = self.all_names[i].split()
             spin = self.all_spins[i]
             if spin in [-1, 1]:
-                spin = (spin + 1)//2
+                bit = (spin + 1)//2
             else:
-                spin = None
+                bit = None
             for nm in names:
-                name2bit[nm] = spin
+                name2bit[nm] = bit
+        for name, spin in self.problem.known_values.items():
+            name2bit[name] = (spin + 1)//2
 
         # Test each assertion in turn.
         results = []

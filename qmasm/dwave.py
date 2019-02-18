@@ -160,6 +160,14 @@ def read_hardware_adjacency(fname, verbosity):
         sys.stderr.write("%d unique edges found\n\n" % len(adj))
     return sorted(adj)
 
+def qubo_vars(Q):
+    "Return a set of all variables named by a QUBO."
+    vars = set()
+    for q1, q2 in Q:
+        vars.add(q1)
+        vars.add(q2)
+    return vars
+
 def simplify_problem(logical, verbosity):
     """Try to find spins that can be removed from the problem because their
     value is known a priori."""
@@ -172,12 +180,34 @@ def simplify_problem(logical, verbosity):
 
     # Simplify the problem if possible.
     simple = fix_variables(Q, method="standard")
+    new_Q = simple["new_Q"]
     fixed_vars = simple["fixed_variables"]
     if verbosity >= 2:
         # Also determine if we could get rid of more qubits if we care about
         # only *a* solution rather than *all* solutions.
         alt_simple = fix_variables(Q, method="optimized")
         all_gone = len(alt_simple["new_Q"]) == 0
+
+    # Work around the rare case in which fix_variables drops a variable
+    # entirely, leaving it neither in new_Q nor in fixed_variables.  If this
+    # happenes, we explicitly re-add the variable from Q to new_Q and
+    # transitively everything it touches (removing from fixed_vars if a
+    # variable appears there).
+    old_vars = qubo_vars(Q)
+    new_vars = qubo_vars(new_Q)
+    new_vars.update(fixed_vars)
+    missing_vars = sorted(old_vars.difference(new_vars))
+    while len(missing_vars) > 0:
+        q = missing_vars.pop()
+        for (q1, q2), val in Q.items():
+            if q1 == q or q2 == q:
+                new_Q[(q1, q2)] = val
+                fixed_vars.pop(q1, None)
+                fixed_vars.pop(q2, None)
+                if q1 == q and q2 > q:
+                    missing_vars.append(q2)
+                elif q2 == q and q1 > q:
+                    missing_vars.append(q1)
 
     # At high verbosity levels, list all of the known symbols and their value.
     if verbosity >= 2:
@@ -220,7 +250,7 @@ def simplify_problem(logical, verbosity):
                             for s, n in qmasm.sym_map.symbol_number_items()
                             if n in fixed_vars}
     new_obj.simple_offset = simple["offset"]
-    hs, Js, ising_offset = qubo_to_ising(simple["new_Q"])
+    hs, Js, ising_offset = qubo_to_ising(new_Q)
     qubits_used = set([i for i in range(len(hs)) if hs[i] != 0.0])
     for q1, q2 in Js.keys():
         qubits_used.add(q1)
