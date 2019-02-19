@@ -59,6 +59,15 @@ class AST(object):
             for k in self.kids:
                 k.apply_prefix(prefix, next_prefix)
 
+    def replace_ident(self, old_ident, new_ident):
+        "Replace every occurrence of one identifer with another."
+        if self.type == "ident":
+            if self.value == old_ident:
+                self.value = new_ident
+        else:
+            for k in self.kids:
+                k.replace_ident(old_ident, new_ident)
+
     class EvaluationError(Exception):
         "Represent an exception thrown during AST evaluation."
         pass

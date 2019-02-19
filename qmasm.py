@@ -112,6 +112,9 @@ discon_syms = logical_ising.find_disconnected_variables()
 if len(discon_syms) > 0:
     qmasm.abend("Disconnected variables encountered: %s" % " ".join(sorted(discon_syms)))
 
+# Convert user-specified chains, anti-chains, and pins to assertions.
+logical_ising.append_assertions_from_statements()
+
 # Establish a connection to the D-Wave, and use this to talk to a solver.  We
 # rely on the qOp infrastructure to set the environment variables properly.
 qmasm.connect_to_dwave()
