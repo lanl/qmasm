@@ -14,7 +14,7 @@ class AST(object):
         self.type = type
         self.value = value
         self.kids = kids
-        self.code = id     # Function that evaluates the AST given a mapping from identifiers to bits
+        self.code = lambda isb: qmasm.abend("Internal error: Attempt to evaluate an AST without compiling it first")     # Function that evaluates the AST given a mapping from identifiers to bits
         self._str = None   # Memoized string representation
 
     def _needs_parens(self):
@@ -191,6 +191,10 @@ class AST(object):
             return self._compile_if_expr(kvals)
         else:
             raise self.EvaluationError("Internal error compiling AST node of type %s, value %s" % (repr(self.type), repr(self.value)))
+
+    def compile(self):
+        "Compile an AST for faster evaluation."
+        self.code = self._compile_node()
 
     def evaluate(self, i2b):
         "Evaluate the AST to a value, given a mapping from identifiers to bits."
@@ -417,5 +421,4 @@ class AssertParser(object):
                 raise self.ParseError('Parse error at "%s"' % self.sym[1])
         except self.ParseError as e:
             qmasm.abend('%s in "%s"' % (e, s))
-        ast.code = ast._compile_node()
         return ast

@@ -411,10 +411,13 @@ class Problem(object):
         for stmt in qmasm.program:
             if stmt.__class__ == qmasm.AntiChain:
                 ast = ap.parse("%s /= %s" % (stmt.sym1, stmt.sym2))
+                ast.compile()
                 self.assertions.append(ast)
             elif stmt.__class__ == qmasm.Chain:
                 ast = ap.parse("%s = %s" % (stmt.sym1, stmt.sym2))
+                ast.compile()
                 self.assertions.append(ast)
             elif stmt.__class__ == qmasm.Pin:
                 ast = ap.parse("%s = %d" % (stmt.sym, int(stmt.goal)))
+                ast.compile()
                 self.assertions.append(ast)

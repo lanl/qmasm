@@ -98,7 +98,6 @@ class ExprParser(qmasm.AssertParser):
         except self.ParseError as e:
             sys.stderr.write('%s:%d: error: %s in "%s"\n' % (filename, lineno, e, s))
             sys.exit(1)
-        ast.code = ast._compile_node()
         return ast
 
 # I'm too lazy to write another parser so I'll simply define an
@@ -118,7 +117,6 @@ class RelationParser(qmasm.AssertParser):
         except self.ParseError as e:
             sys.stderr.write('%s:%d: error: %s in "%s"\n' % (filename, lineno, e, s))
             sys.exit(1)
-        ast.code = ast._compile_node()
         return ast
 
 class LoopIterator(object):
@@ -308,6 +306,7 @@ class Assert(Statement):
         super(Assert, self).__init__(filename, lineno)
         self.expr = expr
         self.ast = self.parser.parse(expr)
+        self.ast.compile()
 
     def as_str(self, prefix=""):
         if prefix == "":
@@ -315,6 +314,7 @@ class Assert(Statement):
         else:
             ast = copy.deepcopy(self.ast)
             ast.apply_prefix(prefix, None)
+            ast.compile()
         return "!assert " + str(ast)
 
     def update_qmi(self, prefix, next_prefix, problem):
@@ -323,6 +323,7 @@ class Assert(Statement):
         else:
             ast = copy.deepcopy(self.ast)
             ast.apply_prefix(prefix, next_prefix)
+            ast.compile()
         problem.assertions.append(ast)
 
 class MacroUse(Statement):
@@ -477,6 +478,7 @@ class FileParser(object):
                 self.env[lhs] = self.env.sub_syms(fields[3])
                 return
         ast = self.expr_parser.parse(filename, lineno, " ".join(self.env.sub_syms(fields[3:])))
+        ast.compile()
         rhs = ast.evaluate(dict(self.env))
         self.env[lhs] = rhs
 
@@ -620,6 +622,7 @@ class FileParser(object):
             error_in_line(filename, lineno, "Failed to find a matching !end_if directive")
         end_idx = idx
         ast = self.rel_parser.parse(filename, lineno, " ".join(self.env.sub_syms(fields[1:])))
+        ast.compile()
         rhs = ast.evaluate(dict(self.env))
         if rhs:
             # Evaluate the then clause in a new scope.
@@ -659,6 +662,7 @@ class FileParser(object):
                     seq_ints.append("...")
                 else:
                     ast = self.expr_parser.parse(filename, lineno, seq[i])
+                    ast.compile()
                     val = ast.evaluate(dict(self.env))
                     seq_ints.append(val)
             iter = LoopIterator(filename, lineno, seq_ints)
