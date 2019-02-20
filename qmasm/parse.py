@@ -98,6 +98,7 @@ class ExprParser(qmasm.AssertParser):
         except self.ParseError as e:
             sys.stderr.write('%s:%d: error: %s in "%s"\n' % (filename, lineno, e, s))
             sys.exit(1)
+        ast.code = ast._compile_node()
         return ast
 
 # I'm too lazy to write another parser so I'll simply define an
@@ -117,6 +118,7 @@ class RelationParser(qmasm.AssertParser):
         except self.ParseError as e:
             sys.stderr.write('%s:%d: error: %s in "%s"\n' % (filename, lineno, e, s))
             sys.exit(1)
+        ast.code = ast._compile_node()
         return ast
 
 class LoopIterator(object):

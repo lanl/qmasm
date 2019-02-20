@@ -14,6 +14,7 @@ class AST(object):
         self.type = type
         self.value = value
         self.kids = kids
+        self.code = id     # Function that evaluates the AST given a mapping from identifiers to bits
         self._str = None   # Memoized string representation
 
     def _needs_parens(self):
@@ -82,116 +83,119 @@ class AST(object):
         except KeyError:
             raise self.EvaluationError("Undefined variable %s" % self.value)
 
-    def _evaluate_unary(self, i2b, kvals):
-        "Evaluate a unary expression."
+    def _compile_unary(self, kvals):
+        "Compile a unary expression."
         if self.value == "-":
-            return -kvals[0]
+            return lambda i2b: -kvals[0](i2b)
         elif self.value == "~":
-            return ~kvals[0]
+            return lambda i2b: ~kvals[0](i2b)
         elif self.value == "!":
-            if kvals[0] == 0:
-                return 1
-            else:
-                return 0
+            return lambda i2b: int(kvals[0](i2b) == 0)
         elif self.value in ["+", "id"]:
-            return kvals[0]
+            return lambda i2b: kvals[0](i2b)
         else:
-            raise self.EvaluationError('Internal error evaluating unary "%s"' % self.value)
+            raise self.EvaluationError('Internal error compiling unary "%s"' % self.value)
 
-    def _evaluate_arith(self, i2b, kvals):
-        "Evaluate an arithmetic expression."
+    def _evaluate_power(self, base, exp):
+        "Raise one integer to the power of another."
+        if exp < 0:
+            raise self.EvaluationError("Negative powers (%d) are not allowed" % exp)
+        return base**exp
+
+    def _compile_arith(self, kvals):
+        "Compile an arithmetic expression."
         if self.value == "+":
-            return kvals[0] + kvals[1]
+            return lambda i2b: kvals[0](i2b) + kvals[1](i2b)
         elif self.value == "-":
-            return kvals[0] - kvals[1]
+            return lambda i2b: kvals[0](i2b) - kvals[1](i2b)
         elif self.value == "*":
-            return kvals[0] * kvals[1]
+            return lambda i2b: kvals[0](i2b) * kvals[1](i2b)
         elif self.value == "/":
-            return kvals[0] // kvals[1]
+            return lambda i2b: kvals[0](i2b) // kvals[1](i2b)
         elif self.value == "%":
-            return kvals[0] % kvals[1]
+            return lambda i2b: kvals[0](i2b) % kvals[1](i2b)
         elif self.value == "&":
-            return kvals[0] & kvals[1]
+            return lambda i2b: kvals[0](i2b) & kvals[1](i2b)
         elif self.value == "|":
-            return kvals[0] | kvals[1]
+            return lambda i2b: kvals[0](i2b) | kvals[1](i2b)
         elif self.value == "^":
-            return kvals[0] ^ kvals[1]
+            return lambda i2b: kvals[0](i2b) ^ kvals[1](i2b)
         elif self.value == "<<":
-            return kvals[0] << kvals[1]
+            return lambda i2b: kvals[0](i2b) << kvals[1](i2b)
         elif self.value == ">>":
-            return kvals[0] >> kvals[1]
+            return lambda i2b: kvals[0](i2b) >> kvals[1](i2b)
         elif self.value == "**":
-            if kvals[1] < 0:
-                raise self.EvaluationError("Negative powers (%d) are not allowed" % kvals[1])
-            return kvals[0] ** kvals[1]
+            return lambda i2b: self._evaluate_power(kvals[0](i2b), kvals[1](i2b))
         else:
-            raise self.EvaluationError("Internal error evaluating arithmetic operator %s" % self.value)
+            raise self.EvaluationError("Internal error compiling arithmetic operator %s" % self.value)
 
-    def _evaluate_rel(self, i2b, kvals):
-        "Evaluate a relational expression."
+    def _compile_rel(self, kvals):
+        "Compile a relational expression."
         if self.value == "=":
-            return kvals[0] == kvals[1]
+            return lambda i2b: kvals[0](i2b) == kvals[1](i2b)
         elif self.value == "/=":
-            return kvals[0] != kvals[1]
+            return lambda i2b: kvals[0](i2b) != kvals[1](i2b)
         elif self.value == "<":
-            return kvals[0] < kvals[1]
+            return lambda i2b: kvals[0](i2b) < kvals[1](i2b)
         elif self.value == "<=":
-            return kvals[0] <= kvals[1]
+            return lambda i2b: kvals[0](i2b) <= kvals[1](i2b)
         elif self.value == ">":
-            return kvals[0] > kvals[1]
+            return lambda i2b: kvals[0](i2b) > kvals[1](i2b)
         elif self.value == ">=":
-            return kvals[0] >= kvals[1]
+            return lambda i2b: kvals[0](i2b) >= kvals[1](i2b)
         else:
-            raise self.EvaluationError("Internal error evaluating relational operator %s" % self.value)
+            raise self.EvaluationError("Internal error compiling relational operator %s" % self.value)
 
-    def _evaluate_conn(self, i2b, kvals):
-        "Evaluate a logical connective."
+    def _compile_conn(self, kvals):
+        "Compile a logical connective."
         if self.value == "&&":
-            return kvals[0] and kvals[1]
+            return lambda i2b: kvals[0](i2b) and kvals[1](i2b)
         elif self.value == "||":
-            return kvals[0] or kvals[1]
+            return lambda i2b: kvals[0](i2b) or kvals[1](i2b)
         else:
-            raise self.EvaluationError("Internal error evaluating logical connective %s" % self.value)
+            raise self.EvaluationError("Internal error compiling logical connective %s" % self.value)
 
     def _evaluate_if_expr(self, i2b, kvals):
-        "Evaluate an if...then...else expression."
-        if kvals[0]:
-            return kvals[1]
+        if kvals[0](i2b):
+            return kvals[1](i2b)
         else:
-            return kvals[2]
+            return kvals[2](i2b)
 
-    def _evaluate_node(self, i2b):
-        """Evaluate the AST to either True or False given a mapping from
-        identifiers to bits."""
-        kvals = [k._evaluate_node(i2b) for k in self.kids]
+    def _compile_if_expr(self, kvals):
+        "Compile an if...then...else expression."
+        return lambda i2b: self._evaluate_if_expr(i2b, kvals)
+
+    def _compile_node(self):
+        """Compile the AST to a function that returns either True or False
+        given a mapping from identifiers to bits."""
+        kvals = [k._compile_node() for k in self.kids]
         if self.type == "ident":
             # Variable
-            return self._evaluate_ident(i2b)
+            return lambda i2b: self._evaluate_ident(i2b)
         elif self.type == "int":
             # Constant
-            return self.value
+            return lambda i2b: self.value
         elif self.type == "unary":
             # Unary expression
-            return self._evaluate_unary(i2b, kvals)
+            return self._compile_unary(kvals)
         elif len(kvals) == 1:
             # All other single-child nodes return their child unmodified.
             return kvals[0]
         elif self.type in ["power", "term", "expr"]:
-            return self._evaluate_arith(i2b, kvals)
+            return self._compile_arith(kvals)
         elif self.type == "rel":
-            return self._evaluate_rel(i2b, kvals)
+            return self._compile_rel(kvals)
         elif self.type == "conn":
-            return self._evaluate_conn(i2b, kvals)
+            return self._compile_conn(kvals)
         elif self.type == "if_expr":
-            return self._evaluate_if_expr(i2b, kvals)
+            return self._compile_if_expr(kvals)
         else:
-            raise self.EvaluationError("Internal error evaluating AST node of type %s, value %s" % (repr(self.type), repr(self.value)))
+            raise self.EvaluationError("Internal error compiling AST node of type %s, value %s" % (repr(self.type), repr(self.value)))
 
     def evaluate(self, i2b):
-        """Evaluate the AST to either True or False given a mapping from
-        identifiers to bits."""
+        "Evaluate the AST to a value, given a mapping from identifiers to bits."
         try:
-            return self._evaluate_node(i2b)
+            return self.code(i2b)
         except self.EvaluationError as e:
             qmasm.abend("%s in assertion %s" % (e, self))
 
@@ -413,4 +417,5 @@ class AssertParser(object):
                 raise self.ParseError('Parse error at "%s"' % self.sym[1])
         except self.ParseError as e:
             qmasm.abend('%s in "%s"' % (e, s))
+        ast.code = ast._compile_node()
         return ast

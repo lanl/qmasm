@@ -405,29 +405,16 @@ class Problem(object):
 
     def append_assertions_from_statements(self):
         "Convert user-specified chains, anti-chains, and pins to assertions."
-        # Construct and parse a template assertion.
-        ap = qmasm.AssertParser()
-        eq_ast = ap.parse("PLACEHOLDER_1 = PLACEHOLDER_2")
-        neq_ast = ap.parse("PLACEHOLDER_1 /= PLACEHOLDER_2")
-        is0_ast = ap.parse("PLACEHOLDER = 0")
-        is1_ast = ap.parse("PLACEHOLDER = 1")
-
         # Convert certain statement types to assertions.
+        # TODO: Quote variables containing special characters.
+        ap = qmasm.AssertParser()
         for stmt in qmasm.program:
             if stmt.__class__ == qmasm.AntiChain:
-                ast = copy.deepcopy(neq_ast)
-                ast.replace_ident("PLACEHOLDER_1", stmt.sym1)
-                ast.replace_ident("PLACEHOLDER_2", stmt.sym2)
+                ast = ap.parse("%s /= %s" % (stmt.sym1, stmt.sym2))
                 self.assertions.append(ast)
             elif stmt.__class__ == qmasm.Chain:
-                ast = copy.deepcopy(eq_ast)
-                ast.replace_ident("PLACEHOLDER_1", stmt.sym1)
-                ast.replace_ident("PLACEHOLDER_2", stmt.sym2)
+                ast = ap.parse("%s = %s" % (stmt.sym1, stmt.sym2))
                 self.assertions.append(ast)
             elif stmt.__class__ == qmasm.Pin:
-                if stmt.goal:
-                    ast = copy.deepcopy(is1_ast)
-                else:
-                    ast = copy.deepcopy(is0_ast)
-                ast.replace_ident("PLACEHOLDER", stmt.sym)
+                ast = ap.parse("%s = %d" % (stmt.sym, int(stmt.goal)))
                 self.assertions.append(ast)
