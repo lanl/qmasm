@@ -7,7 +7,6 @@ import copy
 import os
 import qmasm
 import re
-import shlex
 import string
 import sys
 
@@ -20,7 +19,7 @@ def error_in_line(filename, lineno, str):
 class Environment(object):
     "Maintain a variable environment as a stack of scopes."
 
-    toks_re = re.compile(r'([^-+*/%&\|^~!()<=>\s\[:\]]+)')  # Regex to split a symbol into tokens (cf. AssertParser.ident_re with square brackets and colons added)
+    toks_re = re.compile(r'([^-+*/%&\|^~!()<=>#\s\[:\]]+)')  # Regex to split a symbol into tokens (cf. AssertParser.ident_re with square brackets and colons added)
 
     def __init__(self):
         self.stack = [{}]
@@ -418,6 +417,14 @@ class FileParser(object):
         except ValueError:
             return False
 
+    def split_line_into_fields(self, line):
+        "Discard comments, then split the line into fields."
+        try:
+            line = line[:line.index("#")]
+        except ValueError:
+            pass
+        return line.split()
+
     def find_file_in_path(self, pathnames, filename):
         "Search a list of directories for a file."
         for pname in pathnames:
@@ -446,11 +453,14 @@ class FileParser(object):
             found_incname = self.find_file_in_path(qmasmpath, incname)
             if found_incname != None:
                 incname = found_incname
-        elif len(incname) >= 2:
+        elif len(incname) >= 2 and incname[0] == '"' and incname[-1] == '"':
             # Search only the current directory for the filename.
+            incname = incname[1:-1]
             found_incname = self.find_file_in_path(["."], incname)
             if found_incname != None:
                 incname = found_incname
+        else:
+            error_in_line(filename, lineno, 'Failed to parse "%s"' % (" ".join(fields)))
         try:
             incfile = open(incname)
         except IOError:
@@ -601,7 +611,7 @@ class FileParser(object):
             lno, line = all_lines[idx]
             if line == "":
                 continue
-            flds = shlex.split(line, True)
+            flds = self.split_line_into_fields(line)
             if flds[0] == "!if":
                 ends_needed += 1
             elif flds[0] == "!else":
@@ -676,7 +686,7 @@ class FileParser(object):
             lno, line = all_lines[idx]
             if line == "":
                 continue
-            flds = shlex.split(line, True)
+            flds = self.split_line_into_fields(line)
             if flds[0] == "!for":
                 ends_needed += 1
             elif flds[0] == "!end_for":
@@ -759,7 +769,7 @@ class FileParser(object):
             lineno, line = all_lines[idx]
             if line == "":
                 continue
-            fields = shlex.split(line, True)
+            fields = self.split_line_into_fields(line)
             nfields = len(fields)
             if nfields == 0:
                 continue

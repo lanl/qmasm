@@ -56,9 +56,9 @@ jkl <-> mno
 !end_macro XOR
 
 # Macro uses
-!use_macro XOR excl-or
-excl-or.A := true
-excl-or.B := FaLsE   # Note: case-insensitive
+!use_macro XOR excl_or
+excl_or.A := true
+excl_or.B := FaLsE   # Note: case-insensitive
 
 # Let-binding to an expression
 !let idx1 := (6 + 1)*2*(4 - 1)
@@ -67,9 +67,9 @@ alfa[idx1] = alfa[idx2]
 
 # Conditionals
 !if idx1 < idx2
-  alfa[idx1] = excl-or.Y
+  alfa[idx1] = excl_or.Y
 !else
-  alfa[idx2] = excl-or.Y
+  alfa[idx2] = excl_or.Y
 !end_if
 
 # Iteration over integer values

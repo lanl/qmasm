@@ -208,7 +208,7 @@ class AssertParser(object):
     conn_re = re.compile(r'\|\||&&')
     rel_re = re.compile(r'/?=|[<>]=?')
     arith_re = re.compile(r'[-+/%&\|^~!]|>>|<<|\*\*?')
-    ident_re = re.compile(r'[^-+*/%&\|^~!()<=>\s]+')
+    ident_re = re.compile(r'[^-+*/%&\|^~!()<=>#\s]+')
     keyword_re = re.compile(r'\b(if|then|else|endif)\b')
 
     class ParseError(Exception):
