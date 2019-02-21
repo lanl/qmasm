@@ -7,7 +7,7 @@
 
 # Weights
 abc 0.5
-def 0.5
+def 0.5   # Comments are allowed on the same line as other statements.
 
 # Strengths
 abc def 0.5
