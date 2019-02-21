@@ -19,7 +19,7 @@ def error_in_line(filename, lineno, str):
 class Environment(object):
     "Maintain a variable environment as a stack of scopes."
 
-    toks_re = re.compile(r'([^-+*/%&\|^~!()<=>#\s\[:\]]+)')  # Regex to split a symbol into tokens (cf. AssertParser.ident_re with square brackets and colons added)
+    toks_re = re.compile(r'([^-+*/%&\|^~()<=>#\s\[:\]]+)')  # Regex to split a symbol into tokens (cf. qmasm.ident_re with square brackets and colons added)
 
     def __init__(self):
         self.stack = [{}]
@@ -193,11 +193,19 @@ class Statement(object):
             sys.stderr.write('%s:%d: error: %s\n' % (self.filename, self.lineno, msg))
         sys.exit(1)
 
+    def validate_ident(self, ident):
+        """Complain if an identifier uses invalid symbols.  Otherwise, return
+        the argument unmodified."""
+        match = qmasm.ident_re.match(ident)
+        if match == None or match.group(0) != ident:
+            self.error_in_line('Invalid identifier "%s"' % ident)
+        return ident
+
 class Weight(Statement):
     "Represent a point weight on a qubit."
     def __init__(self, filename, lineno, sym, weight):
         super(Weight, self).__init__(filename, lineno)
-        self.sym = sym
+        self.sym = self.validate_ident(sym)
         self.weight = weight
 
     def as_str(self, prefix=""):
@@ -211,8 +219,8 @@ class Chain(Statement):
     "Chain between qubits."
     def __init__(self, filename, lineno, sym1, sym2):
         super(Chain, self).__init__(filename, lineno)
-        self.sym1 = sym1
-        self.sym2 = sym2
+        self.sym1 = self.validate_ident(sym1)
+        self.sym2 = self.validate_ident(sym2)
 
     def as_str(self, prefix=""):
         return "%s%s = %s%s" % (prefix, self.sym1, prefix, self.sym2)
@@ -230,8 +238,8 @@ class AntiChain(Statement):
     "AntiChain between qubits."
     def __init__(self, filename, lineno, sym1, sym2):
         super(AntiChain, self).__init__(filename, lineno)
-        self.sym1 = sym1
-        self.sym2 = sym2
+        self.sym1 = self.validate_ident(sym1)
+        self.sym2 = self.validate_ident(sym2)
 
     def as_str(self, prefix=""):
         return "%s%s /= %s%s" % (prefix, self.sym1, prefix, self.sym2)
@@ -249,7 +257,7 @@ class Pin(Statement):
     "Pinning of a qubit to true or false."
     def __init__(self, filename, lineno, sym, goal):
         super(Pin, self).__init__(filename, lineno)
-        self.sym = sym
+        self.sym = self.validate_ident(sym)
         self.goal = goal
 
     def as_str(self, prefix=""):
@@ -263,8 +271,8 @@ class Alias(Statement):
     "Alias of one symbol to another."
     def __init__(self, filename, lineno, sym1, sym2):
         super(Alias, self).__init__(filename, lineno)
-        self.sym1 = sym1
-        self.sym2 = sym2
+        self.sym1 = self.validate_ident(sym1)
+        self.sym2 = self.validate_ident(sym2)
 
     def as_str(self, prefix=""):
         return "%s%s <-> %s%s" % (prefix, self.sym1, prefix, self.sym2)
@@ -281,8 +289,8 @@ class Strength(Statement):
     "Coupler strength between two qubits."
     def __init__(self, filename, lineno, sym1, sym2, strength):
         super(Strength, self).__init__(filename, lineno)
-        self.sym1 = sym1
-        self.sym2 = sym2
+        self.sym1 = self.validate_ident(sym1)
+        self.sym2 = self.validate_ident(sym2)
         self.strength = strength
 
     def as_str(self, prefix=""):
@@ -329,9 +337,9 @@ class MacroUse(Statement):
     "Instantiation of a macro definition."
     def __init__(self, filename, lineno, name, body, prefixes):
         super(MacroUse, self).__init__(filename, lineno)
-        self.name = name
+        self.name = self.validate_ident(name)
         self.body = body
-        self.prefixes = prefixes
+        self.prefixes = [self.validate_ident(p) + "." for p in prefixes]
 
     def as_str(self, prefix=""):
         stmt_strs = []
@@ -584,7 +592,7 @@ class FileParser(object):
         if len(fields) < 2:
             error_in_line(filename, lineno, "Expected a macro name to follow !use_macro")
         name = self.env.sub_syms(fields[1])
-        prefixes = [self.env.sub_syms(p) + "." for p in fields[2:]]
+        prefixes = [self.env.sub_syms(p) for p in fields[2:]]
         try:
             self.target.append(MacroUse(filename, lineno, name, self.macros[name], prefixes))
         except KeyError:

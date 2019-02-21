@@ -208,7 +208,6 @@ class AssertParser(object):
     conn_re = re.compile(r'\|\||&&')
     rel_re = re.compile(r'/?=|[<>]=?')
     arith_re = re.compile(r'[-+/%&\|^~!]|>>|<<|\*\*?')
-    ident_re = re.compile(r'[^-+*/%&\|^~!()<=>#\s]+')
     keyword_re = re.compile(r'\b(if|then|else|endif)\b')
 
     class ParseError(Exception):
@@ -282,7 +281,7 @@ class AssertParser(object):
                 continue
 
             # Everything else is an identifier.
-            mo = self.ident_re.match(s)
+            mo = qmasm.ident_re.match(s)
             if mo != None:
                 match = mo.group(0)
                 tokens.append(("ident", match))

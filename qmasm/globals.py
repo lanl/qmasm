@@ -4,6 +4,7 @@
 ###################################
 
 import qmasm
+import re
 import sys
 
 # Name of this program
@@ -18,3 +19,6 @@ qmasm.program = []
 # Define our internal representation.
 qmasm.chain_strength = 0    # Strength of chain couplers
 qmasm.pin_strength = 0      # Strength of pin couplers
+
+# Multiple components of QMASM require a definition of an identifier.
+qmasm.ident_re = re.compile(r'[^-+*/%&\|^~()<=>#\s]+')
