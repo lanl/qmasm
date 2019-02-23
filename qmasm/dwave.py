@@ -278,7 +278,7 @@ def simplify_problem(logical, verbosity):
         # Report the number of logical qubits that remain, but compute the
         # number that could be removed if only a single solution were required.
         sys.stderr.write("  %6d logical qubits after elision\n\n" % (qmasm.sym_map.max_number() + 1))
-        if all_gone:
+        if qmasm.sym_map.max_number() > -1 and all_gone:
             sys.stderr.write("    Note: A complete solution can be found classically using roof duality and strongly connected components.\n\n")
     return new_obj
 
