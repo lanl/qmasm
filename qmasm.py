@@ -94,6 +94,11 @@ if cl_args.O >= 1:
 
 # Further simplify the problem if we can.
 if cl_args.O >= 1:
+    # Back up the symbol map and problem in case we optimize away everything.
+    pre_simple_sym_map = copy.copy(qmasm.sym_map)
+    pre_simple_problem = copy.copy(logical_ising)
+
+    # Simplify the problem.
     logical_ising = qmasm.simplify_problem(logical_ising, cl_args.verbose)
 
 # This is a good time to update our logical statistics.
@@ -113,10 +118,12 @@ if len(logical_ising.weights) == 0 and len(logical_ising.strengths) == 0:
         # program during optimization.  Output the results we computed before
         # exiting.
         qmasm.warn("Not executing the code; optimization produced a complete solution")
+        num_value = {pre_simple_sym_map.to_number(sym): value for sym, value in logical_ising.known_values.items()}
+        energy = pre_simple_problem.energy_from_known_values(num_value)
         physical_ising = logical_ising.add_fake_physical_fields()
         answer = {"solutions": [[]],
                   "num_occurrences": [cl_args.samples],
-                  "energies": [0]}
+                  "energies": [energy]}
         solutions = qmasm.Solutions(answer, physical_ising, cl_args.verbose >= 2)
         show_asserts = cl_args.verbose >= 2 or cl_args.show in ["best", "all"]
         qmasm.output_solution(solutions, cl_args.values, cl_args.verbose, show_asserts)

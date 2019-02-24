@@ -361,6 +361,15 @@ class Problem(object):
             return None
         return pulp.value(prob.objective)
 
+    def energy_from_known_values(self, num_value):
+        "Compute our energy when all values are known."
+        energy = 0.0
+        for q, wt in self.weights.items():
+            energy += wt*num_value[q]
+        for (q0, q1), wt in self.strengths.items():
+            energy += wt*num_value[q0]*num_value[q1]
+        return energy
+
     def scale_weights_strengths(self, verbosity):
         "Manually scale the weights and strengths so Qubist doesn't complain."
         h_range = self.h_range
