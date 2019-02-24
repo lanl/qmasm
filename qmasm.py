@@ -103,9 +103,24 @@ logical_stats["eqs"] = len(logical_ising.chains)
 logical_stats["ineqs"] = len(logical_ising.antichains)
 logical_stats["pins"] = len(logical_ising.pinned)
 
-# Complain if we have no weights and no strengths.
+# Exit the program if we have no weights and no strengths.
 if len(logical_ising.weights) == 0 and len(logical_ising.strengths) == 0:
-    qmasm.abend("Nothing to do (no weights or strengths specified)")
+    if len(logical_ising.known_values) == 0:
+        # The program is empty.  Complain.
+        qmasm.abend("Nothing to do (no weights or strengths specified)")
+    else:
+        # The program was originally non-empty but was reduced to a empty
+        # program during optimization.  Output the results we computed before
+        # exiting.
+        qmasm.warn("Not executing the code; optimization produced a complete solution")
+        physical_ising = logical_ising.add_fake_physical_fields()
+        answer = {"solutions": [[]],
+                  "num_occurrences": [cl_args.samples],
+                  "energies": [0]}
+        solutions = qmasm.Solutions(answer, physical_ising, cl_args.verbose >= 2)
+        show_asserts = cl_args.verbose >= 2 or cl_args.show in ["best", "all"]
+        qmasm.output_solution(solutions, cl_args.values, cl_args.verbose, show_asserts)
+        sys.exit(0)
 
 # Complain if we have disconnected qubits.
 discon_syms = logical_ising.find_disconnected_variables()

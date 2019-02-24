@@ -60,9 +60,9 @@ def parse_command_line():
 
     # Perform a few sanity checks on the parameters.
     if cl_args.chain_strength != None and cl_args.chain_strength >= 0.0:
-        sys.stderr.write("%s: Warning: A non-negative chain strength (%.20g) was specified\n" % (qmasm.progname, cl_args.chain_strength))
+        qmasm.warn("A non-negative chain strength (%.20g) was specified\n" % cl_args.chain_strength)
     if cl_args.pin_weight != None and cl_args.pin_weight >= 0.0:
-        sys.stderr.write("%s: Warning: A non-negative pin strength (%.20g) was specified\n" % (qmasm.progname, cl_args.pin_weight))
+        qmasm.warn("A non-negative pin strength (%.20g) was specified\n" % cl_args.pin_weight)
     if cl_args.spin_revs > cl_args.samples:
         qmasm.abend("The number of spin reversals is not allowed to exceed the number of samples")
     return cl_args

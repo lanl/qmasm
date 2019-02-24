@@ -43,6 +43,10 @@ def abend(str):
     sys.stderr.write("%s: %s\n" % (qmasm.progname, str))
     sys.exit(1)
 
+def warn(str):
+    "Issue a warning message but continue execution."
+    sys.stderr.write("%s: Warning: %s\n" % (qmasm.progname, str))
+
 def dict_to_list(d):
     "Convert a dictionary to a list."
     if len(d) == 0:

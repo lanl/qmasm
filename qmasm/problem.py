@@ -421,3 +421,13 @@ class Problem(object):
                 ast = ap.parse("%s = %d" % (stmt.sym, int(stmt.goal)))
                 ast.compile()
                 self.assertions.append(ast)
+
+    def add_fake_physical_fields(self):
+        """Return a copy of a logical Problem object with faked versions of
+        the fields normally added by qmasm.embed_problem_on_dwave and required
+        by qmasm.output_solution."""
+        physical = copy.deepcopy(self)
+        physical.embedding = []
+        physical.range_scale = 1.0
+        physical.embedder_chains = {}
+        return physical
