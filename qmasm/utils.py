@@ -4,6 +4,7 @@
 ###################################
 
 from collections import defaultdict
+import copy
 import math
 import qmasm
 import sys
@@ -254,3 +255,13 @@ class SymbolMapping:
             self.next_sym_num = 0
         else:
             self.next_sym_num = max(self.num2syms.keys()) + 1
+
+    def replace_all(self, before_syms, after_syms):
+        "Replace each symbol in before_syms with its peer in after_syms."
+        sym2num = copy.deepcopy(self.sym2num)
+        before_nums = [sym2num[s] for s in before_syms]
+        for s in before_syms:
+            del sym2num[s]
+        for s, n in zip(after_syms, before_nums):
+            sym2num[s] = n
+        self.overwrite_with(sym2num)

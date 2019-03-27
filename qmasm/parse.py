@@ -285,6 +285,24 @@ class Alias(Statement):
             sym2 = sym2.replace(prefix + "!next.", next_prefix)
         qmasm.sym_map.alias(sym1, sym2)
 
+class Rename(Statement):
+    "Rename one set of symbols to another."
+    def __init__(self, filename, lineno, syms1, syms2):
+        super(Rename, self).__init__(filename, lineno)
+        self.syms1 = [self.validate_ident(s) for s in syms1]
+        self.syms2 = [self.validate_ident(s) for s in syms2]
+
+    def as_str(self, prefix=""):
+        return " ".join([prefix + s for s in self.syms1]) + " -> " + " ".join([prefix + s for s in self.syms2])
+
+    def update_qmi(self, prefix, next_prefix, problem):
+        syms1 = [prefix + s for s in self.syms1]
+        syms2 = [prefix + s for s in self.syms2]
+        if next_prefix != None:
+            syms1 = [s.replace(prefix + "!next.", next_prefix) for s in syms1]
+            syms2 = [s.replace(prefix + "!next.", next_prefix) for s in syms2]
+        qmasm.sym_map.replace_all(syms1, syms2)
+
 class Strength(Statement):
     "Coupler strength between two qubits."
     def __init__(self, filename, lineno, sym1, sym2, strength):
@@ -574,6 +592,26 @@ class FileParser(object):
         code = "%s <-> %s" % (self.env.sub_syms(fields[0]), self.env.sub_syms(fields[2]))
         self.target.extend(self.process_alias(filename, lineno, code))
 
+    def parse_line_rename(self, filename, lineno, fields):
+        "Parse a qubit rename."
+        # <symbol_1> ... -> <symbol_2> ... -- make <symbol_1> an alias of <symbol_2>.
+        if len(fields) < 3 or len(fields)%2 == 0:
+            error_in_line(filename, lineno, 'Failed to parse "%s" as a symbol rename' % (" ".join(fields)))
+        tokens = []
+        num_arrows = 0
+        for sym in fields:
+            if sym == "->":
+                tokens.append(sym)
+                num_arrows += 1
+            else:
+                tokens.append(self.env.sub_syms(sym))
+        lhs = tokens[:len(tokens)//2]
+        rhs = tokens[len(tokens)//2:]
+        if num_arrows != 1 or rhs[0] != "->":
+            error_in_line(filename, lineno, 'Failed to parse "%s" as a symbol rename' % (" ".join(fields)))
+        rhs = rhs[1:]  # Drop the "->".
+        self.target.append(Rename(filename, lineno, lhs, rhs))
+
     def parse_line_strength(self, filename, lineno, fields):
         "Parse a coupler strength."
         # <symbol_1> <symbol_2> <strength> -- increment a coupler strength.
@@ -819,6 +857,8 @@ class FileParser(object):
                     func = self.parse_line_pin
                 elif nfields == 3 and fields[1] == "<->":
                     func = self.parse_line_alias
+                elif nfields >= 3 and "->" in fields:
+                    func = self.parse_line_rename
                 elif nfields == 3 and self.is_float(fields[2]):
                     func = self.parse_line_strength
                 else:

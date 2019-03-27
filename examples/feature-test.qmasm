@@ -92,3 +92,10 @@ alfa[idx1] = alfa[idx2]
 !end_macro XOR_chain
 !use_macro XOR_chain first second third
 # (In this chain, first.Y = second.A and second.Y = third.A.)
+
+# Renaming symbols
+big       -0.75
+small      0.75
+big small  0.50
+big   -> bigger
+small -> smaller
