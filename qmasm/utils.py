@@ -259,8 +259,12 @@ class SymbolMapping:
     def replace_all(self, before_syms, after_syms):
         "Replace each symbol in before_syms with its peer in after_syms."
         sym2num = copy.deepcopy(self.sym2num)
-        before_nums = [sym2num[s] for s in before_syms]
+        before_nums = []
         for s in before_syms:
+            try:
+                before_nums.append(sym2num[s])
+            except KeyError:
+                abend('Failed to rename nonexistent symbol "%s"' % s)
             del sym2num[s]
         for s, n in zip(after_syms, before_nums):
             sym2num[s] = n

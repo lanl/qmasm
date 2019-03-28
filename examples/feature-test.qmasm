@@ -99,3 +99,8 @@ small      0.75
 big small  0.50
 big   -> bigger
 small -> smaller
+six[2:0] := 110
+!assert six[0] /= 1
+six[2] = six[1]
+six[1] /= six[0]
+six[2:0] -> six[0:2]  # Convert from 110 to 011.

@@ -74,6 +74,7 @@ class Problem(object):
         self.known_values = {}    # Map from symbol name to spin for values known a priori
         self.simple_offset = 0.0  # Value to add to Ising energy to compensate for problem simplification
         self.assertions = []      # List of assertions (as ASTs) to enforce
+        self.pending_asserts = [] # List of {string, op, string} tuples pending conversion to assertions
 
     def assign_chain_strength(self, ch_str):
         """Define a strength for each user-specified and automatically
@@ -414,22 +415,13 @@ class Problem(object):
 
     def append_assertions_from_statements(self):
         "Convert user-specified chains, anti-chains, and pins to assertions."
-        # Convert certain statement types to assertions.
+        # Convert pending assertions to actual assertions.
         # TODO: Quote variables containing special characters.
         ap = qmasm.AssertParser()
-        for stmt in qmasm.program:
-            if stmt.__class__ == qmasm.AntiChain:
-                ast = ap.parse("%s /= %s" % (stmt.sym1, stmt.sym2))
-                ast.compile()
-                self.assertions.append(ast)
-            elif stmt.__class__ == qmasm.Chain:
-                ast = ap.parse("%s = %s" % (stmt.sym1, stmt.sym2))
-                ast.compile()
-                self.assertions.append(ast)
-            elif stmt.__class__ == qmasm.Pin:
-                ast = ap.parse("%s = %d" % (stmt.sym, int(stmt.goal)))
-                ast.compile()
-                self.assertions.append(ast)
+        for s1, op, s2 in self.pending_asserts:
+            ast = ap.parse(s1 + " " + op + " " + s2)
+            ast.compile()
+            self.assertions.append(ast)
 
     def add_fake_physical_fields(self):
         """Return a copy of a logical Problem object with faked versions of

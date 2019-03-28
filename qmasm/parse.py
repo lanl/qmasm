@@ -3,10 +3,12 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
+from collections import defaultdict
 import copy
 import os
 import qmasm
 import re
+import random
 import string
 import sys
 
@@ -233,6 +235,9 @@ class Chain(Statement):
         elif num1 > num2:
             num1, num2 = num2, num1
         problem.chains.add((num1, num2))
+        problem.pending_asserts.append((qmasm.apply_prefix(prefix + self.sym1, prefix, next_prefix),
+                                        "=",
+                                        qmasm.apply_prefix(prefix + self.sym2, prefix, next_prefix)))
 
 class AntiChain(Statement):
     "AntiChain between qubits."
@@ -252,6 +257,9 @@ class AntiChain(Statement):
         elif num1 > num2:
             num1, num2 = num2, num1
         problem.antichains.add((num1, num2))
+        problem.pending_asserts.append((qmasm.apply_prefix(prefix + self.sym1, prefix, next_prefix),
+                                        "/=",
+                                        qmasm.apply_prefix(prefix + self.sym2, prefix, next_prefix)))
 
 class Pin(Statement):
     "Pinning of a qubit to true or false."
@@ -266,6 +274,9 @@ class Pin(Statement):
     def update_qmi(self, prefix, next_prefix, problem):
         num = qmasm.symbol_to_number(prefix + self.sym, prefix, next_prefix)
         problem.pinned.append((num, self.goal))
+        problem.pending_asserts.append((qmasm.apply_prefix(prefix + self.sym, prefix, next_prefix),
+                                        "=",
+                                        str(int(self.goal))))
 
 class Alias(Statement):
     "Alias of one symbol to another."
@@ -296,12 +307,105 @@ class Rename(Statement):
         return " ".join([prefix + s for s in self.syms1]) + " -> " + " ".join([prefix + s for s in self.syms2])
 
     def update_qmi(self, prefix, next_prefix, problem):
+        # Update the symbol map.
         syms1 = [prefix + s for s in self.syms1]
         syms2 = [prefix + s for s in self.syms2]
         if next_prefix != None:
             syms1 = [s.replace(prefix + "!next.", next_prefix) for s in syms1]
             syms2 = [s.replace(prefix + "!next.", next_prefix) for s in syms2]
         qmasm.sym_map.replace_all(syms1, syms2)
+        sym2sym = dict(zip(syms1, syms2))
+
+        # Update all weights.
+        weights = {}
+        for q, wt in problem.weights.items():
+            try:
+                q = sym2sym[q]
+            except KeyError:
+                pass
+            weights[q] = wt
+        problem.weights = defaultdict(lambda: 0.0, weights)
+
+        # Update all strengths.
+        strengths = {}
+        for (q1, q2), wt in problem.strengths.items():
+            try:
+                q1 = sym2sym[q1]
+            except KeyError:
+                pass
+            try:
+                q2 = sym2sym[q2]
+            except KeyError:
+                pass
+            strengths[(q1, q2)] = wt
+        problem.strengths = defaultdict(lambda: 0.0, strengths)
+
+        # Update all chains.
+        chains = set()
+        for (q1, q2) in problem.chains:
+            try:
+                q1 = sym2sym[q1]
+            except KeyError:
+                pass
+            try:
+                q2 = sym2sym[q2]
+            except KeyError:
+                pass
+            chains.add((q1, q2))
+        problem.chains = chains
+
+        # Update all anti-chains.
+        antichains = set()
+        for (q1, q2) in problem.antichains:
+            try:
+                q1 = sym2sym[q1]
+            except KeyError:
+                pass
+            try:
+                q2 = sym2sym[q2]
+            except KeyError:
+                pass
+            antichains.add((q1, q2))
+        problem.antichains = antichains
+
+        # Update all pin chains.
+        pin_chains = set()
+        for (q_helper, q_user) in problem.pin_chains:
+            try:
+                q_user = sym2sym[q_user]
+            except KeyError:
+                pass
+            pin_chains.add((q_helper, q_user))
+        problem.pin_chains = pin_chains
+
+        # Update all assertions.  These need to go through an intermediary in
+        # case we rename both X to Y and Y to X.
+        renames = []
+        for s1, s2 in sym2sym.items():
+            dummy_sym = "".join([random.choice(string.ascii_lowercase) for i in range(5)])
+            dummy_sym += " "   # Can't currently appear in a symbol name.
+            dummy_sym += "".join([random.choice(string.ascii_lowercase) for i in range(5)])
+            renames.append((s1, dummy_sym, s2))
+        for s1, dummy_sym, s2 in renames:
+            for ast in problem.assertions:
+                ast.replace_ident(s1, dummy_sym)
+        for s1, dummy_sym, s2 in renames:
+            for ast in problem.assertions:
+                ast.replace_ident(dummy_sym, s2)
+
+        # Update all pending assertions.
+        pending_asserts = []
+        for s1, op, s2 in problem.pending_asserts:
+            try:
+                s1 = sym2sym[s1]
+            except KeyError:
+                pass
+            try:
+                s2 = sym2sym[s2]
+            except KeyError:
+                pass
+            pending_asserts.append((s1, op, s2))
+        problem.pending_asserts = pending_asserts
 
 class Strength(Statement):
     "Coupler strength between two qubits."
@@ -597,6 +701,9 @@ class FileParser(object):
         # <symbol_1> ... -> <symbol_2> ... -- make <symbol_1> an alias of <symbol_2>.
         if len(fields) < 3 or len(fields)%2 == 0:
             error_in_line(filename, lineno, 'Failed to parse "%s" as a symbol rename' % (" ".join(fields)))
+
+        # Split the fields into a left-hand side and a right-hand side.
+        pin_parser = PinParser()
         tokens = []
         num_arrows = 0
         for sym in fields:
@@ -604,7 +711,8 @@ class FileParser(object):
                 tokens.append(sym)
                 num_arrows += 1
             else:
-                tokens.append(self.env.sub_syms(sym))
+                sym_list = pin_parser.parse_lhs(self.env.sub_syms(sym))
+                tokens.extend(sym_list)
         lhs = tokens[:len(tokens)//2]
         rhs = tokens[len(tokens)//2:]
         if num_arrows != 1 or rhs[0] != "->":
