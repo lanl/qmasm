@@ -235,9 +235,9 @@ class Chain(Statement):
         elif num1 > num2:
             num1, num2 = num2, num1
         problem.chains.add((num1, num2))
-        problem.pending_asserts.append((qmasm.apply_prefix(prefix + self.sym1, prefix, next_prefix),
-                                        "=",
-                                        qmasm.apply_prefix(prefix + self.sym2, prefix, next_prefix)))
+        sym1 = qmasm.apply_prefix(prefix + self.sym1, None, next_prefix)
+        sym2 = qmasm.apply_prefix(prefix + self.sym2, None, next_prefix)
+        problem.pending_asserts.append((sym1, "=", sym2))
 
 class AntiChain(Statement):
     "AntiChain between qubits."
@@ -257,9 +257,9 @@ class AntiChain(Statement):
         elif num1 > num2:
             num1, num2 = num2, num1
         problem.antichains.add((num1, num2))
-        problem.pending_asserts.append((qmasm.apply_prefix(prefix + self.sym1, prefix, next_prefix),
-                                        "/=",
-                                        qmasm.apply_prefix(prefix + self.sym2, prefix, next_prefix)))
+        sym1 = qmasm.apply_prefix(prefix + self.sym1, None, next_prefix)
+        sym2 = qmasm.apply_prefix(prefix + self.sym2, None, next_prefix)
+        problem.pending_asserts.append((sym1, "/=", sym2))
 
 class Pin(Statement):
     "Pinning of a qubit to true or false."
@@ -274,9 +274,8 @@ class Pin(Statement):
     def update_qmi(self, prefix, next_prefix, problem):
         num = qmasm.symbol_to_number(prefix + self.sym, prefix, next_prefix)
         problem.pinned.append((num, self.goal))
-        problem.pending_asserts.append((qmasm.apply_prefix(prefix + self.sym, prefix, next_prefix),
-                                        "=",
-                                        str(int(self.goal))))
+        sym = qmasm.apply_prefix(prefix + self.sym, None, next_prefix)
+        problem.pending_asserts.append((sym, "=", str(int(self.goal))))
 
 class Alias(Statement):
     "Alias of one symbol to another."
