@@ -269,3 +269,25 @@ class SymbolMapping:
         for s, n in zip(after_syms, before_nums):
             sym2num[s] = n
         self.overwrite_with(sym2num)
+
+def weighted_median(k2t):
+    "Return the weighted median of a map from keys to tallies."
+    ks = k2t.keys()
+    ks.sort()
+    total = sum(k2t.values())
+    running_tally = 0
+    lower_median = 0
+    for k in ks:
+        running_tally += k2t[k]
+        if running_tally >= total//2:
+            lower_median = k
+            break
+    running_tally = 0
+    upper_median = 0
+    ks.reverse()
+    for k in ks:
+        running_tally += k2t[k]
+        if running_tally >= total//2:
+            upper_median = k
+            break
+    return (lower_median + upper_median)/2.0

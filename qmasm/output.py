@@ -5,6 +5,7 @@
 
 import datetime
 import json
+import math
 import os
 import qmasm
 import random
@@ -389,7 +390,8 @@ def write_output(problem, oname, oformat, as_qubo):
     if oname != "<stdout>":
         outfile.close()
 
-def output_energy_tallies(physical_ising, answer):
+def output_energy_tallies(physical_ising, answer, full_output):
+    # Construct a histogram of energy levels.
     energies = answer["energies"]
     try:
         tallies = answer["num_occurrences"]
@@ -404,11 +406,44 @@ def output_energy_tallies(physical_ising, answer):
         except KeyError:
             new_energy_tallies[e] = t
     new_energies = sorted(new_energy_tallies.keys())
-    sys.stderr.write("Energy histogram:\n\n")
-    sys.stderr.write("    Energy      Tally\n")
-    sys.stderr.write("    ----------  ------\n")
-    for e in new_energies:
-        sys.stderr.write("    %10.4f  %6d\n" % (e, new_energy_tallies[e]))
+
+    # If the caller requested full output, generate a complete energy
+    # histogram.
+    if full_output:
+        sys.stderr.write("Raw energy histogram:\n\n")
+        sys.stderr.write("    Energy      Tally\n")
+        sys.stderr.write("    ----------  ------\n")
+        for e in new_energies:
+            sys.stderr.write("    %10.4f  %6d\n" % (e, new_energy_tallies[e]))
+        sys.stderr.write("\n")
+
+    # Compute some descriptive statistics of the energy values.
+    e_median = qmasm.weighted_median(new_energy_tallies)
+    last_idx = len(new_energies) - 1
+    e_mean = 0.0
+    e_tally = 0
+    for e, t in new_energy_tallies.items():
+        e_mean += e*t
+        e_tally += t
+    e_mean /= e_tally
+    e_stdev = 0.0
+    e_abs_devs = {}    # Map from an absolute deviation from the median to a tally
+    e_tally_1 = e_tally - 1
+    for e, t in new_energy_tallies.items():
+        e_stdev += t*(e - e_mean)**2
+        try:
+            e_abs_devs[abs(e - e_median)] += t
+        except KeyError:
+            e_abs_devs[abs(e - e_median)] = t
+    e_stdev = math.sqrt(e_stdev/e_tally_1)
+    e_mad = qmasm.weighted_median(e_abs_devs)
+
+    # Output energy statistics.
+    sys.stderr.write("Raw energy statistics:\n\n")
+    sys.stderr.write("    Minimum: %10.4f\n" % new_energies[0])
+    sys.stderr.write("    Median:  %10.4f +/- %.4f\n" % (e_median, e_mad))
+    sys.stderr.write("    Mean:    %10.4f +/- %.4f\n" % (e_mean, e_stdev))
+    sys.stderr.write("    Maximum: %10.4f\n" % new_energies[last_idx])
     sys.stderr.write("\n")
 
 def _numeric_solution(soln):

@@ -352,7 +352,9 @@ final_solns = solutions.filter(cl_args.show, cl_args.verbose, cl_args.samples)
 # Output energy tallies.  We first recompute these because some entries seem to
 # be multiply listed.
 if cl_args.verbose >= 2:
-    qmasm.output_energy_tallies(physical_ising, final_solns.answer)
+    qmasm.output_energy_tallies(physical_ising, final_solns.answer, True)
+elif cl_args.verbose >= 1:
+    qmasm.output_energy_tallies(physical_ising, final_solns.answer, False)
 
 # Output the solution to the standard output device.
 show_asserts = cl_args.verbose >= 2 or cl_args.show in ["best", "all"]
