@@ -291,3 +291,32 @@ def weighted_median(k2t):
             upper_median = k
             break
     return (lower_median + upper_median)/2.0
+
+def weighted_mad(k2t, median):
+    "Return the weighted median absolute deviation of a map from keys to tallies."
+    abs_devs = {}    # Map from an absolute deviation from the median to a tally
+    for k, t in k2t.items():
+        try:
+            abs_devs[abs(k - median)] += t
+        except KeyError:
+            abs_devs[abs(k - median)] = t
+    return weighted_median(abs_devs)
+
+def weighted_mean_stdev(k2t):
+    "Return the weighted arithmetic mean and sample standard deviation given a map from keys to tallies."
+    # Compute the mean.
+    mean = 0.0
+    tally = 0
+    for k, t in k2t.items():
+        mean += k*t
+        tally += t
+    mean /= tally
+
+    # Compute the standard deviation.
+    stdev = 0.0
+    for k, t in k2t.items():
+        stdev += t*(k - mean)**2
+    stdev = math.sqrt(stdev/(tally - 1))
+
+    # Return both the mean and the standard deviation.
+    return mean, stdev
