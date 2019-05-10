@@ -108,40 +108,6 @@ logical_stats["eqs"] = len(logical_ising.chains)
 logical_stats["ineqs"] = len(logical_ising.antichains)
 logical_stats["pins"] = len(logical_ising.pinned)
 
-# Exit the program if we have no weights and no strengths.
-if len(logical_ising.weights) == 0 and len(logical_ising.strengths) == 0:
-    if len(logical_ising.known_values) == 0:
-        # The program is empty.  Complain.
-        qmasm.abend("Nothing to do (no weights or strengths specified)")
-    elif cl_args.run:
-        # The program was originally non-empty but was reduced to a empty
-        # program during optimization.  Program execution was requested.
-        # Output the results we computed before exiting.
-        qmasm.warn("Not executing the code; optimization produced a complete solution")
-        num_value = {pre_simple_sym_map.to_number(sym): value for sym, value in logical_ising.known_values.items()}
-        energy = pre_simple_problem.energy_from_known_values(num_value)
-        physical_ising = logical_ising.add_fake_physical_fields()
-        answer = {"solutions": [[]],
-                  "num_occurrences": [cl_args.samples],
-                  "energies": [energy]}
-        solutions = qmasm.Solutions(answer, physical_ising, cl_args.verbose >= 2)
-        show_asserts = cl_args.verbose >= 2 or cl_args.show in ["best", "all"]
-        qmasm.output_solution(solutions, cl_args.values, cl_args.verbose, show_asserts)
-        sys.exit(0)
-    else:
-        # The program was originally non-empty but was reduced to a empty
-        # program during optimization.  Program execution was not requested.
-        # Notify the user that we have no output to generate.
-        qmasm.abend("Not writing the output file; optimization removed all weights and strengths")
-
-# Complain if we have disconnected qubits.
-discon_syms = logical_ising.find_disconnected_variables()
-if len(discon_syms) > 0:
-    qmasm.abend("Disconnected variables encountered: %s" % " ".join(sorted(discon_syms)))
-
-# Convert user-specified chains, anti-chains, and pins to assertions.
-logical_ising.append_assertions_from_statements()
-
 # Establish a connection to the D-Wave, and use this to talk to a solver.  We
 # rely on the qOp infrastructure to set the environment variables properly.
 qmasm.connect_to_dwave()
@@ -186,6 +152,40 @@ if cl_args.verbose >= 1:
         if cl_args.verbose >= 2 or len(val_str) <= short_value_len:
             sys.stderr.write("    %-*s  %s\n" % (max_key_len, k, val_str))
     sys.stderr.write("\n")
+
+# Exit the program if we have no weights and no strengths.
+if len(logical_ising.weights) == 0 and len(logical_ising.strengths) == 0:
+    if len(logical_ising.known_values) == 0:
+        # The program is empty.  Complain.
+        qmasm.abend("Nothing to do (no weights or strengths specified)")
+    elif cl_args.run:
+        # The program was originally non-empty but was reduced to a empty
+        # program during optimization.  Program execution was requested.
+        # Output the results we computed before exiting.
+        qmasm.warn("Not executing the code; optimization produced a complete solution")
+        num_value = {pre_simple_sym_map.to_number(sym): value for sym, value in logical_ising.known_values.items()}
+        energy = pre_simple_problem.energy_from_known_values(num_value)
+        physical_ising = logical_ising.add_fake_physical_fields()
+        answer = {"solutions": [[]],
+                  "num_occurrences": [cl_args.samples],
+                  "energies": [energy]}
+        solutions = qmasm.Solutions(answer, physical_ising, cl_args.verbose >= 2)
+        show_asserts = cl_args.verbose >= 2 or cl_args.show in ["best", "all"]
+        qmasm.output_solution(solutions, cl_args.values, cl_args.verbose, show_asserts)
+        sys.exit(0)
+    else:
+        # The program was originally non-empty but was reduced to a empty
+        # program during optimization.  Program execution was not requested.
+        # Notify the user that we have no output to generate.
+        qmasm.abend("Not writing the output file; optimization removed all weights and strengths")
+
+# Complain if we have disconnected qubits.
+discon_syms = logical_ising.find_disconnected_variables()
+if len(discon_syms) > 0:
+    qmasm.abend("Disconnected variables encountered: %s" % " ".join(sorted(discon_syms)))
+
+# Convert user-specified chains, anti-chains, and pins to assertions.
+logical_ising.append_assertions_from_statements()
 
 # Determine if we're expected to write an output file.  If --run was specified,
 # we write a file only if --output was also specified.
