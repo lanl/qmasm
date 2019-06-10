@@ -493,9 +493,15 @@ def compute_sample_counts(samples, anneal_time):
     # The number of samples multiplied by the time per sample can't exceed the
     # maximum run duration.
     try:
-        max_run_duration = qmasm.solver.properties["max_run_duration"]
+        # Newest SAPI
+        max_run_duration = qmasm.solver.properties["problem_run_duration_range"][1]
     except KeyError:
-        max_run_duration = 3000000  # Default for older SAPI versions
+        try:
+            # Slightly older SAPI versions
+            max_run_duration = qmasm.solver.properties["max_run_duration"]
+        except KeyError:
+            # Very old SAPI versions
+            max_run_duration = 3000000
     try:
         therm_time = qmasm.solver.properties["default_programming_thermalization"]
     except KeyError:
