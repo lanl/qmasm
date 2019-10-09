@@ -5,9 +5,9 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
-import cmdline
+from qmasm.cmdline import ParseCommandLine
 
-class QMASM(cmdline.ParseCommandLine):
+class QMASM(ParseCommandLine):
     "QMASM represents everything the program can do."
     
     def run(self):
@@ -17,7 +17,10 @@ class QMASM(cmdline.ParseCommandLine):
         cl_args = self.parse_command_line()
         self.report_command_line(cl_args)
 
-# Run QMASM as a script.
-if __name__== "__main__":
+def main():
+    "Run QMASM."
     q = QMASM()
     q.run()
+
+if __name__ == "__main__":
+    main()
