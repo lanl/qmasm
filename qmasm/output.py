@@ -459,13 +459,13 @@ def _numeric_solution(soln):
             match = idx_re.search(nm)
             if match == None:
                 # No array index: Treat as a 1-bit number.
-                name2num[nm] = (spin + 1)/2
+                name2num[nm] = (spin + 1)//2
                 name2nbits[nm] = 1
                 continue
 
             # Integrate the current spin into the overall number.
             array, idx = match.groups()
-            b = ((spin + 1)/2) << int(idx)
+            b = ((spin + 1)//2) << int(idx)
             try:
                 name2num[array] += b
                 name2nbits[array] = max(name2nbits[array], int(idx) + 1)

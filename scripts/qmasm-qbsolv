@@ -79,14 +79,14 @@ bits = []
 bits_re = re.compile(r'^[01]+$')
 energy = "?"
 while True:
-    line = proc.stdout.readline()
+    line = proc.stdout.readline().decode('utf-8')
     if line == "":
         break
     line = line.rstrip()
     sys.stderr.write("# %s\n" % line)
     if bits_re.match(line):
         bits = [int(b) for b in list(line)]
-    elif b"Energy of solution" in line:
+    elif "Energy of solution" in line:
         energy = float(line.split()[0])
 retcode = proc.wait()
 if retcode < 0:
@@ -109,6 +109,7 @@ answer = {"num_occurrences": [1],
 problem = qmasm.Problem(False)
 problem.embedding = [[i] for i in range(len(bits))]
 problem.embedder_chains = set()
+problem.range_scale = 1.0
 solutions = qmasm.Solutions(answer, problem, verbosity >= 2)
 
 # Output the solution.  For now, we hard-wire show_asserts to False.
