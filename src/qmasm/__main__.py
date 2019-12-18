@@ -9,9 +9,8 @@ import re
 import sys
 from qmasm.cmdline import ParseCommandLine
 from qmasm.parse import FileParser
-from qmasm.assertions import AssertParser
 
-class QMASM(ParseCommandLine, FileParser, AssertParser):
+class QMASM(ParseCommandLine):
     "QMASM represents everything the program can do."
 
     def __init__(self):
