@@ -32,6 +32,12 @@ class QMASM(ParseCommandLine, FileParser, AssertParser):
         fparse = FileParser(self)
         fparse.process_files(cl_args.input)
 
+        # Parse the variable pinnings specified on the command line.  Append
+        # these to the program.
+        if cl_args.pin != None:
+            for pin in cl_args.pin:
+                self.program.extend(fparse.process_pin("[command line]", 1, pin))
+
 def main():
     "Run QMASM."
     q = QMASM()
