@@ -8,7 +8,7 @@ import shlex
 import string
 import sys
 
-class ParseCommandLine:
+class ParseCommandLine(object):
     def parse_command_line(self):
         "Parse the QMASM command line.  Return an argparse.Namespace."
 
@@ -78,7 +78,7 @@ class ParseCommandLine:
         if verbosity < 1:
             return
         sys.stderr.write("Command line provided:\n\n")
-        sys.stderr.write("    %s\n\n" % get_command_line())
+        sys.stderr.write("    %s\n\n" % self.get_command_line())
 
         # At higher levels of verbosity, output every single option.
         if verbosity < 2:
