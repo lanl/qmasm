@@ -5,6 +5,7 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
+import re
 import sys
 from qmasm.cmdline import ParseCommandLine
 from qmasm.parse import FileParser
@@ -17,6 +18,9 @@ class QMASM(ParseCommandLine, FileParser, AssertParser):
         # List of Statement objects
         self.program = []
 
+        # Multiple components of QMASM require a definition of an identifier.
+        self.ident_re = re.compile(r'[^-+*/%&\|^~()<=>#,\s]+')
+
     def run(self):
         "Execute the entire QMASM processing sequence."
 
@@ -26,6 +30,7 @@ class QMASM(ParseCommandLine, FileParser, AssertParser):
 
         # Parse the original input file(s) into an internal representation.
         fparse = FileParser(self)
+        fparse.process_files(cl_args.input)
 
 def main():
     "Run QMASM."

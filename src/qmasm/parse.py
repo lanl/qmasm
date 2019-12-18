@@ -185,13 +185,14 @@ class LoopIterator(object):
 class Statement(object):
     "One statement in a QMASM source file."
 
-    def __init__(self, filename, lineno):
+    def __init__(self, qmasm, filename, lineno):
+        self.qmasm = qmasm
         self.filename = filename
         self.lineno = lineno
 
     def error_in_line(self, msg):
         if self.lineno == None:
-            qmasm.abend(msg)
+            self.qmasm.abend(msg)
         else:
             sys.stderr.write('%s:%d: error: %s\n' % (self.filename, self.lineno, msg))
         sys.exit(1)
@@ -199,15 +200,15 @@ class Statement(object):
     def validate_ident(self, ident):
         """Complain if an identifier uses invalid symbols.  Otherwise, return
         the argument unmodified."""
-        match = qmasm.ident_re.match(ident)
+        match = self.qmasm.ident_re.match(ident)
         if match == None or match.group(0) != ident:
             self.error_in_line('Invalid identifier "%s"' % ident)
         return ident
 
 class Weight(Statement):
     "Represent a point weight on a qubit."
-    def __init__(self, filename, lineno, sym, weight):
-        super(Weight, self).__init__(filename, lineno)
+    def __init__(self, qmasm, filename, lineno, sym, weight):
+        super(Weight, self).__init__(qmasm, filename, lineno)
         self.sym = self.validate_ident(sym)
         self.weight = weight
 
@@ -215,13 +216,13 @@ class Weight(Statement):
         return "%s%s %s" % (prefix, self.sym, self.weight)
 
     def update_qmi(self, prefix, next_prefix, problem):
-        num = qmasm.symbol_to_number(prefix + self.sym, prefix, next_prefix)
+        num = self.qmasm.symbol_to_number(prefix + self.sym, prefix, next_prefix)
         problem.weights[num] += self.weight
 
 class Chain(Statement):
     "Chain between qubits."
-    def __init__(self, filename, lineno, sym1, sym2):
-        super(Chain, self).__init__(filename, lineno)
+    def __init__(self, qmasm, filename, lineno, sym1, sym2):
+        super(Chain, self).__init__(qmasm, filename, lineno)
         self.sym1 = self.validate_ident(sym1)
         self.sym2 = self.validate_ident(sym2)
 
@@ -229,21 +230,21 @@ class Chain(Statement):
         return "%s%s = %s%s" % (prefix, self.sym1, prefix, self.sym2)
 
     def update_qmi(self, prefix, next_prefix, problem):
-        num1 = qmasm.symbol_to_number(prefix + self.sym1, prefix, next_prefix)
-        num2 = qmasm.symbol_to_number(prefix + self.sym2, prefix, next_prefix)
+        num1 = self.qmasm.symbol_to_number(prefix + self.sym1, prefix, next_prefix)
+        num2 = self.qmasm.symbol_to_number(prefix + self.sym2, prefix, next_prefix)
         if num1 == num2:
             self.error_in_line("A chain cannot connect a spin to itself")
         elif num1 > num2:
             num1, num2 = num2, num1
         problem.chains.add((num1, num2))
-        sym1 = qmasm.apply_prefix(prefix + self.sym1, None, next_prefix)
-        sym2 = qmasm.apply_prefix(prefix + self.sym2, None, next_prefix)
+        sym1 = self.qmasm.apply_prefix(prefix + self.sym1, None, next_prefix)
+        sym2 = self.qmasm.apply_prefix(prefix + self.sym2, None, next_prefix)
         problem.pending_asserts.append((sym1, "=", sym2))
 
 class AntiChain(Statement):
     "AntiChain between qubits."
-    def __init__(self, filename, lineno, sym1, sym2):
-        super(AntiChain, self).__init__(filename, lineno)
+    def __init__(self, qmasm, filename, lineno, sym1, sym2):
+        super(AntiChain, self).__init__(qmasm, filename, lineno)
         self.sym1 = self.validate_ident(sym1)
         self.sym2 = self.validate_ident(sym2)
 
@@ -251,21 +252,21 @@ class AntiChain(Statement):
         return "%s%s /= %s%s" % (prefix, self.sym1, prefix, self.sym2)
 
     def update_qmi(self, prefix, next_prefix, problem):
-        num1 = qmasm.symbol_to_number(prefix + self.sym1, prefix, next_prefix)
-        num2 = qmasm.symbol_to_number(prefix + self.sym2, prefix, next_prefix)
+        num1 = self.qmasm.symbol_to_number(prefix + self.sym1, prefix, next_prefix)
+        num2 = self.qmasm.symbol_to_number(prefix + self.sym2, prefix, next_prefix)
         if num1 == num2:
             self.error_in_line("An anti-chain cannot connect a spin to itself")
         elif num1 > num2:
             num1, num2 = num2, num1
         problem.antichains.add((num1, num2))
-        sym1 = qmasm.apply_prefix(prefix + self.sym1, None, next_prefix)
-        sym2 = qmasm.apply_prefix(prefix + self.sym2, None, next_prefix)
+        sym1 = self.qmasm.apply_prefix(prefix + self.sym1, None, next_prefix)
+        sym2 = self.qmasm.apply_prefix(prefix + self.sym2, None, next_prefix)
         problem.pending_asserts.append((sym1, "/=", sym2))
 
 class Pin(Statement):
     "Pinning of a qubit to true or false."
-    def __init__(self, filename, lineno, sym, goal):
-        super(Pin, self).__init__(filename, lineno)
+    def __init__(self, qmasm, filename, lineno, sym, goal):
+        super(Pin, self).__init__(qmasm, filename, lineno)
         self.sym = self.validate_ident(sym)
         self.goal = goal
 
@@ -273,15 +274,15 @@ class Pin(Statement):
         return "%s%s := %s" % (prefix, self.sym, self.goal)
 
     def update_qmi(self, prefix, next_prefix, problem):
-        num = qmasm.symbol_to_number(prefix + self.sym, prefix, next_prefix)
+        num = self.qmasm.symbol_to_number(prefix + self.sym, prefix, next_prefix)
         problem.pinned.append((num, self.goal))
-        sym = qmasm.apply_prefix(prefix + self.sym, None, next_prefix)
+        sym = self.qmasm.apply_prefix(prefix + self.sym, None, next_prefix)
         problem.pending_asserts.append((sym, "=", str(int(self.goal))))
 
 class Alias(Statement):
     "Alias of one symbol to another."
-    def __init__(self, filename, lineno, sym1, sym2):
-        super(Alias, self).__init__(filename, lineno)
+    def __init__(self, qmasm, filename, lineno, sym1, sym2):
+        super(Alias, self).__init__(qmasm, filename, lineno)
         self.sym1 = self.validate_ident(sym1)
         self.sym2 = self.validate_ident(sym2)
 
@@ -294,12 +295,12 @@ class Alias(Statement):
         if next_prefix != None:
             sym1 = sym1.replace(prefix + "!next.", next_prefix)
             sym2 = sym2.replace(prefix + "!next.", next_prefix)
-        qmasm.sym_map.alias(sym1, sym2)
+        self.qmasm.sym_map.alias(sym1, sym2)
 
 class Rename(Statement):
     "Rename one set of symbols to another."
-    def __init__(self, filename, lineno, syms1, syms2):
-        super(Rename, self).__init__(filename, lineno)
+    def __init__(self, qmasm, filename, lineno, syms1, syms2):
+        super(Rename, self).__init__(qmasm, filename, lineno)
         self.syms1 = [self.validate_ident(s) for s in syms1]
         self.syms2 = [self.validate_ident(s) for s in syms2]
 
@@ -313,7 +314,7 @@ class Rename(Statement):
         if next_prefix != None:
             syms1 = [s.replace(prefix + "!next.", next_prefix) for s in syms1]
             syms2 = [s.replace(prefix + "!next.", next_prefix) for s in syms2]
-        qmasm.sym_map.replace_all(syms1, syms2)
+        self.qmasm.sym_map.replace_all(syms1, syms2)
         sym2sym = dict(zip(syms1, syms2))
 
         # Update all weights.
@@ -409,8 +410,8 @@ class Rename(Statement):
 
 class Strength(Statement):
     "Coupler strength between two qubits."
-    def __init__(self, filename, lineno, sym1, sym2, strength):
-        super(Strength, self).__init__(filename, lineno)
+    def __init__(self, qmasm, filename, lineno, sym1, sym2, strength):
+        super(Strength, self).__init__(qmasm, filename, lineno)
         self.sym1 = self.validate_ident(sym1)
         self.sym2 = self.validate_ident(sym2)
         self.strength = strength
@@ -419,8 +420,8 @@ class Strength(Statement):
         return "%s%s %s%s %s" % (prefix, self.sym1, prefix, self.sym2, self.strength)
 
     def update_qmi(self, prefix, next_prefix, problem):
-        num1 = qmasm.symbol_to_number(prefix + self.sym1, prefix, next_prefix)
-        num2 = qmasm.symbol_to_number(prefix + self.sym2, prefix, next_prefix)
+        num1 = self.qmasm.symbol_to_number(prefix + self.sym1, prefix, next_prefix)
+        num2 = self.qmasm.symbol_to_number(prefix + self.sym2, prefix, next_prefix)
         if num1 == num2:
             self.error_in_line("A coupler cannot connect a spin to itself")
         elif num1 > num2:
@@ -429,10 +430,10 @@ class Strength(Statement):
 
 class Assert(Statement):
     "Instantiation of a run-time assertion."
-    parser = AssertParser()
 
-    def __init__(self, filename, lineno, expr):
-        super(Assert, self).__init__(filename, lineno)
+    def __init__(self, qmasm, filename, lineno, expr):
+        super(Assert, self).__init__(qmasm, filename, lineno)
+        self.parser = AssertParser(qmasm)
         self.expr = expr
         self.ast = self.parser.parse(expr)
         self.ast.compile()
@@ -457,8 +458,8 @@ class Assert(Statement):
 
 class MacroUse(Statement):
     "Instantiation of a macro definition."
-    def __init__(self, filename, lineno, name, body, prefixes):
-        super(MacroUse, self).__init__(filename, lineno)
+    def __init__(self, qmasm, filename, lineno, name, body, prefixes):
+        super(MacroUse, self).__init__(qmasm, filename, lineno)
         self.name = self.validate_ident(name)
         self.body = body
         self.prefixes = [self.validate_ident(p) + "." for p in prefixes]
@@ -499,7 +500,7 @@ class MacroUse(Statement):
             for stmt in self.body:
                 try:
                     stmt.update_qmi(prefix, None, problem)
-                except qmasm.utils.RemainingNextException:
+                except self.qmasm.utils.RemainingNextException:
                     pass
         else:
             # At least one prefix -- import the macro body into a new scope
@@ -514,19 +515,20 @@ class MacroUse(Statement):
                 for stmt in self.body:
                     try:
                         stmt.update_qmi(pfx, next_pfx, problem)
-                    except qmasm.utils.RemainingNextException:
+                    except self.qmasm.utils.RemainingNextException:
                         pass
 
 class FileParser(object):
     "Parse a QMASM file."
 
     def __init__(self, qmasm):
+        self.qmasm = qmasm      # Reference to the object we're mixed into
         self.macros = {}        # Map from a macro name to a list of Statement objects
         self.current_macro = (None, [])   # Macro currently being defined (name and statements)
         self.target = qmasm.program   # Reference to either the program or the current macro
         self.env = Environment()      # Stack of maps from compile-time variable names to values
-        self.expr_parser = ExprParser()     # Expression parser
-        self.rel_parser = RelationParser()  # Relation parser
+        self.expr_parser = ExprParser(qmasm)     # Expression parser
+        self.rel_parser = RelationParser(qmasm)  # Relation parser
 
         # Establish a mapping from a first-field directive to a parsing function.
         self.dir_to_func = {
@@ -603,7 +605,7 @@ class FileParser(object):
         # "!assert" <expr> -- assert a property that must be true at run time.
         if len(fields) < 2:
             error_in_line(filename, lineno, "Expected an expression to follow !assert")
-        self.target.append(Assert(filename, lineno, " ".join(self.env.sub_syms(fields[1:]))))
+        self.target.append(Assert(self.qmasm, filename, lineno, " ".join(self.env.sub_syms(fields[1:]))))
 
     def parse_line_let(self, filename, lineno, fields):
         "Parse a !let directive."
@@ -647,7 +649,7 @@ class FileParser(object):
         if self.current_macro[0] != name:
             error_in_line(filename, lineno, "Ended macro %s after beginning macro %s" % (name, self.current_macro[0]))
         self.macros[name] = self.current_macro[1]
-        self.target = qmasm.program
+        self.target = self.qmasm.program
         self.current_macro = (None, [])
         self.env.pop()
 
@@ -660,7 +662,7 @@ class FileParser(object):
             val = float(self.env.sub_syms(fields[1]))
         except ValueError:
             error_in_line(filename, lineno, 'Failed to parse "%s %s" as a symbol followed by a numerical weight' % (fields[0], fields[1]))
-        self.target.append(Weight(filename, lineno, self.env.sub_syms(fields[0]), val))
+        self.target.append(Weight(self.qmasm, filename, lineno, self.env.sub_syms(fields[0]), val))
 
     def parse_line_chain(self, filename, lineno, fields):
         "Parse a qubit chain."
@@ -718,7 +720,7 @@ class FileParser(object):
         if num_arrows != 1 or rhs[0] != "->":
             error_in_line(filename, lineno, 'Failed to parse "%s" as a symbol rename' % (" ".join(fields)))
         rhs = rhs[1:]  # Drop the "->".
-        self.target.append(Rename(filename, lineno, lhs, rhs))
+        self.target.append(Rename(self.qmasm, filename, lineno, lhs, rhs))
 
     def parse_line_strength(self, filename, lineno, fields):
         "Parse a coupler strength."
@@ -729,7 +731,7 @@ class FileParser(object):
             strength = float(self.env.sub_syms(fields[2]))
         except ValueError:
             error_in_line(filename, lineno, 'Failed to parse "%s" as a number' % fields[2])
-        self.target.append(Strength(filename, lineno, self.env.sub_syms(fields[0]), self.env.sub_syms(fields[1]), strength))
+        self.target.append(Strength(self.qmasm, filename, lineno, self.env.sub_syms(fields[0]), self.env.sub_syms(fields[1]), strength))
 
     def parse_line_use_macro(self, filename, lineno, fields):
         "Parse a !use_macro directive."
@@ -740,7 +742,7 @@ class FileParser(object):
         name = self.env.sub_syms(fields[1])
         prefixes = [self.env.sub_syms(p) for p in fields[2:]]
         try:
-            self.target.append(MacroUse(filename, lineno, name, self.macros[name], prefixes))
+            self.target.append(MacroUse(self.qmasm, filename, lineno, name, self.macros[name], prefixes))
         except KeyError:
             error_in_line(filename, lineno, "Unknown macro %s" % name)
 
@@ -868,52 +870,52 @@ class FileParser(object):
         "Parse a pin statement into one or more Pin objects and add these to the program."
         lhs_rhs = pin_str.split(":=")
         if len(lhs_rhs) != 2:
-            qmasm.abend('Failed to parse pin statement "%s"' % pin_str)
+            self.qmasm.abend('Failed to parse pin statement "%s"' % pin_str)
         pin_parser = PinParser()
         lhs_list = pin_parser.parse_lhs(self.env.sub_syms(lhs_rhs[0]))
         rhs_list = pin_parser.parse_rhs(self.env.sub_syms(lhs_rhs[1]))
         if len(lhs_list) != len(rhs_list):
-            qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin_str, len(lhs_list), len(rhs_list)))
-        return [Pin(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+            self.qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin_str, len(lhs_list), len(rhs_list)))
+        return [Pin(self.qmasm, filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
 
     def process_chain(self, filename, lineno, chain_str):
         "Parse a chain statement into one or more Chain objects and add these to the program."
         # We use the LHS parser from PinParser to parse both sides of the chain.
         lhs_rhs = chain_str.split("=")
         if len(lhs_rhs) != 2:
-            qmasm.abend('Failed to parse chain statement "%s"' % chain_str)
+            self.qmasm.abend('Failed to parse chain statement "%s"' % chain_str)
         pin_parser = PinParser()
         lhs_list = pin_parser.parse_lhs(self.env.sub_syms(lhs_rhs[0]))
         rhs_list = pin_parser.parse_lhs(self.env.sub_syms(lhs_rhs[1]))  # Note use of parse_lhs to parse the RHS.
         if len(lhs_list) != len(rhs_list):
-            qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
-        return [Chain(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+            self.qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
+        return [Chain(self.qmasm, filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
 
     def process_antichain(self, filename, lineno, antichain_str):
         "Parse an anti-chain statement into one or more AntiChain objects and add these to the program."
         # We use the LHS parser from PinParser to parse both sides of the anti-chain.
         lhs_rhs = antichain_str.split("/=")
         if len(lhs_rhs) != 2:
-            qmasm.abend('Failed to parse anti-chain statement "%s"' % antichain_str)
+            self.qmasm.abend('Failed to parse anti-chain statement "%s"' % antichain_str)
         pin_parser = PinParser()
         lhs_list = pin_parser.parse_lhs(self.env.sub_syms(lhs_rhs[0]))
         rhs_list = pin_parser.parse_lhs(self.env.sub_syms(lhs_rhs[1]))  # Note use of parse_lhs to parse the RHS.
         if len(lhs_list) != len(rhs_list):
-            qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (antichain_str, len(lhs_list), len(rhs_list)))
-        return [AntiChain(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+            self.qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (antichain_str, len(lhs_list), len(rhs_list)))
+        return [AntiChain(self.qmasm, filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
 
     def process_alias(self, filename, lineno, alias_str):
         "Parse an alias statement into one or more Alias objects and add these to the program."
         # We use the LHS parser from PinParser to parse both sides of the alias.
         lhs_rhs = alias_str.split("<->")
         if len(lhs_rhs) != 2:
-            qmasm.abend('Failed to parse alias statement "%s"' % alias_str)
+            self.qmasm.abend('Failed to parse alias statement "%s"' % alias_str)
         pin_parser = PinParser()
         lhs_list = pin_parser.parse_lhs(self.env.sub_syms(lhs_rhs[0]))
         rhs_list = pin_parser.parse_lhs(self.env.sub_syms(lhs_rhs[1]))  # Note use of parse_lhs to parse the RHS.
         if len(lhs_list) != len(rhs_list):
-            qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (alias_str, len(lhs_list), len(rhs_list)))
-        return [Alias(filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
+            self.qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (alias_str, len(lhs_list), len(rhs_list)))
+        return [Alias(self.qmasm, filename, lineno, l, r) for l, r in zip(lhs_list, rhs_list)]
 
     def process_file_contents(self, filename, all_lines):
         """Parse the contents of a file.  Contents are passed as a list plus an
@@ -1000,7 +1002,7 @@ class FileParser(object):
                 try:
                     infile = open(infilename)
                 except IOError:
-                    qmasm.abend('Failed to open %s for input' % infilename)
+                    self.qmasm.abend('Failed to open %s for input' % infilename)
                 self.process_file(infilename, infile)
                 if self.current_macro[0] != None:
                     error_in_line(filename, lineno, "Unterminated definition of macro %s" % self.current_macro[0])
@@ -1052,11 +1054,11 @@ class PinParser(object):
         for c in lhs:
             if c == "[":
                 if in_bracket:
-                    qmasm.abend("Nested brackets are not allowed")
+                    self.qmasm.abend("Nested brackets are not allowed")
                 in_bracket = True
             elif c == "]":
                 if not in_bracket:
-                    qmasm.abend('Encountered "]" before seeing a "["')
+                    self.qmasm.abend('Encountered "]" before seeing a "["')
                 old_vars = variables[:-group_len]
                 current_vars = variables[-group_len:]
                 new_vars = self.expand_brackets(current_vars, bracket_expr)
@@ -1068,7 +1070,7 @@ class PinParser(object):
                 bracket_expr += c
             elif c == " " or c == "\t":
                 if in_bracket:
-                    qmasm.abend("Unterminated bracketed expression")
+                    self.qmasm.abend("Unterminated bracketed expression")
                 if variables[-1] != "":
                     variables.append("")
                 group_len = 1
@@ -1076,7 +1078,7 @@ class PinParser(object):
                 for i in range(1, group_len + 1):
                     variables[-i] += c
         if in_bracket:
-            qmasm.abend("Unterminated bracketed expression")
+            self.qmasm.abend("Unterminated bracketed expression")
         if variables[-1] == "":
             variables.pop()
         return variables
@@ -1085,5 +1087,5 @@ class PinParser(object):
         "Parse the right-hand side of a pin statement."
         for inter in [t.strip() for t in self.bool_re.split(rhs)]:
             if inter != "":
-                qmasm.abend('Unexpected "%s" in pin right-hand side "%s"' % (inter, rhs))
+                self.qmasm.abend('Unexpected "%s" in pin right-hand side "%s"' % (inter, rhs))
         return [self.str2bool[t.upper()] for t in self.bool_re.findall(rhs)]

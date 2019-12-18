@@ -210,6 +210,9 @@ class AssertParser(object):
     arith_re = re.compile(r'[-+/%&\|^~!]|>>|<<|\*\*?')
     keyword_re = re.compile(r'\b(if|then|else|endif)\b')
 
+    def __init__(self, qmasm):
+        self.qmasm = qmasm
+    
     class ParseError(Exception):
         pass
 
@@ -281,7 +284,7 @@ class AssertParser(object):
                 continue
 
             # Everything else is an identifier.
-            mo = qmasm.ident_re.match(s)
+            mo = self.qmasm.ident_re.match(s)
             if mo != None:
                 match = mo.group(0)
                 tokens.append(("ident", match))
