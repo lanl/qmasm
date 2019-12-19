@@ -22,3 +22,29 @@ class Problem(object):
         self.assertions = []      # List of assertions (as ASTs) to enforce
         self.pending_asserts = [] # List of {string, op, string} tuples pending conversion to assertions
         self.pinned = []          # Pairs of {unique number, Boolean} to pin
+
+    def assign_chain_strength(self, ch_str):
+        """Define a strength for each user-specified and automatically
+        generated chain, and assign strengths to those chains (and negative
+        strength to all anti-chains).  Return the computed chain strength."""
+        chain_strength = ch_str
+        if chain_strength == None:
+            # Chain strength defaults to twice the maximum strength in the data.
+            try:
+                chain_strength = -2*max([abs(w) for w in self.strengths.values()])
+            except ValueError:
+                # No strengths -- use weights instead.
+                try:
+                    chain_strength = -2*max([abs(w) for w in self.weights.values()])
+                except ValueError:
+                    # No weights or strengths -- arbitrarily choose -1.
+                    chain_strength = -1.0
+        elif self.qubo:
+            # With QUBO input we need to divide the chain strength by 4 for
+            # consistency with the other coupler strengths.
+            chain_strength /= 4.0
+        for c in self.chains:
+            self.strengths[c] += chain_strength
+        for c in self.antichains:
+            self.strengths[c] -= chain_strength
+        return chain_strength

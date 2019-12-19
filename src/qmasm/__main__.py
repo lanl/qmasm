@@ -47,6 +47,21 @@ class QMASM(ParseCommandLine, Utilities):
         for stmt in self.program:
             stmt.update_qmi("", "<ERROR>", logical)
 
+        # Store all tallies for later reportage.
+        logical_stats = {
+            "vars":      self.sym_map.max_number() + 1,
+            "strengths": len(logical.strengths),
+            "eqs":       len(logical.chains),
+            "ineqs":     len(logical.antichains),
+            "pins":      len(logical.pinned)
+        }
+
+        # Define a strength for each user-specified chain and anti-chain, and
+        # assign strengths to those chains.
+        self.chain_strength = logical.assign_chain_strength(cl_args.chain_strength)
+        if cl_args.verbose >= 1:
+            sys.stderr.write("Chain strength: %7.4f\n\n" % self.chain_strength)
+
 def main():
     "Run QMASM."
     q = QMASM()
