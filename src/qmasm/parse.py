@@ -12,6 +12,7 @@ import string
 import sys
 from collections import defaultdict
 from qmasm.assertions import AssertParser
+from qmasm.utils import RemainingNextException
 
 # Define a function that aborts the program, reporting an invalid
 # input line as part of the error message.
@@ -443,7 +444,7 @@ class Assert(Statement):
             ast = self.ast
         else:
             ast = copy.deepcopy(self.ast)
-            ast.apply_prefix(prefix, None)
+            ast.prefix_identifiers(prefix, None)
             ast.compile()
         return "!assert " + str(ast)
 
@@ -452,7 +453,7 @@ class Assert(Statement):
             ast = self.ast
         else:
             ast = copy.deepcopy(self.ast)
-            ast.apply_prefix(prefix, next_prefix)
+            ast.prefix_identifiers(prefix, next_prefix)
             ast.compile()
         problem.assertions.append(ast)
 
@@ -515,7 +516,7 @@ class MacroUse(Statement):
                 for stmt in self.body:
                     try:
                         stmt.update_qmi(pfx, next_pfx, problem)
-                    except self.qmasm.utils.RemainingNextException:
+                    except RemainingNextException:
                         pass
 
 class FileParser(object):

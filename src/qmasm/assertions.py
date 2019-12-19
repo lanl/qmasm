@@ -10,7 +10,8 @@ import sys
 class AST(object):
     "Represent an abstract syntax tree."
 
-    def __init__(self, type, value, kids=[]):
+    def __init__(self, qmasm, type, value, kids=[]):
+        self.qmasm = qmasm
         self.type = type
         self.value = value
         self.kids = kids
@@ -52,13 +53,13 @@ class AST(object):
             self._str = self._str_helper()
         return self._str
 
-    def apply_prefix(self, prefix, next_prefix):
+    def prefix_identifiers(self, prefix, next_prefix):
         "Prefix every identifier with a given string."
         if self.type == "ident":
-            self.value = qmasm.apply_prefix(self.value, prefix, next_prefix)
+            self.value = self.qmasm.apply_prefix(self.value, prefix, next_prefix)
         else:
             for k in self.kids:
-                k.apply_prefix(prefix, next_prefix)
+                k.prefix_identifiers(prefix, next_prefix)
 
     def replace_ident(self, old_ident, new_ident):
         "Replace every occurrence of one identifer with another."
@@ -327,12 +328,12 @@ class AssertParser(object):
 
         # Handle the trivial case of the identity operation.
         if len(asts) == 1:
-            return AST(return_type, None, asts)
+            return AST(self.qmasm, return_type, None, asts)
 
         # Merge the ASTs in a left-associative fashion into a single AST.
         ops.pop()
         while len(asts) > 1:
-            asts = [AST(return_type, ops[0], [asts[0], asts[1]])] + asts[2:]
+            asts = [AST(self.qmasm, return_type, ops[0], [asts[0], asts[1]])] + asts[2:]
             ops.pop(0)
         return asts[0]
 
@@ -345,15 +346,15 @@ class AssertParser(object):
         self.expect("else")
         else_expr = self.expression()
         self.expect("endif")
-        return AST("if_expr", None, [cond, then_expr, else_expr])
+        return AST(self.qmasm, "if_expr", None, [cond, then_expr, else_expr])
 
     def factor(self):
         "Return a factor (variable, integer, or expression)."
         val = self.sym[1]
         if self.accept("ident"):
-            child = AST("ident", val)
+            child = AST(self.qmasm, "ident", val)
         elif self.accept("int"):
-            child = AST("int", val)
+            child = AST(self.qmasm, "int", val)
         elif self.accept("lparen"):
             child = self.disjunction()
             self.expect("rparen")
@@ -365,7 +366,7 @@ class AssertParser(object):
             raise self.ParseError("Parse error at end of expression")
         else:
             raise self.ParseError('Parse error at "%s"' % val)
-        return AST("factor", None, [child])
+        return AST(self.qmasm, "factor", None, [child])
 
     def power(self):
         "Return a factor or a factor raised to the power of a second factor."
@@ -374,8 +375,8 @@ class AssertParser(object):
         if self.sym[0] == "power" and op == "**":
             self.advance()
             f2 = self.power()
-            return AST("power", op, [f1, f2])
-        return AST("power", None, [f1])
+            return AST(self.qmasm, "power", op, [f1, f2])
+        return AST(self.qmasm, "power", None, [f1])
 
     def unary(self):
         "Return a unary operator applied to a power."
@@ -384,7 +385,7 @@ class AssertParser(object):
             self.advance()
         else:
             op = "id"
-        return AST("unary", op, [self.power()])
+        return AST(self.qmasm, "unary", op, [self.power()])
 
     def term(self):
         "Return a term (product of one or more unaries)."
@@ -399,10 +400,10 @@ class AssertParser(object):
         e1 = self.expression()
         op = self.sym[1]
         if self.sym[0] != "rel":
-            return AST("rel", None, [e1])
+            return AST(self.qmasm, "rel", None, [e1])
         self.advance()
         e2 = self.expression()
-        return AST("rel", op, [e1, e2])
+        return AST(self.qmasm, "rel", op, [e1, e2])
 
     def conjunction(self):
         "Return a conjunction (logical AND of one or more comparisons)."

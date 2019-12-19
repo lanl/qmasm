@@ -9,13 +9,18 @@ import re
 import sys
 from qmasm.cmdline import ParseCommandLine
 from qmasm.parse import FileParser
+from qmasm.problem import Problem
+from qmasm.utils import Utilities, SymbolMapping
 
-class QMASM(ParseCommandLine):
+class QMASM(ParseCommandLine, Utilities):
     "QMASM represents everything the program can do."
 
     def __init__(self):
         # List of Statement objects
         self.program = []
+
+        # Map between symbols and numbers.
+        self.sym_map = SymbolMapping()
 
         # Multiple components of QMASM require a definition of an identifier.
         self.ident_re = re.compile(r'[^-+*/%&\|^~()<=>#,\s]+')
@@ -36,6 +41,11 @@ class QMASM(ParseCommandLine):
         if cl_args.pin != None:
             for pin in cl_args.pin:
                 self.program.extend(fparse.process_pin("[command line]", 1, pin))
+
+        # Walk the statements in the program, processing each in turn.
+        logical = Problem(cl_args.qubo)
+        for stmt in self.program:
+            stmt.update_qmi("", "<ERROR>", logical)
 
 def main():
     "Run QMASM."
