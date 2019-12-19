@@ -62,6 +62,9 @@ class QMASM(ParseCommandLine, Utilities):
         if cl_args.verbose >= 1:
             sys.stderr.write("Chain strength: %7.4f\n\n" % self.chain_strength)
 
+        # Work from now on with an Ocean BinaryQuadraticModel.
+        bqm = logical.as_bqm()
+
 def main():
     "Run QMASM."
     q = QMASM()

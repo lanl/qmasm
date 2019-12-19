@@ -48,3 +48,21 @@ class Problem(object):
         for c in self.antichains:
             self.strengths[c] -= chain_strength
         return chain_strength
+
+    def as_bqm(self):
+        "Return a BinaryQuadraticModel version of the Problem."
+        # Create a BQM.
+        btype = dimod.SPIN
+        if self.qubo:
+            btype = dimod.BINARY
+        bqm = dimod.BinaryQuadraticModel(self.weights, self.strengths, 0, btype, problem=self)
+        if self.qubo:
+            bqm.change_vartype(dimod.SPIN, inplace=True)
+
+        # Pin all variables the user asked to pin.
+        bool2spin = {False: -1, True: +1}
+        pins = {q: bool2spin[b] for q, b in self.pinned}
+        bqm.fix_variables(pins)
+
+        # Return the BQM.
+        return bqm
