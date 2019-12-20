@@ -66,3 +66,73 @@ class Problem(object):
 
         # Return the BQM.
         return bqm
+
+class BQMMixins(object):
+    "Helper functions for manipulating binary quadratic models."
+
+    def edges_to_adj_list(self, edges):
+        "Convert a list of edges to an adjacency list."
+        adj = defaultdict(lambda: [])
+        for u, v in edges:
+            adj[u].append(v)
+            adj[v].append(u)
+        return adj
+
+    def _traversal_from_root(self, adj, visited, root):
+        """"Return a reversed traversal order of an adjacency list from a
+        given root such that each right vertex is a leaf if all
+        preceding right vertices are removed."""
+        order = []
+        new_visited = visited.copy()
+        new_visited.add(root)
+        for v in adj[root]:
+            if v in new_visited:
+                continue
+            order.append((root, v))
+            ord, vis = self._traversal_from_root(adj, new_visited, v)
+            order.extend(ord)
+            new_visited.update(vis)
+        return order, new_visited
+
+    def traversal_order(self, edges):
+        """"Return a reversed traversal order of a graph such that each right
+        vertex is a leaf if all preceding right vertices are removed."""
+        adj = self.edges_to_adj_list(edges)
+        order = []
+        nodes = set()
+        for u, v in edges:
+            nodes.add(u)
+            nodes.add(v)
+        visited = set()
+        for u in nodes:
+            if u in visited:
+                continue
+            ord, vis = self._traversal_from_root(adj, visited, u)
+            order.extend(ord)
+            visited.update(vis)
+        order.reverse()
+        return order
+
+    def set_of_all_variables(self, bqm):
+        "Return a set of all variables, referenced in linear and/or quadratic terms."
+        vars = set(bqm.linear)
+        for u, v in bqm.quadratic:
+            vars.add(u)
+            vars.add(v)
+        return vars
+
+    def convert_chains_to_aliases(self, bqm):
+        "Replace user-defined chains with aliases."
+        # At the time of this writing, a BinaryQuadraticModel elides variables
+        # with a weight of zero.  But then contract_variables complains that
+        # the variable can't be found.  Hence, we add back all zero-valued
+        # variables just to keep contract_variables from failing.
+        chains = bqm.info["problem"].chains
+        bqm.add_variables_from({q[0]: 0 for q in chains})
+        bqm.add_variables_from({q[1]: 0 for q in chains})
+
+        # Remove variables that are made equivalent to other variable via
+        # user-defined chains.
+        order = self.traversal_order(chains)
+        for u, v in order:
+            bqm.contract_variables(u, v)

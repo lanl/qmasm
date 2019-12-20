@@ -9,10 +9,10 @@ import re
 import sys
 from qmasm.cmdline import ParseCommandLine
 from qmasm.parse import FileParser
-from qmasm.problem import Problem
+from qmasm.problem import Problem, BQMMixins
 from qmasm.utils import Utilities, SymbolMapping
 
-class QMASM(ParseCommandLine, Utilities):
+class QMASM(ParseCommandLine, Utilities, BQMMixins):
     "QMASM represents everything the program can do."
 
     def __init__(self):
@@ -64,6 +64,20 @@ class QMASM(ParseCommandLine, Utilities):
 
         # Work from now on with an Ocean BinaryQuadraticModel.
         bqm = logical.as_bqm()
+
+        # Convert chains to aliases where possible.
+        if cl_args.O >= 1:
+            # Say what we're about to do
+            if cl_args.verbose >= 2:
+                sys.stderr.write("Replaced user-defined chains with aliases:\n\n")
+                sys.stderr.write("  %6d logical qubits before optimization\n" % len(self.set_of_all_variables(bqm)))
+
+            # Replace chains with aliases wherever we can.
+            self.convert_chains_to_aliases(bqm)
+
+            # Summarize what we just did.
+            if cl_args.verbose >= 2:
+                sys.stderr.write("  %6d logical qubits after optimization\n\n" % len(self.set_of_all_variables(bqm)))
 
 def main():
     "Run QMASM."
