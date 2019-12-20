@@ -11,6 +11,7 @@ from qmasm.cmdline import ParseCommandLine
 from qmasm.parse import FileParser
 from qmasm.problem import Problem, BQMMixins
 from qmasm.utils import Utilities, SymbolMapping
+from qmasm.solve import Sampler
 
 class QMASM(ParseCommandLine, Utilities, BQMMixins):
     "QMASM represents everything the program can do."
@@ -69,6 +70,9 @@ class QMASM(ParseCommandLine, Utilities, BQMMixins):
             # Summarize what we just did.
             if cl_args.verbose >= 2:
                 sys.stderr.write("  %6d logical qubits after optimization\n\n" % len(self.set_of_all_variables(bqm)))
+
+        # Establish a connection to a D-Wave or software sampler.
+        sampler = Sampler(profile=cl_args.profile, solver=cl_args.solver)
 
 def main():
     "Run QMASM."

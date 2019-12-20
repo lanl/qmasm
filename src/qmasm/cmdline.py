@@ -22,15 +22,19 @@ class ParseCommandLine(object):
                                help="run the program on the current solver")
         cl_parser.add_argument("-o", "--output", metavar="FILE", default="<stdout>",
                                help="file to which to write weights and strengths (default: none)")
-        cl_parser.add_argument("-f", "--format", choices=["qubist", "dw", "qbsolv", "qmasm", "minizinc", "bqpjson"], default="qubist",
-                               help="output-file format")
         cl_parser.add_argument("-O", type=int, nargs="?", const=1, default=0,
                                metavar="LEVEL",
                                help="optimize the layout; at -O1, remove unnecessary qubits; at -O2 additionally pack into fewer unit cells")
         cl_parser.add_argument("-p", "--pin", action="append",
                                help="pin a set of qubits to a set of true or false values")
+        cl_parser.add_argument("-f", "--format", choices=["qubist", "dw", "qbsolv", "qmasm", "minizinc", "bqpjson"], default="qubist",
+                               help="output-file format")
         cl_parser.add_argument("--values", choices=["bools", "ints"], default="bools",
                                help="output solution values as Booleans or integers (default: bools)")
+        cl_parser.add_argument("--profile", type=str, default=None, metavar="NAME",
+                               help="Profile name from dwave.conf to use")
+        cl_parser.add_argument("--solver", type=str, default=None, metavar="NAME",
+                               help='Solver name from dwave.conf to use or one of the special names "exact", "sim-anneal", or "tabu"')
         cl_parser.add_argument("-C", "--chain-strength", metavar="NEG_NUM", type=float,
                                help="negative-valued chain strength (default: automatic)")
         cl_parser.add_argument("-P", "--pin-weight", metavar="NEG_NUM", type=float,
