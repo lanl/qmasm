@@ -73,6 +73,7 @@ class QMASM(ParseCommandLine, Utilities, BQMMixins):
 
         # Establish a connection to a D-Wave or software sampler.
         sampler = Sampler(self, profile=cl_args.profile, solver=cl_args.solver)
+        sampler.show_properties(cl_args.verbose)
 
 def main():
     "Run QMASM."
