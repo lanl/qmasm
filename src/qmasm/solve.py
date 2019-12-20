@@ -17,31 +17,11 @@ class Sampler(object):
         self.qmasm = qmasm
         self.sampler = self._get_sampler(profile, solver)
 
-        # Handle built-in software samplers as special cases.
-        self.sampler = None
-        if solver == "exact":
-            self.sampler = ExactSampler()
-        elif solver == "sim-anneal":
-            self.sampler = SimulatedAnnealingSampler()
-        elif solver == "tabu":
-            self.sampler = TabuSampler()
-        else:
-            # In the common case, read the configuration file, either the
-            # default or the one named by the DWAVE_CONFIG_FILE environment
-            # variable.
-            client = Client.from_config(profile=profile)
-            if solver == None:
-                solver = client.default_solver
-            else:
-                solver = {"name": solver}
-            self.sampler = DWaveSampler(solver=solver)
-            client.close()
-
     def _get_sampler(self, profile, solver):
         "Return a dimod.Sampler object."
         # Handle built-in software samplers as special cases.
         if solver == "exact":
-            return ExactSampler()
+            return ExactSolver()
         if solver == "sim-anneal":
             return SimulatedAnnealingSampler()
         if solver == "tabu":
