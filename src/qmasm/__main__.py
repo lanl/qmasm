@@ -72,7 +72,7 @@ class QMASM(ParseCommandLine, Utilities, BQMMixins):
                 sys.stderr.write("  %6d logical qubits after optimization\n\n" % len(self.set_of_all_variables(bqm)))
 
         # Establish a connection to a D-Wave or software sampler.
-        sampler = Sampler(profile=cl_args.profile, solver=cl_args.solver)
+        sampler = Sampler(self, profile=cl_args.profile, solver=cl_args.solver)
 
 def main():
     "Run QMASM."

@@ -16,6 +16,15 @@ class RemainingNextException(Exception):
 class Utilities(object):
     "Provide various utility functions as mixins for QMASM."
 
+    def abend(self, str):
+        "Abort the program on an error."
+        sys.stderr.write("%s: %s\n" % (sys.argv[0], str))
+        sys.exit(1)
+
+    def warn(self, str):
+        "Issue a warning message but continue execution."
+        sys.stderr.write("%s: Warning: %s\n" % (sys.argv[0], str))
+
     def symbol_to_number(self, sym, prefix=None, next_prefix=None):
         "Map from a symbol to a number, creating a new association if necessary."
         # Replace "!next." by substituting prefixes in the name.

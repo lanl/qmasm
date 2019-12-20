@@ -64,11 +64,11 @@ class ParseCommandLine(object):
 
         # Perform a few sanity checks on the parameters.
         if cl_args.chain_strength != None and cl_args.chain_strength >= 0.0:
-            qmasm.warn("A non-negative chain strength (%.20g) was specified\n" % cl_args.chain_strength)
+            self.warn("A non-negative chain strength (%.20g) was specified\n" % cl_args.chain_strength)
         if cl_args.pin_weight != None and cl_args.pin_weight >= 0.0:
-            qmasm.warn("A non-negative pin strength (%.20g) was specified\n" % cl_args.pin_weight)
+            self.warn("A non-negative pin strength (%.20g) was specified\n" % cl_args.pin_weight)
         if cl_args.spin_revs > cl_args.samples:
-            qmasm.abend("The number of spin reversals is not allowed to exceed the number of samples")
+            self.abend("The number of spin reversals is not allowed to exceed the number of samples")
         return cl_args
 
     def get_command_line(self):
