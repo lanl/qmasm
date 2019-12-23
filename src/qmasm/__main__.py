@@ -8,12 +8,13 @@
 import re
 import sys
 from qmasm.cmdline import ParseCommandLine
+from qmasm.output import OutputMixin
 from qmasm.parse import FileParser
 from qmasm.problem import Problem
-from qmasm.utils import Utilities, SymbolMapping
 from qmasm.solve import Sampler
+from qmasm.utils import Utilities, SymbolMapping
 
-class QMASM(ParseCommandLine, Utilities):
+class QMASM(ParseCommandLine, Utilities, OutputMixin):
     "QMASM represents everything the program can do."
 
     def __init__(self):
@@ -72,6 +73,16 @@ class QMASM(ParseCommandLine, Utilities):
 
         # Convert user-specified chains, anti-chains, and pins to assertions.
         logical.append_assertions_from_statements()
+
+        # Determine if we're expected to write an output file.  If --run was
+        # specified, we write a file only if --output was also specified.
+        write_output_file = not (cl_args.output == "<stdout>" and cl_args.run)
+
+        # If the user requested QMASM output, always output it here.
+        if write_output_file and cl_args.format == "qmasm":
+            self.write_output(logical, cl_args.output, cl_args.format, cl_args.qubo)
+            if not cl_args.run:
+                sys.exit(0)
 
 def main():
     "Run QMASM."
