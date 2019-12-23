@@ -23,6 +23,7 @@ class Problem(object):
         self.assertions = []      # List of assertions (as ASTs) to enforce
         self.pending_asserts = [] # List of {string, op, string} tuples pending conversion to assertions
         self.pinned = []          # Pairs of {unique number, Boolean} to pin
+        self.bqm_vars = None      # Set of all variables appearing in the BQM
 
     def assign_chain_strength(self, ch_str):
         """Define a strength for each user-specified and automatically
@@ -50,8 +51,8 @@ class Problem(object):
             self.strengths[c] -= chain_strength
         return chain_strength
 
-    def as_bqm(self):
-        "Return a BinaryQuadraticModel version of the Problem."
+    def generate_bqm(self):
+        "Generate a BinaryQuadraticModel version of the Problem."
         # Create a BQM.
         btype = dimod.SPIN
         if self.qubo:
@@ -69,13 +70,20 @@ class Problem(object):
             bqm.add_variable(q, 0, dimod.SPIN)
         bqm.fix_variables(pins)
 
-        # Return the BQM.
-        return bqm
+        # Store the BQM.
+        self.bqm = bqm
 
-class BQMMixins(object):
-    "Helper functions for manipulating binary quadratic models."
+    def all_bqm_variables(self, force_recompute=False):
+        "Return a set of all variables, referenced in linear and/or quadratic terms in the BQM."
+        if self.bqm_vars != None and not force_recompute:
+            return self.bqm_vars
+        self.bqm_vars = set(self.bqm.linear)
+        for u, v in self.bqm.quadratic:
+            self.bqm_vars.add(u)
+            self.bqm_vars.add(v)
+        return self.bqm_vars
 
-    def edges_to_adj_list(self, edges):
+    def _edges_to_adj_list(self, edges):
         "Convert a list of edges to an adjacency list."
         adj = defaultdict(lambda: [])
         for u, v in edges:
@@ -102,7 +110,7 @@ class BQMMixins(object):
     def traversal_order(self, edges):
         """"Return a reversed traversal order of a graph such that each right
         vertex is a leaf if all preceding right vertices are removed."""
-        adj = self.edges_to_adj_list(edges)
+        adj = self._edges_to_adj_list(edges)
         order = []
         nodes = set()
         for u, v in edges:
@@ -118,54 +126,44 @@ class BQMMixins(object):
         order.reverse()
         return order
 
-    def set_of_all_variables(self, bqm):
-        "Return a set of all variables, referenced in linear and/or quadratic terms."
-        vars = set(bqm.linear)
-        for u, v in bqm.quadratic:
-            vars.add(u)
-            vars.add(v)
-        return vars
-
-    def convert_chains_to_aliases(self, bqm, verbosity):
+    def convert_chains_to_aliases(self, verbosity):
         "Replace user-defined chains with aliases."
         # Say what we're about to do
         if verbosity >= 2:
             sys.stderr.write("Replaced user-defined chains with aliases:\n\n")
-            sys.stderr.write("  %6d logical qubits before optimization\n" % len(self.set_of_all_variables(bqm)))
+            sys.stderr.write("  %6d logical qubits before optimization\n" % len(self.all_bqm_variables()))
 
         # At the time of this writing, a BinaryQuadraticModel elides variables
         # with a weight of zero.  But then contract_variables complains that
         # the variable can't be found.  Hence, we add back all zero-valued
         # variables just to keep contract_variables from failing.
-        chains = bqm.info["problem"].chains
-        bqm.add_variables_from({q[0]: 0 for q in chains})
-        bqm.add_variables_from({q[1]: 0 for q in chains})
+        self.bqm.add_variables_from({q[0]: 0 for q in self.chains})
+        self.bqm.add_variables_from({q[1]: 0 for q in self.chains})
 
         # Remove variables that are made equivalent to other variable via
         # user-defined chains.
-        order = self.traversal_order(chains)
+        order = self.traversal_order(self.chains)
         for u, v in order:
-            bqm.contract_variables(u, v)
+            self.bqm.contract_variables(u, v)
 
         # Say what we just did.
         if verbosity >= 2:
-            sys.stderr.write("  %6d logical qubits after optimization\n\n" % len(self.set_of_all_variables(bqm)))
+            sys.stderr.write("  %6d logical qubits after optimization\n\n" % len(self.all_bqm_variables(force_recompute=True)))
 
-    def simplify_problem(self, bqm, verbosity):
+    def simplify_problem(self, verbosity):
         "Find and remove variables with known outputs."
         # Say what we're going to do.
         if verbosity >= 2:
             sys.stderr.write("Simplified the problem:\n\n")
-            sys.stderr.write("  %6d logical qubits before optimization\n" % len(self.set_of_all_variables(bqm)))
+            sys.stderr.write("  %6d logical qubits before optimization\n" % len(self.all_bqm_variables()))
 
         # Simplify the BQM.
-        known = dimod.roof_duality.fix_variables(bqm, True)
-        bqm.info["problem"].known_values = known
-        bqm.fix_variables(known)
+        self.known_values = dimod.roof_duality.fix_variables(self.bqm, True)
+        self.bqm.fix_variables(self.known_values)
 
         # Say what we just did.
         if verbosity >= 2:
-            num_left = len(self.set_of_all_variables(bqm))
+            num_left = len(self.all_bqm_variables(force_recompute=True))
             sys.stderr.write("  %6d logical qubits after optimization\n\n" % num_left)
             if num_left == 0:
                 sys.stderr.write("    Note: A complete solution can be found classically using roof duality.\n\n")

@@ -9,11 +9,11 @@ import re
 import sys
 from qmasm.cmdline import ParseCommandLine
 from qmasm.parse import FileParser
-from qmasm.problem import Problem, BQMMixins
+from qmasm.problem import Problem
 from qmasm.utils import Utilities, SymbolMapping
 from qmasm.solve import Sampler
 
-class QMASM(ParseCommandLine, Utilities, BQMMixins):
+class QMASM(ParseCommandLine, Utilities):
     "QMASM represents everything the program can do."
 
     def __init__(self):
@@ -54,16 +54,17 @@ class QMASM(ParseCommandLine, Utilities, BQMMixins):
         if cl_args.verbose >= 1:
             sys.stderr.write("Chain strength: %7.4f\n\n" % self.chain_strength)
 
-        # Work from now on with an Ocean BinaryQuadraticModel.
-        bqm = logical.as_bqm()
+        # We now have enough information to produce an Ocean
+        # BinaryQuadraticModel.
+        logical.generate_bqm()
 
         # Convert chains to aliases where possible.
         if cl_args.O >= 1:
-            self.convert_chains_to_aliases(bqm, cl_args.verbose)
+            logical.convert_chains_to_aliases(cl_args.verbose)
 
         # Simplify the problem if possible.
         if cl_args.O >= 1:
-            self.simplify_problem(bqm, cl_args.verbose)
+            logical.simplify_problem(cl_args.verbose)
 
         # Establish a connection to a D-Wave or software sampler.
         sampler = Sampler(self, profile=cl_args.profile, solver=cl_args.solver)
