@@ -4,6 +4,7 @@
 ###################################
 
 import dimod
+import sys
 from collections import defaultdict
 
 # Problem is currently just a thin veneer over dimod.BinaryQuadraticModel.  If
@@ -121,8 +122,13 @@ class BQMMixins(object):
             vars.add(v)
         return vars
 
-    def convert_chains_to_aliases(self, bqm):
+    def convert_chains_to_aliases(self, bqm, verbosity):
         "Replace user-defined chains with aliases."
+        # Say what we're about to do
+        if verbosity >= 2:
+            sys.stderr.write("Replaced user-defined chains with aliases:\n\n")
+            sys.stderr.write("  %6d logical qubits before optimization\n" % len(self.set_of_all_variables(bqm)))
+
         # At the time of this writing, a BinaryQuadraticModel elides variables
         # with a weight of zero.  But then contract_variables complains that
         # the variable can't be found.  Hence, we add back all zero-valued
@@ -136,3 +142,23 @@ class BQMMixins(object):
         order = self.traversal_order(chains)
         for u, v in order:
             bqm.contract_variables(u, v)
+
+        # Say what we just did.
+        if verbosity >= 2:
+            sys.stderr.write("  %6d logical qubits after optimization\n\n" % len(self.set_of_all_variables(bqm)))
+
+    def simplify_problem(self, bqm, verbosity):
+        "Find and remove variables with known outputs."
+        # Say what we're going to do.
+        if verbosity >= 2:
+            sys.stderr.write("Simplified the problem:\n\n")
+            sys.stderr.write("  %6d logical qubits before optimization\n" % len(self.set_of_all_variables(bqm)))
+
+        # Simplify the BQM.
+        known = dimod.roof_duality.fix_variables(bqm, True)
+        bqm.info["problem"].known_values = known
+        bqm.fix_variables(known)
+
+        # Say what we just did.
+        if verbosity >= 2:
+            sys.stderr.write("  %6d logical qubits after optimization\n\n" % len(self.set_of_all_variables(bqm)))

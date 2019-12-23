@@ -59,17 +59,11 @@ class QMASM(ParseCommandLine, Utilities, BQMMixins):
 
         # Convert chains to aliases where possible.
         if cl_args.O >= 1:
-            # Say what we're about to do
-            if cl_args.verbose >= 2:
-                sys.stderr.write("Replaced user-defined chains with aliases:\n\n")
-                sys.stderr.write("  %6d logical qubits before optimization\n" % len(self.set_of_all_variables(bqm)))
+            self.convert_chains_to_aliases(bqm, cl_args.verbose)
 
-            # Replace chains with aliases wherever we can.
-            self.convert_chains_to_aliases(bqm)
-
-            # Summarize what we just did.
-            if cl_args.verbose >= 2:
-                sys.stderr.write("  %6d logical qubits after optimization\n\n" % len(self.set_of_all_variables(bqm)))
+        # Simplify the problem if possible.
+        if cl_args.O >= 1:
+            self.simplify_problem(bqm, cl_args.verbose)
 
         # Establish a connection to a D-Wave or software sampler.
         sampler = Sampler(self, profile=cl_args.profile, solver=cl_args.solver)
