@@ -84,6 +84,13 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
             if not cl_args.run:
                 sys.exit(0)
 
+        # If the user requested bqpjson output, output it here unless
+        # --always-embed was specified.
+        if write_output_file and cl_args.format == "bqpjson" and not cl_args.always_embed:
+            self.write_output(logical, cl_args.output, cl_args.format, cl_args.qubo)
+            if not cl_args.run:
+                sys.exit(0)
+
 def main():
     "Run QMASM."
     q = QMASM()
