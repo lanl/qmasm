@@ -6,6 +6,7 @@
 import dimod
 import sys
 from collections import defaultdict
+from qmasm.assertions import AssertParser
 
 # Problem is currently just a thin veneer over dimod.BinaryQuadraticModel.  If
 # it turns out we don't even need this veneer, we may replace it with direct
@@ -13,7 +14,8 @@ from collections import defaultdict
 class Problem(object):
     "Represent either an Ising or QUBO problem."
 
-    def __init__(self, qubo):
+    def __init__(self, qmasm, qubo):
+        self.qmasm = qmasm   # Pointer to the top-level QMASM class
         self.qubo = qubo     # True=QUBO; False=Ising
         self.weights = defaultdict(lambda: 0.0)    # Map from a spin to a point weight
         self.strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
@@ -167,3 +169,13 @@ class Problem(object):
             sys.stderr.write("  %6d logical qubits after optimization\n\n" % num_left)
             if num_left == 0:
                 sys.stderr.write("    Note: A complete solution can be found classically using roof duality.\n\n")
+
+    def append_assertions_from_statements(self):
+        "Convert user-specified chains, anti-chains, and pins to assertions."
+        # Convert pending assertions to actual assertions.
+        # TODO: Quote variables containing special characters.
+        ap = AssertParser(self.qmasm)
+        for s1, op, s2 in self.pending_asserts:
+            ast = ap.parse(s1 + " " + op + " " + s2)
+            ast.compile()
+            self.assertions.append(ast)

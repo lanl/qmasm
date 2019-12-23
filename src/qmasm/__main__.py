@@ -44,7 +44,7 @@ class QMASM(ParseCommandLine, Utilities):
                 self.program.extend(fparse.process_pin("[command line]", 1, pin))
 
         # Walk the statements in the program, processing each in turn.
-        logical = Problem(cl_args.qubo)
+        logical = Problem(self, cl_args.qubo)
         for stmt in self.program:
             stmt.update_qmi("", "<ERROR>", logical)
 
@@ -69,6 +69,9 @@ class QMASM(ParseCommandLine, Utilities):
         # Establish a connection to a D-Wave or software sampler.
         sampler = Sampler(self, profile=cl_args.profile, solver=cl_args.solver)
         sampler.show_properties(cl_args.verbose)
+
+        # Convert user-specified chains, anti-chains, and pins to assertions.
+        logical.append_assertions_from_statements()
 
 def main():
     "Run QMASM."
