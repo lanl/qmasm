@@ -63,6 +63,10 @@ class Problem(object):
         # Pin all variables the user asked to pin.
         bool2spin = {False: -1, True: +1}
         pins = {q: bool2spin[b] for q, b in self.pinned}
+        for q in pins:
+            # Ensure that every pinned variable exists.  Otherwise,
+            # fix_variables will throw a KeyError.
+            bqm.add_variable(q, 0, dimod.SPIN)
         bqm.fix_variables(pins)
 
         # Return the BQM.
@@ -161,4 +165,7 @@ class BQMMixins(object):
 
         # Say what we just did.
         if verbosity >= 2:
-            sys.stderr.write("  %6d logical qubits after optimization\n\n" % len(self.set_of_all_variables(bqm)))
+            num_left = len(self.set_of_all_variables(bqm))
+            sys.stderr.write("  %6d logical qubits after optimization\n\n" % num_left)
+            if num_left == 0:
+                sys.stderr.write("    Note: A complete solution can be found classically using roof duality.\n\n")
