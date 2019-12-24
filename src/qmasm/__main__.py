@@ -94,6 +94,16 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         # Embed the problem on the physical topology.
         physical = sampler.embed_problem(logical, cl_args.topology_file, cl_args.verbose)
 
+        # Map each logical qubit to one or more symbols.
+        max_num = self.sym_map.max_number()
+        num2syms = [[] for _ in range(max_num + 1)]
+        all_num2syms = [[] for _ in range(max_num + 1)]
+        max_sym_name_len = 7
+        for s, n in self.sym_map.symbol_number_items():
+            all_num2syms[n].append(s)
+            if cl_args.verbose >= 2 or "$" not in s:
+                num2syms[n].append(s)
+
 def main():
     "Run QMASM."
     q = QMASM()
