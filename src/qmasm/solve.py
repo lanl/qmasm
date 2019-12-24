@@ -3,6 +3,10 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
+import copy
+import json
+import minorminer
+import os
 import sys
 from dimod import ExactSolver
 from neal import SimulatedAnnealingSampler
@@ -78,4 +82,89 @@ class Sampler(object):
                 val_str = repr(props[k])
             if verbose >= 2 or len(val_str) <= short_value_len:
                 sys.stderr.write("    %-*s  %s\n" % (max_key_len, k, val_str))
+            elif len(val_str) > short_value_len:
+                # Value is too long for a single -v.
+                if isinstance(props[k], list):
+                    val_str = "(%d items; use -v -v to view)" % len(props[k])
+                else:
+                    val_str = "(%d characters; use -v -v to view)" % len(val_str)
+                sys.stderr.write("    %-*s  %s\n" % (max_key_len, k, val_str))
         sys.stderr.write("\n")
+
+    def _find_adjacency(self, sampler):
+        "Perform a depth-first search for an adjacency attribute."
+        # Successful base case: The given sampler reports its adjacency
+        # structure.
+        try:
+            return sampler.adjacency
+        except AttributeError:
+            pass
+
+        # Failed base case: The given sampler has no children.
+        try:
+            children = sampler.children
+        except AttributeError:
+            return None
+
+        # Recursive case: Search each child for its adjacency.
+        for c in children:
+            adj = self._find_adjacency(c)
+            if adj != None:
+                return adj
+        return None
+
+    def get_hardware_adjacency(self):
+        "Return the hardware adjacency structure, if any."
+        hw_adj = self._find_adjacency(self.sampler)
+        if hw_adj != None:
+            hw_adj = [(u, v) for u in hw_adj for v in hw_adj[u]]
+        return hw_adj
+
+    def embed_problem(self, logical, verbosity):
+        "Embed a problem on a physical topology, if necessary."
+        # Create a physical Problem.
+        physical = copy.deepcopy(logical)
+        physical.embedding = []
+
+        # Minor-embed the logical problem onto the hardware topology.
+        hw_adj = self.get_hardware_adjacency()
+        if hw_adj == None or len(logical.bqm.quadratic) == 0:
+            return physical
+        if verbosity < 2:
+            physical.embedding = minorminer.find_embedding(logical.bqm.quadratic, hw_adj, verbose=0)
+        else:
+            # minorminer's find_embedding is hard-wired to write to stdout.
+            # Trick it into writing into a pipe instead.
+            sys.stderr.write("Minor-embedding the logical problem onto the physical topology:\n\n")
+            sepLine = "=== EMBEDDING ===\n"
+            r, w = os.pipe()
+            pid = os.fork()
+            if pid == 0:
+                # Child -- perform the embedding.
+                os.close(r)
+                os.dup2(w, sys.stdout.fileno())
+                embedding = minorminer.find_embedding(logical.bqm.quadratic, hw_adj, verbose=1)
+                sys.stdout.flush()
+                os.write(w, sepLine.encode())
+                os.write(w, (json.dumps(embedding) + "\n").encode())
+                os.close(w)
+                os._exit(0)
+            else:
+                # Parent -- report the embedding's progress.
+                os.close(w)
+                pipe = os.fdopen(r, "r", 10000)
+                while True:
+                    try:
+                        rstr = pipe.readline()
+                        if rstr == sepLine:
+                            break
+                        if rstr == "":
+                            self.qmasm.abend("Embedder failed to terminate properly")
+                        sys.stderr.write("      %s" % rstr)
+                    except:
+                        pass
+
+                # Receive the embedding from the child.
+                physical.embedding = json.loads(pipe.readline())
+                sys.stderr.write("\n")
+        return physical
