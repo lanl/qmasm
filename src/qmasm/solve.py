@@ -4,7 +4,9 @@
 ###################################
 
 import copy
+import hashlib
 import json
+import marshal
 import minorminer
 import os
 import sys
@@ -13,6 +15,49 @@ from neal import SimulatedAnnealingSampler
 from tabu import TabuSampler
 from dwave.cloud import Client
 from dwave.system import DWaveSampler
+
+class EmbeddingCache(object):
+    "Read and write an embedding cache file."
+
+    def __init__(self, qmasm, edges, adj):
+        # Ensure we have a valid cache directory.
+        self.hash = None
+        try:
+            self.cachedir = os.environ["QMASMCACHE"]
+        except KeyError:
+            self.cachedir = None
+            return None
+        if not os.path.isdir(self.cachedir):
+            qmasm.abend("QMASMCACHE is set to %s, which is not an extant directory" % self.cachedir)
+
+        # Compute a SHA-1 sum of our inputs.
+        sha = hashlib.sha1()
+        sha.update(str(sorted(edges)).encode("utf-8"))
+        sha.update(str(sorted(adj)).encode("utf-8"))
+        self.hash = sha.hexdigest()
+
+    def read(self):
+        "Read an embedding from an embedding cache or None on a cache miss."
+        if self.hash == None:
+            return None
+        try:
+            h = open(os.path.join(self.cachedir, self.hash), "rb")
+        except IOError:
+            return None
+        embedding = marshal.load(h)
+        h.close()
+        return embedding
+
+    def write(self, embedding):
+        "Write an embedding to an embedding cache."
+        if self.hash == None:
+            return
+        try:
+            h = open(os.path.join(self.cachedir, self.hash), "wb")
+        except IOError:
+            return None
+        marshal.dump(embedding, h)
+        h.close()
 
 class Sampler(object):
     "Interface to Ocean samplers."
@@ -119,7 +164,7 @@ class Sampler(object):
         adj = set()
         lineno = 0
         if verbosity >= 2:
-            sys.stderr.write("Reading hardware adjacency from %s ... " % fname)
+            sys.stderr.write("Reading hardware adjacency from %s.\n" % fname)
         with open(fname) as f:
             for orig_line in f:
                 # Discard comments then parse the line into exactly two vertices.
@@ -128,11 +173,11 @@ class Sampler(object):
                 try:
                     verts = [int(v) for v in line.split()]
                 except ValueError:
-                    qmasm.abend('Failed to parse line %d of file %s ("%s")' % (lineno, fname, orig_line.strip()))
+                    self.qmasm.abend('Failed to parse line %d of file %s ("%s")' % (lineno, fname, orig_line.strip()))
                 if len(verts) == 0:
                     continue
                 if len(verts) != 2 or verts[0] == verts[1]:
-                    qmasm.abend('Failed to parse line %d of file %s ("%s")' % (lineno, fname, orig_line.strip()))
+                    self.qmasm.abend('Failed to parse line %d of file %s ("%s")' % (lineno, fname, orig_line.strip()))
 
                 # Canonicalize the vertex numbers and add the result to the set.
                 if verts[1] > verts[0]:
@@ -149,54 +194,96 @@ class Sampler(object):
             hw_adj = [(u, v) for u in hw_adj for v in hw_adj[u]]
         return hw_adj
 
+    def _find_embedding(self, edges, adj, **kwargs):
+        "Wrap minorminer.find_embedding with a version that intercepts its output."
+        # Given verbose=0, invoke minorminer directly.
+        if "verbose" not in kwargs or kwargs["verbose"] == 0:
+            return minorminer.find_embedding(edges, adj, **kwargs)
+
+        # minorminer's find_embedding is hard-wired to write to stdout.
+        # Trick it into writing into a pipe instead.
+        sepLine = "=== EMBEDDING ===\n"
+        r, w = os.pipe()
+        pid = os.fork()
+        if pid == 0:
+            # Child -- perform the embedding.
+            os.close(r)
+            os.dup2(w, sys.stdout.fileno())
+            embedding = minorminer.find_embedding(edges, adj, **kwargs)
+            sys.stdout.flush()
+            os.write(w, sepLine.encode())
+            os.write(w, (json.dumps(embedding) + "\n").encode())
+            os.close(w)
+            os._exit(0)
+        else:
+            # Parent -- report the embedding's progress.
+            os.close(w)
+            pipe = os.fdopen(r, "r", 10000)
+            while True:
+                try:
+                    rstr = pipe.readline()
+                    if rstr == sepLine:
+                        break
+                    if rstr == "":
+                        self.qmasm.abend("Embedder failed to terminate properly")
+                    sys.stderr.write("      %s" % rstr)
+                except:
+                    pass
+
+            # Receive the embedding from the child.
+            return json.loads(pipe.readline())
+
     def embed_problem(self, logical, topology_file, verbosity):
         "Embed a problem on a physical topology, if necessary."
         # Create a physical Problem.
         physical = copy.deepcopy(logical)
         physical.embedding = []
 
-        # Minor-embed the logical problem onto the hardware topology.
+        # Acquire the hardware topology unless we were given a specific
+        # topology to use.
         if topology_file == None:
             hw_adj = self.get_hardware_adjacency()
         else:
             hw_adj = self.read_hardware_adjacency(topology_file, verbosity)
-        if hw_adj == None or len(logical.bqm.quadratic) == 0:
-            return physical
-        if verbosity < 2:
-            physical.embedding = minorminer.find_embedding(logical.bqm.quadratic, hw_adj, verbose=0)
-        else:
-            # minorminer's find_embedding is hard-wired to write to stdout.
-            # Trick it into writing into a pipe instead.
-            sys.stderr.write("Minor-embedding the logical problem onto the physical topology:\n\n")
-            sepLine = "=== EMBEDDING ===\n"
-            r, w = os.pipe()
-            pid = os.fork()
-            if pid == 0:
-                # Child -- perform the embedding.
-                os.close(r)
-                os.dup2(w, sys.stdout.fileno())
-                embedding = minorminer.find_embedding(logical.bqm.quadratic, hw_adj, verbose=1)
-                sys.stdout.flush()
-                os.write(w, sepLine.encode())
-                os.write(w, (json.dumps(embedding) + "\n").encode())
-                os.close(w)
-                os._exit(0)
-            else:
-                # Parent -- report the embedding's progress.
-                os.close(w)
-                pipe = os.fdopen(r, "r", 10000)
-                while True:
-                    try:
-                        rstr = pipe.readline()
-                        if rstr == sepLine:
-                            break
-                        if rstr == "":
-                            self.qmasm.abend("Embedder failed to terminate properly")
-                        sys.stderr.write("      %s" % rstr)
-                    except:
-                        pass
 
-                # Receive the embedding from the child.
-                physical.embedding = json.loads(pipe.readline())
-                sys.stderr.write("\n")
+        # See if we already have an embedding in the embedding cache.
+        edges = logical.bqm.quadratic
+        if hw_adj == None or len(edges) == 0:
+            # Either the sampler does not require embedding, or we have no work
+            # to do.
+            return physical
+        if verbosity >= 2:
+            sys.stderr.write("Minor-embedding the logical problem onto the physical topology:\n\n")
+        ec = EmbeddingCache(self.qmasm, edges, hw_adj)
+        if verbosity >= 2:
+            if ec.cachedir == None:
+                sys.stderr.write("  No embedding cache directory was specified ($QMASMCACHE).\n")
+            else:
+                sys.stderr.write("  Using %s as the embedding cache directory.\n" % ec.cachedir)
+        embedding = ec.read()
+        if embedding == []:
+            # Cache hit, but embedding had failed
+            if verbosity >= 2:
+                sys.stderr.write("  Found failed embedding %s in the embedding cache.\n\n" % ec.hash)
+        elif embedding != None:
+            # Successful cache hit!
+            if verbosity >= 2:
+                sys.stderr.write("  Found successful embedding %s in the embedding cache.\n\n" % ec.hash)
+            physical.embedding = embedding
+            return physical
+        if verbosity >= 2 and ec.cachedir != None:
+            sys.stderr.write("  No existing embedding found in the embedding cache.\n")
+
+        # Minor-embed the logical problem onto the hardware topology.
+        if verbosity < 2:
+            physical.embedding = self._find_embedding(edges, hw_adj)
+        else:
+            sys.stderr.write("  Running the embedder.\n\n")
+            physical.embedding = self._find_embedding(edges, hw_adj, verbose=1)
+            sys.stderr.write("\n")
+
+        # Cache the embedding for next time.
+        ec.write(physical.embedding)
+        if verbosity >= 2 and ec.cachedir != None:
+            sys.stderr.write("  Caching the embedding as %s.\n" % ec.hash)
         return physical
