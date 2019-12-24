@@ -113,6 +113,35 @@ class Sampler(object):
                 return adj
         return None
 
+    def read_hardware_adjacency(self, fname, verbosity):
+        """Read a hardware adjacency list from a file.  Each line must contain
+        a space-separated pair of vertex numbers."""
+        adj = set()
+        lineno = 0
+        if verbosity >= 2:
+            sys.stderr.write("Reading hardware adjacency from %s ... " % fname)
+        with open(fname) as f:
+            for orig_line in f:
+                # Discard comments then parse the line into exactly two vertices.
+                lineno += 1
+                line = orig_line.partition("#")[0]
+                try:
+                    verts = [int(v) for v in line.split()]
+                except ValueError:
+                    qmasm.abend('Failed to parse line %d of file %s ("%s")' % (lineno, fname, orig_line.strip()))
+                if len(verts) == 0:
+                    continue
+                if len(verts) != 2 or verts[0] == verts[1]:
+                    qmasm.abend('Failed to parse line %d of file %s ("%s")' % (lineno, fname, orig_line.strip()))
+
+                # Canonicalize the vertex numbers and add the result to the set.
+                if verts[1] > verts[0]:
+                    verts[0], verts[1] = verts[1], verts[0]
+                adj.add((verts[0], verts[1]))
+        if verbosity >= 2:
+            sys.stderr.write("%d unique edges found\n\n" % len(adj))
+        return sorted(adj)
+
     def get_hardware_adjacency(self):
         "Return the hardware adjacency structure, if any."
         hw_adj = self._find_adjacency(self.sampler)
@@ -120,14 +149,17 @@ class Sampler(object):
             hw_adj = [(u, v) for u in hw_adj for v in hw_adj[u]]
         return hw_adj
 
-    def embed_problem(self, logical, verbosity):
+    def embed_problem(self, logical, topology_file, verbosity):
         "Embed a problem on a physical topology, if necessary."
         # Create a physical Problem.
         physical = copy.deepcopy(logical)
         physical.embedding = []
 
         # Minor-embed the logical problem onto the hardware topology.
-        hw_adj = self.get_hardware_adjacency()
+        if topology_file == None:
+            hw_adj = self.get_hardware_adjacency()
+        else:
+            hw_adj = self.read_hardware_adjacency(topology_file, verbosity)
         if hw_adj == None or len(logical.bqm.quadratic) == 0:
             return physical
         if verbosity < 2:

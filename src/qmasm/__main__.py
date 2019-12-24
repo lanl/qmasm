@@ -92,7 +92,7 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
                 sys.exit(0)
 
         # Embed the problem on the physical topology.
-        physical = sampler.embed_problem(logical, cl_args.verbose)
+        physical = sampler.embed_problem(logical, cl_args.topology_file, cl_args.verbose)
 
 def main():
     "Run QMASM."
