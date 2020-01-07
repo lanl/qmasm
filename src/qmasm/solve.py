@@ -198,7 +198,9 @@ class Sampler(object):
         "Wrap minorminer.find_embedding with a version that intercepts its output."
         # Given verbose=0, invoke minorminer directly.
         if "verbose" not in kwargs or kwargs["verbose"] == 0:
-            return minorminer.find_embedding(edges, adj, **kwargs)
+            # Convert all keys to strings for consistency.
+            embedding = minorminer.find_embedding(edges, adj, **kwargs)
+            return {str(k): v for k, v in embedding.items()}
 
         # minorminer's find_embedding is hard-wired to write to stdout.
         # Trick it into writing into a pipe instead.
@@ -230,8 +232,10 @@ class Sampler(object):
                 except:
                     pass
 
-            # Receive the embedding from the child.
-            return json.loads(pipe.readline())
+            # Receive the embedding from the child.  Convert all keys to
+            # strings for consistency.
+            embedding = json.loads(pipe.readline())
+            return {str(k): v for k, v in embedding.items()}
 
     def embed_problem(self, logical, topology_file, verbosity):
         "Embed a problem on a physical topology, if necessary."
@@ -269,6 +273,7 @@ class Sampler(object):
             # Successful cache hit!
             if verbosity >= 2:
                 sys.stderr.write("  Found successful embedding %s in the embedding cache.\n\n" % ec.hash)
+            sys.stderr.write('@@@ CACHE: EMBED 0 and "0": %s and %s @@@\n' % (0 in embedding, "0" in embedding))  # Temporary
             physical.embedding = embedding
             return physical
         if verbosity >= 2 and ec.cachedir != None:
@@ -281,6 +286,9 @@ class Sampler(object):
             sys.stderr.write("  Running the embedder.\n\n")
             physical.embedding = self._find_embedding(edges, hw_adj, verbose=1)
             sys.stderr.write("\n")
+
+        if physical.embedding != None:
+            sys.stderr.write('@@@ MINORMINER: EMBED 0 and "0": %s and %s @@@\n' % (0 in physical.embedding, "0" in physical.embedding))  # Temporary
 
         # Cache the embedding for next time.
         ec.write(physical.embedding)

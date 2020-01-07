@@ -146,10 +146,8 @@ class Problem(object):
         # Remove variables that are made equivalent to other variable via
         # user-defined chains.
         order = self.traversal_order(self.chains)
-        sys.stderr.write("@@@ BQM BEFORE: %s @@@\n" % repr(self.bqm))  # Temporary
         for u, v in order:
             self.bqm.contract_variables(u, v)
-        sys.stderr.write("@@@ BQM AFTER: %s @@@\n" % repr(self.bqm))  # Temporary
 
         # Say what we just did.
         if verbosity >= 2:
@@ -163,10 +161,8 @@ class Problem(object):
             sys.stderr.write("  %6d logical qubits before optimization\n" % len(self.all_bqm_variables()))
 
         # Simplify the BQM.
-        sys.stderr.write("@@@ BQM BEFORE: %s @@@\n" % repr(self.bqm))  # Temporary
         self.known_values = dimod.roof_duality.fix_variables(self.bqm, True)
         self.bqm.fix_variables(self.known_values)
-        sys.stderr.write("@@@ BQM AFTER: %s @@@\n" % repr(self.bqm))  # Temporary
 
         # Say what we just did.
         if verbosity >= 2:
@@ -210,10 +206,12 @@ class Problem(object):
         "Return a set of variables that are neither embedded nor have a known value."
         dangling = set()
         known_values = self.merged_known_values()
+        sys.stderr.write('@@@ DANGLING_VARIABLES: EMBED 0 and "0": %s and %s @@@\n' % (0 in self.embedding, "0" in self.embedding))  # Temporary
         for i in range(len(num2syms)):
             if num2syms[i] == []:
                 continue
-            if i not in self.embedding and i not in known_values:
+            if str(i) not in self.embedding and i not in known_values:
+                sys.stderr.write("@@@ %d (= %s) IS IN NEITHER %s NOR %s @@@\n" % (i, repr(num2syms[i]), repr(self.embedding), repr(known_values)))  # Temporary
                 dangling.update(num2syms[i])
         return dangling
 
@@ -242,7 +240,7 @@ class Problem(object):
                 continue
             name_list = " ".join(sorted(num2syms[i]))
             try:
-                phys_list = " ".join(["%4d" % e for e in sorted(self.embedding[i])])
+                phys_list = " ".join(["%4d" % e for e in sorted(self.embedding[str(i)])])
             except KeyError:
                 try:
                     phys_list = "[Pinned to %s]" % repr(pin_map[i])
@@ -250,7 +248,7 @@ class Problem(object):
                     try:
                         phys_list = "[Provably %s]" % known_values[i]
                     except KeyError:
-                        phys_list = "[Dangling]"
+                        phys_list = "[Disconnected]"
 
             sys.stderr.write("    %7d  %-*s  %s\n" % (i, max_sym_name_len, name_list, phys_list))
         sys.stderr.write("\n")
