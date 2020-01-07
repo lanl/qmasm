@@ -55,8 +55,7 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         if cl_args.verbose >= 1:
             sys.stderr.write("Chain strength: %7.4f\n\n" % self.chain_strength)
 
-        # We now have enough information to produce an Ocean
-        # BinaryQuadraticModel.
+        # We now have enough information to produce an Ocean BinaryQuadraticModel.
         logical.generate_bqm()
 
         # Convert chains to aliases where possible.
@@ -103,6 +102,10 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
             all_num2syms[n].append(s)
             if cl_args.verbose >= 2 or "$" not in s:
                 num2syms[n].append(s)
+                max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
+
+        # Output the embedding.
+        physical.output_embedding(cl_args.verbose, max_sym_name_len, num2syms)
 
 def main():
     "Run QMASM."

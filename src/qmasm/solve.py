@@ -237,7 +237,7 @@ class Sampler(object):
         "Embed a problem on a physical topology, if necessary."
         # Create a physical Problem.
         physical = copy.deepcopy(logical)
-        physical.embedding = []
+        physical.embedding = {}
 
         # Acquire the hardware topology unless we were given a specific
         # topology to use.
@@ -261,7 +261,7 @@ class Sampler(object):
             else:
                 sys.stderr.write("  Using %s as the embedding cache directory.\n" % ec.cachedir)
         embedding = ec.read()
-        if embedding == []:
+        if embedding == {}:
             # Cache hit, but embedding had failed
             if verbosity >= 2:
                 sys.stderr.write("  Found failed embedding %s in the embedding cache.\n\n" % ec.hash)

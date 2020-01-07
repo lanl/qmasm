@@ -3,6 +3,7 @@
 # By Scott Pakin <pakin@lanl.gov> #
 ###################################
 
+import copy
 import dimod
 import sys
 from collections import defaultdict
@@ -21,10 +22,10 @@ class Problem(object):
         self.strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
         self.chains = set()       # Subset of strengths keys that represents user-defined chains (always logical)
         self.antichains = set()   # Subset of strengths keys that represents user-defined anti-chains (always logical)
-        self.pin_chains = set()   # Subset of strengths keys that represents {helper, pinned variable} pairs (always logical)
         self.assertions = []      # List of assertions (as ASTs) to enforce
         self.pending_asserts = [] # List of {string, op, string} tuples pending conversion to assertions
         self.pinned = []          # Pairs of {unique number, Boolean} to pin
+        self.known_values = {}    # Map from a spin to -1 or +1
         self.bqm_vars = None      # Set of all variables appearing in the BQM
 
     def assign_chain_strength(self, ch_str):
@@ -145,8 +146,10 @@ class Problem(object):
         # Remove variables that are made equivalent to other variable via
         # user-defined chains.
         order = self.traversal_order(self.chains)
+        sys.stderr.write("@@@ BQM BEFORE: %s @@@\n" % repr(self.bqm))  # Temporary
         for u, v in order:
             self.bqm.contract_variables(u, v)
+        sys.stderr.write("@@@ BQM AFTER: %s @@@\n" % repr(self.bqm))  # Temporary
 
         # Say what we just did.
         if verbosity >= 2:
@@ -160,8 +163,10 @@ class Problem(object):
             sys.stderr.write("  %6d logical qubits before optimization\n" % len(self.all_bqm_variables()))
 
         # Simplify the BQM.
+        sys.stderr.write("@@@ BQM BEFORE: %s @@@\n" % repr(self.bqm))  # Temporary
         self.known_values = dimod.roof_duality.fix_variables(self.bqm, True)
         self.bqm.fix_variables(self.known_values)
+        sys.stderr.write("@@@ BQM AFTER: %s @@@\n" % repr(self.bqm))  # Temporary
 
         # Say what we just did.
         if verbosity >= 2:
@@ -179,3 +184,61 @@ class Problem(object):
             ast = ap.parse(s1 + " " + op + " " + s2)
             ast.compile()
             self.assertions.append(ast)
+
+    def merged_known_values(self):
+        "Merge pinned, known_values, and chains into a s single dictionary."
+        merged = {k: v for k, v in self.pinned}
+        spin2bool = {-1: False, +1: True}
+        for k, v in self.known_values.items():
+            merged[k] = spin2bool[v]
+        remaining = copy.copy(self.chains)
+        while len(remaining) > 0:
+            still_remaining = set()
+            for q0, q1 in remaining:
+                if q0 in merged:
+                    merged[q1] = merged[q0]
+                elif q1 in merged:
+                    merged[q0] = merged[q1]
+                else:
+                    still_remaining.add((q0, q1))
+            if len(still_remaining) == len(remaining):
+                break  # No progress was made.
+            remaining = still_remaining
+        return merged
+
+    def output_embedding(self, verbosity, max_sym_name_len, num2syms):
+        "Output the mapping from logical to physical qubits."
+        if verbosity < 0:
+            return
+        sys.stderr.write("Established a mapping from logical to physical qubits:\n\n")
+        sys.stderr.write("    Logical  %-*s  Physical\n" % (max_sym_name_len, "Name(s)"))
+        sys.stderr.write("    -------  %s  --------\n" % ("-" * max_sym_name_len))
+        known_values = self.merged_known_values()
+        pin_map = {k: v for k, v in self.pinned}
+
+        # Temporary
+        sys.stderr.write("@@@ NUM2SYMS: %s @@@\n" % repr(list(zip(range(len(num2syms)), num2syms))))
+        sys.stderr.write("@@@ EMBEDDING: %s @@@\n" % repr(self.embedding))
+        sys.stderr.write("@@@ PINNED: %s @@@\n" % repr(self.pinned))
+        sys.stderr.write("@@@ PIN_MAP: %s @@@\n" % repr(pin_map))
+        sys.stderr.write("@@@ CHAINS: %s @@@\n" % repr(self.chains))
+        sys.stderr.write("@@@ KNOWN_VALUES: %s @@@\n" % repr(self.known_values))
+        sys.stderr.write("@@@ MERGED KNOWN_VALUES: %s @@@\n" % repr(known_values))
+
+        for i in range(len(num2syms)):
+            if num2syms[i] == []:
+                continue
+            name_list = " ".join(sorted(num2syms[i]))
+            try:
+                phys_list = " ".join(["%4d" % e for e in sorted(self.embedding[i])])
+            except KeyError:
+                try:
+                    phys_list = "[Pinned to %s]" % repr(pin_map[i])
+                except KeyError:
+                    try:
+                        phys_list = "[Provably %s]" % known_values[i]
+                    except KeyError:
+                        phys_list = "[Dangling]"
+
+            sys.stderr.write("    %7d  %-*s  %s\n" % (i, max_sym_name_len, name_list, phys_list))
+        sys.stderr.write("\n")

@@ -370,16 +370,6 @@ class Rename(Statement):
             antichains.add((q1, q2))
         problem.antichains = antichains
 
-        # Update all pin chains.
-        pin_chains = set()
-        for (q_helper, q_user) in problem.pin_chains:
-            try:
-                q_user = sym2sym[q_user]
-            except KeyError:
-                pass
-            pin_chains.add((q_helper, q_user))
-        problem.pin_chains = pin_chains
-
         # Update all assertions.  These need to go through an intermediary in
         # case we rename both X to Y and Y to X.
         renames = []
