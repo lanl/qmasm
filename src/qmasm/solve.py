@@ -273,7 +273,6 @@ class Sampler(object):
             # Successful cache hit!
             if verbosity >= 2:
                 sys.stderr.write("  Found successful embedding %s in the embedding cache.\n\n" % ec.hash)
-            sys.stderr.write('@@@ CACHE: EMBED 0 and "0": %s and %s @@@\n' % (0 in embedding, "0" in embedding))  # Temporary
             physical.embedding = embedding
             return physical
         if verbosity >= 2 and ec.cachedir != None:
@@ -286,9 +285,6 @@ class Sampler(object):
             sys.stderr.write("  Running the embedder.\n\n")
             physical.embedding = self._find_embedding(edges, hw_adj, verbose=1)
             sys.stderr.write("\n")
-
-        if physical.embedding != None:
-            sys.stderr.write('@@@ MINORMINER: EMBED 0 and "0": %s and %s @@@\n' % (0 in physical.embedding, "0" in physical.embedding))  # Temporary
 
         # Cache the embedding for next time.
         ec.write(physical.embedding)

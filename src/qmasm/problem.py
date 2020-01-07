@@ -206,12 +206,10 @@ class Problem(object):
         "Return a set of variables that are neither embedded nor have a known value."
         dangling = set()
         known_values = self.merged_known_values()
-        sys.stderr.write('@@@ DANGLING_VARIABLES: EMBED 0 and "0": %s and %s @@@\n' % (0 in self.embedding, "0" in self.embedding))  # Temporary
         for i in range(len(num2syms)):
             if num2syms[i] == []:
                 continue
             if str(i) not in self.embedding and i not in known_values:
-                sys.stderr.write("@@@ %d (= %s) IS IN NEITHER %s NOR %s @@@\n" % (i, repr(num2syms[i]), repr(self.embedding), repr(known_values)))  # Temporary
                 dangling.update(num2syms[i])
         return dangling
 
