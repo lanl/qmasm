@@ -206,6 +206,17 @@ class Problem(object):
             remaining = still_remaining
         return merged
 
+    def dangling_variables(self, num2syms):
+        "Return a set of variables that are neither embedded nor have a known value."
+        dangling = set()
+        known_values = self.merged_known_values()
+        for i in range(len(num2syms)):
+            if num2syms[i] == []:
+                continue
+            if i not in self.embedding and i not in known_values:
+                dangling.update(num2syms[i])
+        return dangling
+
     def output_embedding(self, verbosity, max_sym_name_len, num2syms):
         "Output the mapping from logical to physical qubits."
         if verbosity < 0:
@@ -224,6 +235,7 @@ class Problem(object):
         sys.stderr.write("@@@ CHAINS: %s @@@\n" % repr(self.chains))
         sys.stderr.write("@@@ KNOWN_VALUES: %s @@@\n" % repr(self.known_values))
         sys.stderr.write("@@@ MERGED KNOWN_VALUES: %s @@@\n" % repr(known_values))
+        sys.stderr.write("@@@ DANGLING: %s @@@\n" % repr(self.dangling_variables(num2syms)))
 
         for i in range(len(num2syms)):
             if num2syms[i] == []:

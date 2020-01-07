@@ -104,6 +104,11 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
                 num2syms[n].append(s)
                 max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
 
+        # Abort if any variables failed to embed.
+        danglies = physical.dangling_variables(num2syms)
+        if len(danglies) > 0:
+            self.abend("Disconnected variables encountered: %s" % str(danglies))
+
         # Output the embedding.
         physical.output_embedding(cl_args.verbose, max_sym_name_len, num2syms)
 
