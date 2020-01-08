@@ -222,17 +222,6 @@ class Problem(object):
         sys.stderr.write("    -------  %s  --------\n" % ("-" * max_sym_name_len))
         known_values = self.merged_known_values()
         pin_map = {k: v for k, v in self.pinned}
-
-        # Temporary
-        sys.stderr.write("@@@ NUM2SYMS: %s @@@\n" % repr(list(zip(range(len(num2syms)), num2syms))))
-        sys.stderr.write("@@@ EMBEDDING: %s @@@\n" % repr(self.embedding))
-        sys.stderr.write("@@@ PINNED: %s @@@\n" % repr(self.pinned))
-        sys.stderr.write("@@@ PIN_MAP: %s @@@\n" % repr(pin_map))
-        sys.stderr.write("@@@ CHAINS: %s @@@\n" % repr(self.chains))
-        sys.stderr.write("@@@ KNOWN_VALUES: %s @@@\n" % repr(self.known_values))
-        sys.stderr.write("@@@ MERGED KNOWN_VALUES: %s @@@\n" % repr(known_values))
-        sys.stderr.write("@@@ DANGLING: %s @@@\n" % repr(self.dangling_variables(num2syms)))
-
         for i in range(len(num2syms)):
             if num2syms[i] == []:
                 continue
