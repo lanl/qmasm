@@ -213,10 +213,8 @@ class Problem(object):
                 dangling.update(num2syms[i])
         return dangling
 
-    def output_embedding(self, verbosity, max_sym_name_len, num2syms):
-        "Output the mapping from logical to physical qubits."
-        if verbosity < 0:
-            return
+    def _output_embedding_verbosely(self, max_sym_name_len, num2syms):
+        "Verbosely output the mapping from logical to physical qubits."
         sys.stderr.write("Established a mapping from logical to physical qubits:\n\n")
         sys.stderr.write("    Logical  %-*s  Physical\n" % (max_sym_name_len, "Name(s)"))
         sys.stderr.write("    -------  %s  --------\n" % ("-" * max_sym_name_len))
@@ -239,3 +237,31 @@ class Problem(object):
 
             sys.stderr.write("    %7d  %-*s  %s\n" % (i, max_sym_name_len, name_list, phys_list))
         sys.stderr.write("\n")
+
+    def _output_embedding_tersely(self, max_sym_name_len, num2syms):
+        "Tersely output the mapping from logical to physical qubits."
+        log2phys_comments = []
+        for i in range(len(num2syms)):
+            if num2syms[i] == []:
+                continue
+            name_list = " ".join(sorted(num2syms[i]))
+            try:
+                phys_list = " ".join(["%4d" % e for e in sorted(self.embedding[str(i)])])
+            except KeyError:
+                try:
+                    phys_list = "[%s]" % repr(pin_map[i])
+                except KeyError:
+                    try:
+                        phys_list = "[%s]" % known_values[i]
+                    except KeyError:
+                        phys_list = "[Disconnected]"
+            log2phys_comments.append("# %s --> %s" % (name_list, phys_list))
+        log2phys_comments.sort()
+        sys.stderr.write("\n".join(log2phys_comments) + "\n")
+
+    def output_embedding(self, verbosity, max_sym_name_len, num2syms):
+        "Output the mapping from logical to physical qubits."
+        if verbosity > 0:
+            self._output_embedding_verbosely(max_sym_name_len, num2syms)
+        else:
+            self._output_embedding_tersely(max_sym_name_len, num2syms)
