@@ -209,7 +209,7 @@ class Problem(object):
         for i in range(len(num2syms)):
             if num2syms[i] == []:
                 continue
-            if str(i) not in self.embedding and i not in known_values:
+            if i not in self.embedding and i not in known_values:
                 dangling.update(num2syms[i])
         return dangling
 
@@ -225,7 +225,7 @@ class Problem(object):
                 continue
             name_list = " ".join(sorted(num2syms[i]))
             try:
-                phys_list = " ".join(["%4d" % e for e in sorted(self.embedding[str(i)])])
+                phys_list = " ".join(["%4d" % e for e in sorted(self.embedding[i])])
             except KeyError:
                 try:
                     phys_list = "[Pinned to %s]" % repr(pin_map[i])
@@ -246,7 +246,7 @@ class Problem(object):
                 continue
             name_list = " ".join(sorted(num2syms[i]))
             try:
-                phys_list = " ".join(["%4d" % e for e in sorted(self.embedding[str(i)])])
+                phys_list = " ".join(["%4d" % e for e in sorted(self.embedding[i])])
             except KeyError:
                 try:
                     phys_list = "[%s]" % repr(pin_map[i])
@@ -265,3 +265,20 @@ class Problem(object):
             self._output_embedding_verbosely(max_sym_name_len, num2syms)
         else:
             self._output_embedding_tersely(max_sym_name_len, num2syms)
+
+    def output_embedding_statistics(self):
+        "Output various statistics about the embedding."
+        # Tally the original set of variables.
+        all_vars = set(self.weights)
+        for q1, q2 in self.strengths:
+            all_vars.add(q1)
+            all_vars.add(q2)
+
+        # Output statistics.
+        sys.stderr.write("Computed the following statistics of the logical-to-physical mapping:\n\n")
+        sys.stderr.write("    Type      Metric           Value\n")
+        sys.stderr.write("    --------  ---------------  -----\n")
+        sys.stderr.write("    Logical   Variables        %5d\n" % len(all_vars))
+        sys.stderr.write("    Logical   Strengths        %5d\n" % len(self.strengths))
+        sys.stderr.write("    Physical  Spins            %5d\n" % len(self.embedded_bqm.linear))
+        sys.stderr.write("    Physical  Couplers         %5d\n" % len(self.embedded_bqm.quadratic))

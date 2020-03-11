@@ -11,10 +11,11 @@ import minorminer
 import os
 import sys
 from dimod import ExactSolver
+from dwave.cloud import Client
+from dwave.embedding import embed_bqm
+from dwave.system import DWaveSampler
 from neal import SimulatedAnnealingSampler
 from tabu import TabuSampler
-from dwave.cloud import Client
-from dwave.system import DWaveSampler
 
 class EmbeddingCache(object):
     "Read and write an embedding cache file."
@@ -158,9 +159,14 @@ class Sampler(object):
                 return adj
         return None
 
+    def get_hardware_adjacency(self):
+        "Return the hardware adjacency structure, if any."
+        return self._find_adjacency(self.sampler)
+
     def read_hardware_adjacency(self, fname, verbosity):
         """Read a hardware adjacency list from a file.  Each line must contain
         a space-separated pair of vertex numbers."""
+        # Read from a file to a set of vertex pairs.
         adj = set()
         lineno = 0
         if verbosity >= 2:
@@ -185,22 +191,32 @@ class Sampler(object):
                 adj.add((verts[0], verts[1]))
         if verbosity >= 2:
             sys.stderr.write("%d unique edges found\n\n" % len(adj))
-        return sorted(adj)
 
-    def get_hardware_adjacency(self):
-        "Return the hardware adjacency structure, if any."
-        hw_adj = self._find_adjacency(self.sampler)
-        if hw_adj != None:
-            hw_adj = [(u, v) for u in hw_adj for v in hw_adj[u]]
-        return hw_adj
+        # Convert from vertex pairs to a dictionary from a vertex to its
+        # neighbors.  Note that we treat all edges as bidirectional.
+        adj_dict = {}
+        for u, v in adj:
+            try:
+                adj_dict[u].append(v)
+            except KeyError:
+                adj_dict[u] = [v]
+            try:
+                adj_dict[v].append(u)
+            except KeyError:
+                adj_dict[v] = [u]
+        return adj_dict
 
     def _find_embedding(self, edges, adj, **kwargs):
         "Wrap minorminer.find_embedding with a version that intercepts its output."
+        # Minorminer accepts the hardware adjacency as a list of
+        # pairs, not a map from each node to its neighbors.
+        mm_adj = [(u, v) for u in adj for v in adj[u]]
+
         # Given verbose=0, invoke minorminer directly.
         if "verbose" not in kwargs or kwargs["verbose"] == 0:
-            # Convert all keys to strings for consistency.
-            embedding = minorminer.find_embedding(edges, adj, **kwargs)
-            return {str(k): v for k, v in embedding.items()}
+            # Convert all keys to integers for consistency.
+            embedding = minorminer.find_embedding(edges, mm_adj, **kwargs)
+            return {int(k): v for k, v in embedding.items()}
 
         # minorminer's find_embedding is hard-wired to write to stdout.
         # Trick it into writing into a pipe instead.
@@ -211,7 +227,7 @@ class Sampler(object):
             # Child -- perform the embedding.
             os.close(r)
             os.dup2(w, sys.stdout.fileno())
-            embedding = minorminer.find_embedding(edges, adj, **kwargs)
+            embedding = minorminer.find_embedding(edges, mm_adj, **kwargs)
             sys.stdout.flush()
             os.write(w, sepLine.encode())
             os.write(w, (json.dumps(embedding) + "\n").encode())
@@ -233,12 +249,13 @@ class Sampler(object):
                     pass
 
             # Receive the embedding from the child.  Convert all keys to
-            # strings for consistency.
+            # integers for consistency.
             embedding = json.loads(pipe.readline())
-            return {str(k): v for k, v in embedding.items()}
+            return {int(k): v for k, v in embedding.items()}
 
-    def embed_problem(self, logical, topology_file, verbosity):
-        "Embed a problem on a physical topology, if necessary."
+    def find_problem_embedding(self, logical, topology_file, verbosity):
+        """Find an embedding of a problem on a physical topology, if
+        necessary.  Return a physical Sampler object."""
         # Create a physical Problem.
         physical = copy.deepcopy(logical)
         physical.embedding = {}
@@ -249,6 +266,7 @@ class Sampler(object):
             hw_adj = self.get_hardware_adjacency()
         else:
             hw_adj = self.read_hardware_adjacency(topology_file, verbosity)
+        physical.hw_adj = hw_adj
 
         # See if we already have an embedding in the embedding cache.
         edges = logical.bqm.quadratic
@@ -289,5 +307,11 @@ class Sampler(object):
         # Cache the embedding for next time.
         ec.write(physical.embedding)
         if verbosity >= 2 and ec.cachedir != None:
-            sys.stderr.write("  Caching the embedding as %s.\n" % ec.hash)
+            sys.stderr.write("  Caching the embedding as %s.\n\n" % ec.hash)
+        return physical
+
+    def embed_problem(self, logical, topology_file, verbosity):
+        "Embed a problem on a physical topology, if necessary."
+        physical = self.find_problem_embedding(logical, topology_file, verbosity)
+        physical.embedded_bqm = embed_bqm(physical.bqm, physical.embedding, physical.hw_adj)
         return physical

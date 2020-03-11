@@ -112,6 +112,10 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         if len(danglies) > 0:
             self.abend("Disconnected variables encountered: %s" % str(danglies))
 
+        # Output some problem statistics.
+        if cl_args.verbose > 0:
+            physical.output_embedding_statistics()
+
 def main():
     "Run QMASM."
     q = QMASM()
