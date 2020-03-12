@@ -70,7 +70,7 @@ class Problem(object):
         for q in pins:
             # Ensure that every pinned variable exists.  Otherwise,
             # fix_variables will throw a KeyError.
-            bqm.add_variable(q, 0, dimod.SPIN)
+            bqm.add_variable(q, 0)
         bqm.fix_variables(pins)
 
         # Store the BQM.
@@ -275,10 +275,25 @@ class Problem(object):
             all_vars.add(q2)
 
         # Output statistics.
+        known_true = sum([v == 1 for v in self.known_values.values()])
+        known_false = len(self.known_values) - known_true
         sys.stderr.write("Computed the following statistics of the logical-to-physical mapping:\n\n")
         sys.stderr.write("    Type      Metric           Value\n")
         sys.stderr.write("    --------  ---------------  -----\n")
         sys.stderr.write("    Logical   Variables        %5d\n" % len(all_vars))
+        sys.stderr.write("    Logical     Provably true  %5d\n" % known_true)
+        sys.stderr.write("    Logical     Provably false %5d\n" % known_false)
         sys.stderr.write("    Logical   Strengths        %5d\n" % len(self.strengths))
+        sys.stderr.write("    Logical     Equalities     %5d\n" % len(self.chains))
+        sys.stderr.write("    Logical     Inequalities   %5d\n" % len(self.antichains))
         sys.stderr.write("    Physical  Spins            %5d\n" % len(self.embedded_bqm.linear))
         sys.stderr.write("    Physical  Couplers         %5d\n" % len(self.embedded_bqm.quadratic))
+        sys.stderr.write("\n")
+
+        # Output some additional chain statistics.
+        chain_lens = [len(c) for c in self.embedding.values()]
+        max_chain_len = 0
+        if chain_lens != []:
+            max_chain_len = max(chain_lens)
+        num_max_chains = len([l for l in chain_lens if l == max_chain_len])
+        sys.stderr.write("    Maximum chain length = %d (occurrences = %d)\n\n" % (max_chain_len, num_max_chains))

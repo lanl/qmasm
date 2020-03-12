@@ -110,7 +110,7 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         # Abort if any variables failed to embed.
         danglies = physical.dangling_variables(num2syms)
         if len(danglies) > 0:
-            self.abend("Disconnected variables encountered: %s" % str(danglies))
+            self.abend("Disconnected variables encountered: %s" % str(sorted(danglies)))
 
         # Output some problem statistics.
         if cl_args.verbose > 0:

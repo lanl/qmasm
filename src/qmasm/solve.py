@@ -313,5 +313,6 @@ class Sampler(object):
     def embed_problem(self, logical, topology_file, verbosity):
         "Embed a problem on a physical topology, if necessary."
         physical = self.find_problem_embedding(logical, topology_file, verbosity)
-        physical.embedded_bqm = embed_bqm(physical.bqm, physical.embedding, physical.hw_adj)
+        physical.embedded_bqm = embed_bqm(physical.bqm, physical.embedding,
+                                          physical.hw_adj, physical.qmasm.chain_strength)
         return physical
