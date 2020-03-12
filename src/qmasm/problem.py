@@ -27,6 +27,7 @@ class Problem(object):
         self.pinned = []          # Pairs of {unique number, Boolean} to pin
         self.known_values = {}    # Map from a spin to -1 or +1
         self.bqm_vars = None      # Set of all variables appearing in the BQM
+        self.contractions = {}    # Map from a spin to another spin it must be equal to
 
     def assign_chain_strength(self, ch_str):
         """Define a strength for each user-specified and automatically
@@ -148,6 +149,7 @@ class Problem(object):
         order = self.traversal_order(self.chains)
         for u, v in order:
             self.bqm.contract_variables(u, v)
+            self.contractions[v] = u
 
         # Say what we just did.
         if verbosity >= 2:
@@ -209,7 +211,7 @@ class Problem(object):
         for i in range(len(num2syms)):
             if num2syms[i] == []:
                 continue
-            if i not in self.embedding and i not in known_values:
+            if i not in self.embedding and i not in known_values and i not in self.contractions:
                 dangling.update(num2syms[i])
         return dangling
 
@@ -217,7 +219,7 @@ class Problem(object):
         "Verbosely output the mapping from logical to physical qubits."
         sys.stderr.write("Established a mapping from logical to physical qubits:\n\n")
         sys.stderr.write("    Logical  %-*s  Physical\n" % (max_sym_name_len, "Name(s)"))
-        sys.stderr.write("    -------  %s  --------\n" % ("-" * max_sym_name_len))
+        sys.stderr.write("    -------  %s  -------------------------\n" % ("-" * max_sym_name_len))
         known_values = self.merged_known_values()
         pin_map = {k: v for k, v in self.pinned}
         for i in range(len(num2syms)):
@@ -233,7 +235,10 @@ class Problem(object):
                     try:
                         phys_list = "[Provably %s]" % known_values[i]
                     except KeyError:
-                        phys_list = "[Disconnected]"
+                        try:
+                            phys_list = "[Same as logical %d]" % self.contractions[i]
+                        except KeyError:
+                            phys_list = "[Disconnected]"
 
             sys.stderr.write("    %7d  %-*s  %s\n" % (i, max_sym_name_len, name_list, phys_list))
         sys.stderr.write("\n")
@@ -241,6 +246,8 @@ class Problem(object):
     def _output_embedding_tersely(self, max_sym_name_len, num2syms):
         "Tersely output the mapping from logical to physical qubits."
         log2phys_comments = []
+        known_values = self.merged_known_values()
+        pin_map = {k: v for k, v in self.pinned}
         for i in range(len(num2syms)):
             if num2syms[i] == []:
                 continue
@@ -254,7 +261,10 @@ class Problem(object):
                     try:
                         phys_list = "[%s]" % known_values[i]
                     except KeyError:
-                        phys_list = "[Disconnected]"
+                        try:
+                            phys_list = "[Same as logical %d]" % self.contractions[i]
+                        except KeyError:
+                            phys_list = "[Disconnected]"
             log2phys_comments.append("# %s --> %s" % (name_list, phys_list))
         log2phys_comments.sort()
         sys.stderr.write("\n".join(log2phys_comments) + "\n")
