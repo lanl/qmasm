@@ -27,7 +27,7 @@ class ParseCommandLine(object):
                                help="optimize the layout; at -O1, remove unnecessary qubits; at -O2 additionally pack into fewer unit cells")
         cl_parser.add_argument("-p", "--pin", action="append",
                                help="pin a set of qubits to a set of true or false values")
-        cl_parser.add_argument("-f", "--format", choices=["qubist", "dw", "qbsolv", "qmasm", "minizinc", "bqpjson"], default="qubist",
+        cl_parser.add_argument("-f", "--format", choices=["qubist", "qbsolv", "qmasm", "minizinc", "bqpjson"], default="qubist",
                                help="output-file format")
         cl_parser.add_argument("--values", choices=["bools", "ints"], default="bools",
                                help="output solution values as Booleans or integers (default: bools)")

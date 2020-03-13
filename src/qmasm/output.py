@@ -27,7 +27,7 @@ class OutputMixin(object):
         for p in self.program:
             outfile.write("%s\n" % p.as_str())
 
-    def output_bqpjson(self, outfile, as_qubo, problem):
+    def output_bqpjson(self, outfile, as_qubo, problem, sampler):
         "Output weights and strengths in bqpjson format, either Ising or QUBO."
         # Prepare the "easy" fields.
         bqp = {}
@@ -81,16 +81,11 @@ class OutputMixin(object):
                     metadata[key] = func()
                 except KeyError:
                     pass
-            attempt_assign("dw_url", lambda: os.environ["DW_INTERNAL__HTTPLINK"])
-            attempt_assign("dw_solver_name", lambda: self.solver_name)
-            props = self.solver.properties
-            attempt_assign("dw_chip_id", lambda: props["chip_id"])
-            L, M, N = self.chimera_topology(self.solver)
-            metadata["chimera_cell_size"] = L*2
-            metadata["chimera_degree"] = max(M, N)
-            metadata["equivalent_ids"] = sorted(problem.chains)
-            metadata["variable_names"] = {s: problem.embedding[n]
-                                          for s, n in self.sym_map.symbol_number_items()}
+            client_info = sampler.client_info
+            props = sampler.sampler.properties
+            attempt_assign("endpoint", lambda: client_info["endpoint"])
+            attempt_assign("solver_name", lambda: client_info["solver_name"])
+            attempt_assign("chip_id", lambda: props["chip_id"])
         else:
             metadata["variable_names"] = {s: [n]
                                           for s, n in self.sym_map.symbol_number_items()}
@@ -99,7 +94,7 @@ class OutputMixin(object):
         # Output the problem in JSON format.
         outfile.write(json.dumps(bqp, indent=2, sort_keys=True) + "\n")
 
-    def write_output(self, problem, oname, oformat, as_qubo):
+    def write_output(self, problem, oname, oformat, as_qubo, sampler):
         "Write an output file in one of a variety of formats."
 
         # Open the output file.
@@ -108,8 +103,6 @@ class OutputMixin(object):
         # Output the weights and strengths in the specified format.
         if oformat == "qubist":
             self.output_qubist(outfile, as_qubo, problem)
-        elif oformat == "dw":
-            self.output_dw(outfile, problem)
         elif oformat == "qbsolv":
             self.output_qbsolv(outfile, problem)
         elif oformat == "qmasm":
@@ -117,7 +110,7 @@ class OutputMixin(object):
         elif oformat == "minizinc":
             self.output_minizinc(outfile, problem)
         elif oformat == "bqpjson":
-            self.output_bqpjson(outfile, as_qubo, problem)
+            self.output_bqpjson(outfile, as_qubo, problem, sampler)
 
         # Close the output file.
         if oname != "<stdout>":
