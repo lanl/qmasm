@@ -80,7 +80,7 @@ class Problem(object):
     def convert_to_qubo(self):
         "Return a copy of the problem with QUBO weights and strengths."
         qprob = copy.deepcopy(self)
-        qprob.bqm.to_qubo()
+        qprob.bqm.change_vartype(dimod.BINARY)
         qprob.weights = qprob.bqm.linear
         qprob.strengths = qprob.bqm.quadratic
         return qprob
@@ -88,7 +88,7 @@ class Problem(object):
     def convert_to_ising(self):
         "Return a copy of the problem with Ising weights and strengths."
         iprob = copy.deepcopy(self)
-        iprob.bqm.to_ising()
+        iprob.bqm.change_vartype(dimod.SPIN)
         iprob.weights = iprob.bqm.linear
         iprob.strengths = iprob.bqm.quadratic
         return iprob
