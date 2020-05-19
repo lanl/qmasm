@@ -312,7 +312,20 @@ class Sampler(object):
 
     def embed_problem(self, logical, topology_file, verbosity):
         "Embed a problem on a physical topology, if necessary."
+        # Embed the problem.
         physical = self.find_problem_embedding(logical, topology_file, verbosity)
         physical.embedded_bqm = embed_bqm(physical.bqm, physical.embedding,
                                           physical.hw_adj, physical.qmasm.chain_strength)
+
+        # Update weights and strengths.  Maintain a reference to the
+        # logical problem.
+        physical.logical = logical
+        physical.weights = physical.embedded_bqm.linear
+        physical.strengths = physical.embedded_bqm.quadratic
+
+        # Some problem parameters are not relevant in the physical problem.
+        physical.chains = None
+        physical.antichains = None
+        physical.pinned = None
+        physical.known_values = None
         return physical

@@ -207,7 +207,7 @@ class Problem(object):
     def dangling_variables(self, num2syms):
         "Return a set of variables that are neither embedded nor have a known value."
         dangling = set()
-        known_values = self.merged_known_values()
+        known_values = self.logical.merged_known_values()
         for i in range(len(num2syms)):
             if num2syms[i] == []:
                 continue
@@ -220,8 +220,8 @@ class Problem(object):
         sys.stderr.write("Established a mapping from logical to physical qubits:\n\n")
         sys.stderr.write("    Logical  %-*s  Physical\n" % (max_sym_name_len, "Name(s)"))
         sys.stderr.write("    -------  %s  -------------------------\n" % ("-" * max_sym_name_len))
-        known_values = self.merged_known_values()
-        pin_map = {k: v for k, v in self.pinned}
+        known_values = self.logical.merged_known_values()
+        pin_map = {k: v for k, v in self.logical.pinned}
         for i in range(len(num2syms)):
             if num2syms[i] == []:
                 continue
@@ -246,8 +246,8 @@ class Problem(object):
     def _output_embedding_tersely(self, max_sym_name_len, num2syms):
         "Tersely output the mapping from logical to physical qubits."
         log2phys_comments = []
-        known_values = self.merged_known_values()
-        pin_map = {k: v for k, v in self.pinned}
+        known_values = self.logical.merged_known_values()
+        pin_map = {k: v for k, v in self.logical.pinned}
         for i in range(len(num2syms)):
             if num2syms[i] == []:
                 continue
@@ -279,25 +279,26 @@ class Problem(object):
     def output_embedding_statistics(self):
         "Output various statistics about the embedding."
         # Tally the original set of variables.
-        all_vars = set(self.weights)
-        for q1, q2 in self.strengths:
+        logical = self.logical
+        all_vars = set(logical.weights)
+        for q1, q2 in logical.strengths:
             all_vars.add(q1)
             all_vars.add(q2)
 
         # Output statistics.
-        known_true = sum([v == 1 for v in self.known_values.values()])
-        known_false = len(self.known_values) - known_true
+        known_true = sum([v == 1 for v in logical.known_values.values()])
+        known_false = len(logical.known_values) - known_true
         sys.stderr.write("Computed the following statistics of the logical-to-physical mapping:\n\n")
         sys.stderr.write("    Type      Metric           Value\n")
         sys.stderr.write("    --------  ---------------  -----\n")
         sys.stderr.write("    Logical   Variables        %5d\n" % len(all_vars))
         sys.stderr.write("    Logical     Provably true  %5d\n" % known_true)
         sys.stderr.write("    Logical     Provably false %5d\n" % known_false)
-        sys.stderr.write("    Logical   Strengths        %5d\n" % len(self.strengths))
-        sys.stderr.write("    Logical     Equalities     %5d\n" % len(self.chains))
-        sys.stderr.write("    Logical     Inequalities   %5d\n" % len(self.antichains))
-        sys.stderr.write("    Physical  Spins            %5d\n" % len(self.embedded_bqm.linear))
-        sys.stderr.write("    Physical  Couplers         %5d\n" % len(self.embedded_bqm.quadratic))
+        sys.stderr.write("    Logical   Strengths        %5d\n" % len(logical.strengths))
+        sys.stderr.write("    Logical     Equalities     %5d\n" % len(logical.chains))
+        sys.stderr.write("    Logical     Inequalities   %5d\n" % len(logical.antichains))
+        sys.stderr.write("    Physical  Spins            %5d\n" % len(self.weights))
+        sys.stderr.write("    Physical  Couplers         %5d\n" % len(self.strengths))
         sys.stderr.write("\n")
 
         # Output some additional chain statistics.
