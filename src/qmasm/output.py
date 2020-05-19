@@ -6,6 +6,7 @@
 import datetime
 import json
 import random
+import shlex
 import sys
 
 class OutputMixin(object):
@@ -79,6 +80,123 @@ class OutputMixin(object):
 
         # Output the problem in JSON format.
         outfile.write(json.dumps(bqp, indent=2, sort_keys=True) + "\n")
+
+    def output_minizinc(self, outfile, problem, energy=None):
+        "Output weights and strengths as a MiniZinc constraint problem."
+        # Write some header information.
+        outfile.write("""% Use MiniZinc to minimize a given Hamiltonian.
+    %
+    % Producer:     QMASM (https://github.com/lanl/qmasm/)
+    % Author:       Scott Pakin (pakin@lanl.gov)
+    """)
+        outfile.write("%% Command line: %s\n\n" % " ".join([shlex.quote(a) for a in sys.argv]))
+
+        # The model is easier to express as a QUBO so convert to that format.
+        if problem.qubo:
+            qprob = problem
+        else:
+            qprob = problem.convert_to_qubo()
+
+        # Map each qubit to one or more symbols.
+        num2syms = {}
+        for s, n in self.sym_map.symbol_number_items():
+            try:
+                # Physical problem
+                for pn in qprob.embedding[n]:
+                    try:
+                        num2syms[pn].append(s)
+                    except KeyError:
+                        num2syms[pn] = [s]
+            except AttributeError:
+                # Logical problem
+                try:
+                    num2syms[n].append(s)
+                except KeyError:
+                    num2syms[n] = [s]
+        for n in num2syms.keys():
+            num2syms[n].sort(key=lambda s: ("$" in s, s))
+
+        # Find the character width of the longest list of symbol names.
+        max_sym_name_len = max([len(repr(ss)) - 1 for ss in num2syms.values()] + [7])
+
+        # Output all QMASM variables as MiniZinc variables.
+        qubits_used = set(qprob.weights.keys())
+        qubits_used.update([qs[0] for qs in qprob.strengths.keys()])
+        qubits_used.update([qs[1] for qs in qprob.strengths.keys()])
+        for q in sorted(qubits_used):
+            outfile.write("var 0..1: q%d;  %% %s\n" % (q, " ".join(num2syms[q])))
+        outfile.write("\n")
+
+        # Define variables representing products of QMASM variables.  Constrain the
+        # product variables to be the products.
+        outfile.write("% Define p_X_Y variables and constrain them to be the product of qX and qY.\n")
+        for q0, q1 in sorted(qprob.strengths.keys()):
+            pstr = "p_%d_%d" % (q0, q1)
+            outfile.write("var 0..1: %s;\n" % pstr)
+            outfile.write("constraint %s >= q%d + q%d - 1;\n" % (pstr, q0, q1))
+            outfile.write("constraint %s <= q%d;\n" % (pstr, q0))
+            outfile.write("constraint %s <= q%d;\n" % (pstr, q1))
+        outfile.write("\n")
+
+        # Express energy as one, big Hamiltonian.
+        scale_to_int = lambda f: int(round(10000.0*f))
+        outfile.write("var int: energy =\n")
+        weight_terms = ["%8d * q%d" % (scale_to_int(wt), q) for q, wt in sorted(qprob.weights.items())]
+        strength_terms = ["%8d * p_%d_%d" % (scale_to_int(s), qs[0], qs[1]) for qs, s in sorted(qprob.strengths.items())]
+        all_terms = weight_terms + strength_terms
+        outfile.write("  %s;\n" % " +\n  ".join(all_terms))
+
+        # Because we can't both minimize and enumerate all solutions, we normally
+        # do only the former with instructions for the user on how to switch to the
+        # latter.  However, if an energy was specified, comment out the
+        # minimization step and uncomment the enumeration step.
+        outfile.write("\n")
+        outfile.write("% First pass: Compute the minimum energy.\n")
+        if energy == None:
+            outfile.write("solve minimize energy;\n")
+        else:
+            outfile.write("% solve minimize energy;\n")
+        outfile.write("""
+%% Second pass: Find all minimum-energy solutions.
+%%
+%% Once you've solved for minimum energy, comment out the "solve minimize
+%% energy" line, plug the minimal energy value into the following line,
+%% uncomment it and the "solve satisfy" line, and re-run MiniZinc, requesting
+%% all solutions this time.  The catch is that you need to use the raw
+%% energy value so be sure to modify the output block to show(energy)
+%% instead of show(energy/%.10g + %.10g).
+""" % (self.minizinc_scale_factor, qprob.bqm.offset))
+        if energy == None:
+            outfile.write("%constraint energy = -12345;\n")
+            outfile.write("%solve satisfy;\n\n")
+        else:
+            outfile.write("constraint energy = %d;\n" % energy)
+            outfile.write("solve satisfy;\n\n")
+
+        # Output code to show the results symbolically.  We output in the same
+        # format as QMASM normally does.  Unfortunately, I don't know how to get
+        # MiniZinc to output the current solution number explicitly so I had to
+        # hard-wire "Solution #1".
+        outfile.write("output [\n")
+        outfile.write('  "Solution #1 (energy = ", show(energy/%.10g + %.10g), ", tally = 1)\\n\\n",\n' % (self.minizinc_scale_factor, qprob.bqm.offset))
+        outfile.write('  "    %-*s  Spin  Boolean\\n",\n' % (max_sym_name_len, "Name(s)"))
+        outfile.write('  "    %s  ----  -------\\n",\n' % ("-" * max_sym_name_len))
+        outlist = []
+        for n, ss in num2syms.items():
+            if ss == []:
+                continue
+            syms = " ".join(ss)
+            line = ""
+            line += '"    %-*s  ", ' % (max_sym_name_len, syms)
+            if problem.qubo:
+                line += 'show_int(4, q%d), ' % n
+            else:
+                line += 'show_int(4, 2*q%d - 1), ' % n
+            line += '"  ", if show(q%d) == "1" then "True" else "False" endif, ' % n
+            line += '"\\n"'
+            outlist.append(line)
+        outlist.sort()
+        outfile.write("  %s\n];\n" % ",\n  ".join(outlist))
 
     def output_qubist(self, outfile, as_qubo, problem, sampler):
         "Output weights and strengths in Qubist format, either Ising or QUBO."

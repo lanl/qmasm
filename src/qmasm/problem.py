@@ -77,6 +77,22 @@ class Problem(object):
         # Store the BQM.
         self.bqm = bqm
 
+    def convert_to_qubo(self):
+        "Return a copy of the problem with QUBO weights and strengths."
+        qprob = copy.deepcopy(self)
+        qprob.bqm.to_qubo()
+        qprob.weights = qprob.bqm.linear
+        qprob.strengths = qprob.bqm.quadratic
+        return qprob
+
+    def convert_to_ising(self):
+        "Return a copy of the problem with Ising weights and strengths."
+        iprob = copy.deepcopy(self)
+        iprob.bqm.to_ising()
+        iprob.weights = iprob.bqm.linear
+        iprob.strengths = iprob.bqm.quadratic
+        return iprob
+
     def all_bqm_variables(self, force_recompute=False):
         "Return a set of all variables, referenced in linear and/or quadratic terms in the BQM."
         if self.bqm_vars != None and not force_recompute:

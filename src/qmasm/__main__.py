@@ -27,6 +27,10 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         # Multiple components of QMASM require a definition of an identifier.
         self.ident_re = re.compile(r'[^-+*/%&\|^~()<=>#,\s]+')
 
+        # Define a scale factor for converting floats to ints for MiniZinc's
+        # sake.
+        self.minizinc_scale_factor = 10000.0
+
     def run(self):
         "Execute the entire QMASM processing sequence."
 
