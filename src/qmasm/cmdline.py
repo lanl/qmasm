@@ -27,7 +27,7 @@ class ParseCommandLine(object):
                                help="optimize the layout; at -O1, remove unnecessary qubits; at -O2 additionally pack into fewer unit cells")
         cl_parser.add_argument("-p", "--pin", action="append",
                                help="pin a set of qubits to a set of true or false values")
-        cl_parser.add_argument("-f", "--format", choices=["qubist", "qbsolv", "qmasm", "minizinc", "bqpjson"], default="qubist",
+        cl_parser.add_argument("-f", "--format", choices=["qubist", "qmasm", "minizinc", "bqpjson"], default="qubist",
                                help="output-file format")
         cl_parser.add_argument("--values", choices=["bools", "ints"], default="bools",
                                help="output solution values as Booleans or integers (default: bools)")
@@ -51,8 +51,6 @@ class ParseCommandLine(object):
                                help="extra arguments to pass to a solver command (default: none)")
         cl_parser.add_argument("--topology-file", default=None, metavar="FILE",
                                help="name of a file describing the topology (list of vertex pairs)")
-        cl_parser.add_argument("-E", "--always-embed", action="store_true",
-                               help="embed the problem in the physical topology even when not required (default: false)")
         cl_parser.add_argument("--postproc", choices=["none", "sample", "opt"],
                                default="none",
                                help='type of postprocessing to perform (default: "none")')

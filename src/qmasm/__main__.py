@@ -77,11 +77,12 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         # specified, we write a file only if --output was also specified.
         write_output_file = not (cl_args.output == "<stdout>" and cl_args.run)
 
-        # If the user requested QMASM output, always output it here.
-        if write_output_file and cl_args.format == "qmasm":
-            self.write_output(logical, cl_args.output, cl_args.format, cl_args.qubo, sampler)
-            if not cl_args.run:
-                sys.exit(0)
+        # Produce pre-embedding output files.
+        if write_output_file:
+            if cl_args.format in ["qmasm", "bqpjson", "minizinc"]:
+                self.write_output(logical, cl_args.output, cl_args.format, cl_args.qubo, sampler)
+                if not cl_args.run:
+                    sys.exit(0)
 
         # If the user requested bqpjson output, output it here unless
         # --always-embed was specified.
@@ -116,13 +117,9 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         if cl_args.verbose > 0:
             physical.output_embedding_statistics()
 
-        # Output a file in any of a variety of formats when --always-embed was
-        # specified.
+        # Produce post-embedding output files.
         if write_output_file:
-            if cl_args.format == "qmasm":
-                # QMASM files are always written before embedding.
-                pass
-            else:
+            if cl_args.format in ["qubist"]:
                 self.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo, sampler)
 
 def main():

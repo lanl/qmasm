@@ -27,7 +27,7 @@ class OutputMixin(object):
         for p in self.program:
             outfile.write("%s\n" % p.as_str())
 
-    def output_bqpjson(self, outfile, as_qubo, problem, sampler):
+    def output_bqpjson(self, outfile, as_qubo, problem):
         "Output weights and strengths in bqpjson format, either Ising or QUBO."
         # Prepare the "easy" fields.
         bqp = {}
@@ -73,26 +73,43 @@ class OutputMixin(object):
             metadata["description"] = "Ising problem compiled by QMASM (https://github.com/lanl/qmasm)"
         metadata["command_line"] = self.get_command_line()
         metadata["generated"] = datetime.datetime.utcnow().isoformat()
-        if hasattr(problem, "embedding"):
-            # Physical problem
-            def attempt_assign(key, func):
-                "Try assigning a key, but don't complain if we can't."
-                try:
-                    metadata[key] = func()
-                except KeyError:
-                    pass
-            client_info = sampler.client_info
-            props = sampler.sampler.properties
-            attempt_assign("endpoint", lambda: client_info["endpoint"])
-            attempt_assign("solver_name", lambda: client_info["solver_name"])
-            attempt_assign("chip_id", lambda: props["chip_id"])
-        else:
-            metadata["variable_names"] = {s: [n]
-                                          for s, n in self.sym_map.symbol_number_items()}
+        metadata["variable_names"] = {s: [n]
+                                      for s, n in self.sym_map.symbol_number_items()}
         bqp["metadata"] = metadata
 
         # Output the problem in JSON format.
         outfile.write(json.dumps(bqp, indent=2, sort_keys=True) + "\n")
+
+    def output_qubist(self, outfile, as_qubo, problem, sampler):
+        "Output weights and strengths in Qubist format, either Ising or QUBO."
+        if as_qubo and not problem.qubo:
+            qprob = problem.convert_to_qubo()
+            output_weights, output_strengths = qprob.weights, qprob.strengths
+        elif not as_qubo and problem.qubo:
+            iprob = problem.convert_to_ising()
+            output_weights, output_strengths = iprob.weights, iprob.strengths
+        else:
+            output_weights = problem.weights
+            output_strengths = problem.strengths
+        data = []
+        for q, wt in sorted(output_weights.items()):
+            if wt != 0.0:
+                data.append("%d %d %.10g" % (q, q, wt))
+        for sp, str in sorted(output_strengths.items()):
+            if str != 0.0:
+                data.append("%d %d %.10g" % (sp[0], sp[1], str))
+
+        # Output the header and data in Qubist format.
+        try:
+            num_qubits = sampler.sampler.properties["num_qubits"]
+        except KeyError:
+            # The Ising heuristic solver is an example of a solver that lacks a
+            # fixed hardware representation.  We therefore assert that the number
+            # of qubits is exactly the number of qubits we require.
+            num_qubits = len(output_weights)
+        outfile.write("%d %d\n" % (num_qubits, len(data)))
+        for d in data:
+            outfile.write("%s\n" % d)
 
     def write_output(self, problem, oname, oformat, as_qubo, sampler):
         "Write an output file in one of a variety of formats."
@@ -102,15 +119,13 @@ class OutputMixin(object):
 
         # Output the weights and strengths in the specified format.
         if oformat == "qubist":
-            self.output_qubist(outfile, as_qubo, problem)
-        elif oformat == "qbsolv":
-            self.output_qbsolv(outfile, problem)
+            self.output_qubist(outfile, as_qubo, problem, sampler)
         elif oformat == "qmasm":
             self.output_qmasm(outfile)
         elif oformat == "minizinc":
             self.output_minizinc(outfile, problem)
         elif oformat == "bqpjson":
-            self.output_bqpjson(outfile, as_qubo, problem, sampler)
+            self.output_bqpjson(outfile, as_qubo, problem)
 
         # Close the output file.
         if oname != "<stdout>":
