@@ -200,30 +200,32 @@ class OutputMixin(object):
 
     def output_qubist(self, outfile, as_qubo, problem, sampler):
         "Output weights and strengths in Qubist format, either Ising or QUBO."
-        if as_qubo and not problem.qubo:
-            qprob = problem.convert_to_qubo()
-            output_weights, output_strengths = qprob.weights, qprob.strengths
-        elif not as_qubo and problem.qubo:
-            iprob = problem.convert_to_ising()
-            output_weights, output_strengths = iprob.weights, iprob.strengths
-        else:
-            output_weights = problem.weights
-            output_strengths = problem.strengths
+        # Convert the problem to Ising, scale it for the hardware, then convert
+        # to QUBO if requested.
+        prob = problem.convert_to_ising()
+        prob.autoscale_coefficients(sampler)
+        if as_qubo:
+            prob = prob.convert_to_qubo()
+        output_weights = prob.weights
+        output_strengths = prob.strengths
+
+        # Format all weights and all strengths in Qubist format.
         data = []
         for q, wt in sorted(output_weights.items()):
             if wt != 0.0:
                 data.append("%d %d %.10g" % (q, q, wt))
         for sp, str in sorted(output_strengths.items()):
             if str != 0.0:
+                sp = sorted(sp)
                 data.append("%d %d %.10g" % (sp[0], sp[1], str))
 
         # Output the header and data in Qubist format.
         try:
             num_qubits = sampler.sampler.properties["num_qubits"]
         except KeyError:
-            # The Ising heuristic solver is an example of a solver that lacks a
-            # fixed hardware representation.  We therefore assert that the number
-            # of qubits is exactly the number of qubits we require.
+            # If the solver lacks a fixed hardware representation we assert
+            # that the number of hardware qubits is exactly the number of
+            # qubits we require.
             num_qubits = len(output_weights)
         outfile.write("%d %d\n" % (num_qubits, len(data)))
         for d in data:

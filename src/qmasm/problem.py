@@ -231,6 +231,20 @@ class Problem(object):
                 dangling.update(num2syms[i])
         return dangling
 
+    def autoscale_coefficients(self, sampler):
+        "Scale weights and strengths to match what the hardware allows."
+        h_range = sampler.sampler.properties["h_range"]
+        J_range = sampler.sampler.properties["j_range"]
+        min_h = min([w for w in self.weights.values()])
+        max_h = max([w for w in self.weights.values()])
+        min_J = min([w for w in self.strengths.values()])
+        max_J = max([w for w in self.strengths.values()])
+        scale = min(abs(h_range[0]/min_h), abs(h_range[1]/max_h),
+                    abs(J_range[0]/min_J), abs(J_range[1]/max_J))
+        self.bqm.scale(scale)
+        self.weights = self.bqm.linear
+        self.strengths = self.bqm.quadratic
+
     def _output_embedding_verbosely(self, max_sym_name_len, num2syms):
         "Verbosely output the mapping from logical to physical qubits."
         sys.stderr.write("Established a mapping from logical to physical qubits:\n\n")
