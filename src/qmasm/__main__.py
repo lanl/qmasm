@@ -81,17 +81,26 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         # specified, we write a file only if --output was also specified.
         write_output_file = not (cl_args.output == "<stdout>" and cl_args.run)
 
-        # Produce pre-embedding output files.
+        # Determine when to write an output file: either pre- or post-embedding.
+        write_time = None
         if write_output_file:
-            if cl_args.format in ["qmasm", "bqpjson", "minizinc"]:
-                self.write_output(logical, cl_args.output, cl_args.format, cl_args.qubo, sampler)
-                if not cl_args.run:
-                    sys.exit(0)
+            # Start with always_embed --> post, otherwise pre.
+            write_time = "pre"
+            if cl_args.always_embed:
+                write_time = "post"
 
-        # If the user requested bqpjson output, output it here unless
-        # --always-embed was specified.
-        if write_output_file and cl_args.format == "bqpjson" and not cl_args.always_embed:
-            self.write_output(logical, cl_args.output, cl_args.format, cl_args.qubo)
+            # QMASM output is always pre-embedding.
+            if cl_args.format == "qmasm" and write_time == "post":
+                self.warn("Ignoring --always embed; incompatible with --format=qmasm")
+                write_time = "pre"
+
+            # Qubist output is always post-embedding.
+            if cl_args.format == "qubist":
+                write_time = "post"
+
+        # Produce pre-embedding output files.
+        if write_output_file and write_time == "pre":
+            self.write_output(logical, cl_args.output, cl_args.format, cl_args.qubo, sampler)
             if not cl_args.run:
                 sys.exit(0)
 
@@ -122,9 +131,8 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
             physical.output_embedding_statistics()
 
         # Produce post-embedding output files.
-        if write_output_file:
-            if cl_args.format in ["qubist"]:
-                self.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo, sampler)
+        if write_output_file and write_time == "post":
+            self.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo, sampler)
 
 def main():
     "Run QMASM."

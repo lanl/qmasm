@@ -127,8 +127,8 @@ class OutputMixin(object):
             outfile.write("var 0..1: q%d;  %% %s\n" % (q, " ".join(num2syms[q])))
         outfile.write("\n")
 
-        # Define variables representing products of QMASM variables.  Constrain the
-        # product variables to be the products.
+        # Define variables representing products of QMASM variables.  Constrain
+        # the product variables to be the products.
         outfile.write("% Define p_X_Y variables and constrain them to be the product of qX and qY.\n")
         for q0, q1 in sorted(qprob.strengths.keys()):
             pstr = "p_%d_%d" % (q0, q1)
@@ -146,10 +146,10 @@ class OutputMixin(object):
         all_terms = weight_terms + strength_terms
         outfile.write("  %s;\n" % " +\n  ".join(all_terms))
 
-        # Because we can't both minimize and enumerate all solutions, we normally
-        # do only the former with instructions for the user on how to switch to the
-        # latter.  However, if an energy was specified, comment out the
-        # minimization step and uncomment the enumeration step.
+        # Because we can't both minimize and enumerate all solutions, we
+        # normally do only the former with instructions for the user on how to
+        # switch to the latter.  However, if an energy was specified, comment
+        # out the minimization step and uncomment the enumeration step.
         outfile.write("\n")
         outfile.write("% First pass: Compute the minimum energy.\n")
         if energy == None:

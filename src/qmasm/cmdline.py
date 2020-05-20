@@ -56,6 +56,8 @@ class ParseCommandLine(object):
                                help='type of postprocessing to perform (default: "none")')
         cl_parser.add_argument("--show", choices=["valid", "all", "best"], default="valid",
                                help='show valid solutions, all solutions, or the best (even if invalid) solutions (default: "valid")')
+        cl_parser.add_argument("--always-embed", action="store_true",
+                               help="embed the problem in the physical topology even when not required (default: false)")
 
         # Parse the command line.
         cl_args = cl_parser.parse_args()
