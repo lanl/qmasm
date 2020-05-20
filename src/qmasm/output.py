@@ -198,6 +198,55 @@ class OutputMixin(object):
         outlist.sort()
         outfile.write("  %s\n];\n" % ",\n  ".join(outlist))
 
+    def output_qbsolv(self, outfile, problem):
+        "Output weights and strengths in qbsolv format."
+        # Determine the list of nonzero weights and strengths.
+        qprob = problem.convert_to_qubo()
+        output_weights, output_strengths = qprob.weights, qprob.strengths
+        max_node = max(list(output_weights.keys()) + [max(qs) for qs in output_strengths.keys()])
+        num_nonzero_weights = len([q for q, wt in output_weights.items() if wt != 0.0])
+        num_nonzero_strengths = len([qs for qs, wt in output_strengths.items() if wt != 0.0])
+
+        # Assign dummy qubit numbers to qubits whose value is known a priori.
+        n_known = len(qprob.known_values)
+        extra_nodes = dict(zip(sorted(qprob.known_values.keys()),
+                               range(max_node + 1, max_node + 1 + n_known)))
+        max_node += n_known
+        num_nonzero_weights += n_known
+        output_weights.update({num: qprob.known_values[sym]*qmasm.pin_weight
+                               for sym, num in extra_nodes.items()})
+        sym2num = dict(self.sym_map.symbol_number_items())
+        sym2num.update(extra_nodes)
+
+        # Output a name-to-number map as header comments.
+        key_width = 0
+        val_width = 0
+        items = []
+        for s, n in sym2num.items():
+            if len(s) > key_width:
+                key_width = len(s)
+
+            # Map logical to physical if possible.
+            try:
+                nstr = " ".join([str(n) for n in sorted(qprob.embedding[n])])
+            except AttributeError:
+                nstr = str(n)
+            if len(nstr) > val_width:
+                val_width = len(nstr)
+            items.append((s, nstr))
+        items.sort()
+        for s, nstr in items:
+            outfile.write("c %-*s --> %-*s\n" % (key_width, s, val_width, nstr))
+
+        # Output all nonzero weights and strengths.
+        outfile.write("p qubo 0 %d %d %d\n" % (max_node + 1, num_nonzero_weights, num_nonzero_strengths))
+        for q, wt in sorted(output_weights.items()):
+            if wt != 0.0:
+                outfile.write("%d %d %.10g\n" % (q, q, wt))
+        for qs, wt in sorted(output_strengths.items()):
+            if wt != 0.0:
+                outfile.write("%d %d %.10g\n" % (qs[0], qs[1], wt))
+
     def output_qubist(self, outfile, as_qubo, problem, sampler):
         "Output weights and strengths in Qubist format, either Ising or QUBO."
         # Convert the problem to Ising, scale it for the hardware, then convert
@@ -240,6 +289,8 @@ class OutputMixin(object):
         # Output the weights and strengths in the specified format.
         if oformat == "qubist":
             self.output_qubist(outfile, as_qubo, problem, sampler)
+        elif oformat == "qbsolv":
+            self.output_qbsolv(outfile, problem)
         elif oformat == "qmasm":
             self.output_qmasm(outfile)
         elif oformat == "minizinc":
