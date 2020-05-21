@@ -21,5 +21,5 @@ setup(name = "QMASM",
       },
       packages = find_packages("src"),
       package_dir = {"": "src"},
-      python_requires = ">= 3.6"
+      python_requires = ">= 3.8"
 )

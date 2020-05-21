@@ -12,13 +12,14 @@ import minorminer
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dimod import ExactSolver, SampleSet
 from dwave.cloud import Client
 from dwave.embedding import embed_bqm
 from dwave.system import DWaveSampler
 from neal import SimulatedAnnealingSampler
+from qmasm.solutions import Solutions
 from tabu import TabuSampler
-from concurrent.futures import ThreadPoolExecutor
 
 class EmbeddingCache(object):
     "Read and write an embedding cache file."
@@ -428,6 +429,14 @@ class Sampler(object):
         merged.info["timing"] = timing
         return merged
 
+    def _submit_and_block(self, bqm, **params):
+        "Submit a job and wait for it to complete"
+        # This is a workaround for a bug in dwave-system.  See
+        # https://github.com/dwavesystems/dwave-system/issues/297#issuecomment-632384524
+        result = self.sampler.sample(bqm, **params)
+        result.resolve()
+        return result
+
     def acquire_samples(self, verbosity, physical, samples, anneal_time, spin_revs, postproc):
         "Acquire a number of samples from either a hardware or software sampler."
         # Map abbreviated to full names for postprocessing types.
@@ -452,12 +461,17 @@ class Sampler(object):
                                  annealing_time=anneal_time,
                                  num_spin_reversal_transforms=spin_rev_list[i],
                                  postprocess=postproc)
-            future = executor.submit(self.sampler.sample, physical.bqm, **solver_params)
+            future = executor.submit(self._submit_and_block, physical.bqm, **solver_params)
             results[i] = SampleSet.from_future(future)
 
         # Wait for the QMIs to finish.
         executor.shutdown(wait=False)
-        if verbosity >= 2:
+        if verbosity == 1:
+            if nqmis == 1:
+                sys.stderr.write("Waiting for the problem to complete.\n\n")
+            else:
+                sys.stderr.write("Waiting for all %d subproblems to complete.\n\n" % nqmis)
+        elif verbosity >= 2:
             sys.stderr.write("Number of subproblems completed:\n\n")
             cdigits = len(str(nqmis))     # Digits in the number of completed QMIs
             tdigits = len(str(nqmis*5))   # Estimate 5 seconds per QMI submission
@@ -479,7 +493,8 @@ class Sampler(object):
                 sys.stderr.write("    %s\n" % results[i].info["problem_id"])
             sys.stderr.write("\n")
 
-        # Temporary
-        sys.stderr.write("DEBUG: results[0] = %s\n" % repr(results[0].info))
-        merged = self._merge_results(results)
-        sys.stderr.write("DEBUG: results[*] = %s\n" % repr(merged.info))
+        # Merge the result of seperate runs into a composite answer.
+        answer = self._merge_results(results)
+
+        # Return a Solutions object for further processing.
+        return Solutions(answer, physical, verbosity >= 2)
