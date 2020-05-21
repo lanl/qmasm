@@ -4,18 +4,21 @@
 ###################################
 
 import copy
+import dimod
 import hashlib
 import json
 import marshal
 import minorminer
 import os
 import sys
-from dimod import ExactSolver
+import time
+from dimod import ExactSolver, SampleSet
 from dwave.cloud import Client
 from dwave.embedding import embed_bqm
 from dwave.system import DWaveSampler
 from neal import SimulatedAnnealingSampler
 from tabu import TabuSampler
+from concurrent.futures import ThreadPoolExecutor
 
 class EmbeddingCache(object):
     "Read and write an embedding cache file."
@@ -77,9 +80,9 @@ class Sampler(object):
             info["solver_name"] = solver
         if solver == "exact":
             return ExactSolver(), info
-        if solver == "neal":
+        elif solver == "neal":
             return SimulatedAnnealingSampler(), info
-        if solver == "tabu":
+        elif solver == "tabu":
             return TabuSampler(), info
 
         # In the common case, read the configuration file, either the
@@ -329,3 +332,154 @@ class Sampler(object):
         physical.pinned = None
         physical.known_values = None
         return physical
+
+    def _get_default_annealing_time(self):
+        "Determine a suitable annealing time to use if none was specified."
+        try:
+            # Use the default value.
+            anneal_time = self.sampler.properties["default_annealing_time"]
+        except KeyError:
+            try:
+                # If the default value is undefined, use the minimum allowed
+                # value.
+                anneal_time = self.sampler.properties["annealing_time_range"][0]
+            except KeyError:
+                # If all else fails, use 20 as a reasonable default.
+                anneal_time = 20
+        return anneal_time
+
+    def _compute_sample_counts(self, samples, anneal_time):
+        "Return a list of sample counts to request of the hardware."
+        # The formula in the D-Wave System Documentation (under
+        # "problem_run_duration_range") is Duration = (annealing_time +
+        # readout_thermalization)*num_reads + programming_thermalization.  We
+        # split the number of samples so that each run time is less than the
+        # maximum duration.
+        props = self.sampler.properties
+        try:
+            max_run_duration = props["problem_run_duration_range"][1]
+            prog_therm = props["default_programming_thermalization"]
+            read_therm = props["default_readout_thermalization"]
+        except KeyError:
+            # Assume we're on a software solver.
+            return [samples]
+        max_samples = (max_run_duration - prog_therm)//(anneal_time + read_therm)
+        # Independent of the maximum sample count just computed, the number of
+        # samples can't exceed the maximum the hardware allows.
+        try:
+            max_samples = min(max_samples, props["num_reads_range"][1])
+        except KeyError:
+            pass
+
+        # Split the number of samples into pieces of size max_samples.
+        if samples <= max_samples:
+            samples_list = [samples]
+        else:
+            samples_list = []
+            s = samples
+            while s > 0:
+                if s >= max_samples:
+                    samples_list.append(max_samples)
+                    s -= max_samples
+                else:
+                    samples_list.append(s)
+                    s = 0
+        return samples_list
+
+    def _compute_spin_rev_counts(self, spin_revs, samples_list):
+        "Divide a total number of spin reversals across a set of samples."
+        samples = sum(samples_list)
+        spin_rev_frac = float(spin_revs)/float(samples)  # We'll evenly divide our spin reversals among samples.
+        spin_rev_list = [int(samps*spin_rev_frac) for samps in samples_list]
+        missing_srs = spin_revs - sum(spin_rev_list)
+        while missing_srs > 0:
+            # Account for rounding errors by adding back in some missing spin
+            # reversals.
+            for i in range(samples):
+                if samples_list[i] > spin_rev_list[i]:
+                    spin_rev_list[i] += 1
+                    missing_srs -= 1
+                    if missing_srs == 0:
+                        break
+        return spin_rev_list
+
+    def _merge_results(self, results):
+        "Merge results into a single SampleSet."
+        sum_keys = ["total_real_time",
+                    "qpu_access_overhead_time",
+                    "post_processing_overhead_time",
+                    "qpu_sampling_time",
+                    "total_post_processing_time",
+                    "qpu_programming_time",
+                    "run_time_chip",
+                    "qpu_access_time"]
+        avg_keys = ["anneal_time_per_run",
+                    "readout_time_per_run",
+                    "qpu_delay_time_per_sample",
+                    "qpu_anneal_time_per_sample",
+                    "qpu_readout_time_per_sample"]
+        timing = {}
+        merged = dimod.concatenate(results)
+        nsamples = len(merged)
+        for sk in sum_keys:
+            timing[sk] = sum([r.info["timing"][sk] for r in results])
+        for ak in avg_keys:
+            timing[ak] = sum([r.info["timing"][ak]*len(r) for r in results])//nsamples
+        merged.info["timing"] = timing
+        return merged
+
+    def acquire_samples(self, verbosity, physical, samples, anneal_time, spin_revs, postproc):
+        "Acquire a number of samples from either a hardware or software sampler."
+        # Map abbreviated to full names for postprocessing types.
+        postproc = {"none": "", "opt": "optimization", "sample": "sampling"}[postproc]
+
+        # Determine the annealing time to use.
+        if anneal_time == None:
+            anneal_time = self._get_default_annealing_time()
+
+        # Compute a list of the number of samples to take each iteration
+        # and the number of spin reversals to perform.
+        samples_list = self._compute_sample_counts(samples, anneal_time)
+        spin_rev_list = self._compute_spin_rev_counts(spin_revs, samples_list)
+        nqmis = len(samples_list)   # Number of (non-unique) QMIs to submit
+
+        # Submit all of our QMIs asynchronously.
+        results = [None for i in range(nqmis)]
+        executor = ThreadPoolExecutor()
+        for i in range(nqmis):
+            solver_params = dict(chains=list(physical.embedding.values()),
+                                 num_reads=samples_list[i],
+                                 annealing_time=anneal_time,
+                                 num_spin_reversal_transforms=spin_rev_list[i],
+                                 postprocess=postproc)
+            future = executor.submit(self.sampler.sample, physical.bqm, **solver_params)
+            results[i] = SampleSet.from_future(future)
+
+        # Wait for the QMIs to finish.
+        executor.shutdown(wait=False)
+        if verbosity >= 2:
+            sys.stderr.write("Number of subproblems completed:\n\n")
+            cdigits = len(str(nqmis))     # Digits in the number of completed QMIs
+            tdigits = len(str(nqmis*5))   # Estimate 5 seconds per QMI submission
+            start_time = time.time()
+        ncomplete = 0
+        while ncomplete < nqmis:
+            ncomplete = sum([int(r.done()) for r in results])
+            if verbosity >= 2:
+                sys.stderr.write("    %*d of %d (%3.0f%%) after %*.0f seconds\n" %
+                                 (cdigits, ncomplete, nqmis,
+                                  100.0*float(ncomplete)/float(nqmis),
+                                  tdigits, time.time() - start_time))
+            if ncomplete < nqmis:
+                time.sleep(1)
+        if verbosity >= 2:
+            sys.stderr.write("\n")
+            sys.stderr.write("IDs of completed subproblems:\n\n")
+            for i in range(nqmis):
+                sys.stderr.write("    %s\n" % results[i].info["problem_id"])
+            sys.stderr.write("\n")
+
+        # Temporary
+        sys.stderr.write("DEBUG: results[0] = %s\n" % repr(results[0].info))
+        merged = self._merge_results(results)
+        sys.stderr.write("DEBUG: results[*] = %s\n" % repr(merged.info))

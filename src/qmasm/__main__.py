@@ -134,6 +134,20 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         if write_output_file and write_time == "post":
             self.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo, sampler)
 
+        # If we weren't told to run anything we can exit now.
+        if not cl_args.run:
+            return
+
+        # Solve the specified problem.
+        if cl_args.verbose >= 1:
+            sys.stderr.write("Submitting the problem to the %s solver.\n\n" % sampler.client_info["solver_name"])
+        solutions = sampler.acquire_samples(cl_args.verbose,
+                                            physical,
+                                            cl_args.samples,
+                                            cl_args.anneal_time,
+                                            cl_args.spin_revs,
+                                            cl_args.postproc)
+
 def main():
     "Run QMASM."
     q = QMASM()
