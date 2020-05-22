@@ -477,17 +477,21 @@ class Sampler(object):
             tdigits = len(str(nqmis*5))   # Estimate 5 seconds per QMI submission
             start_time = time.time()
         ncomplete = 0
+        prev_ncomplete = 0
         while ncomplete < nqmis:
             ncomplete = sum([int(r.done()) for r in results])
-            if verbosity >= 2:
+            if verbosity >= 2 and ncomplete > prev_ncomplete:
+                end_time = time.time()
                 sys.stderr.write("    %*d of %d (%3.0f%%) after %*.0f seconds\n" %
                                  (cdigits, ncomplete, nqmis,
                                   100.0*float(ncomplete)/float(nqmis),
-                                  tdigits, time.time() - start_time))
+                                  tdigits, end_time - start_time))
+                prev_ncomplete = ncomplete
             if ncomplete < nqmis:
                 time.sleep(1)
         if verbosity >= 2:
             sys.stderr.write("\n")
+            sys.stderr.write("    Average time per subproblem: %.2g seconds\n\n" % ((end_time - start_time)/nqmis))
             sys.stderr.write("IDs of completed subproblems:\n\n")
             for i in range(nqmis):
                 sys.stderr.write("    %s\n" % results[i].info["problem_id"])
