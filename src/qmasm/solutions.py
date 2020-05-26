@@ -12,11 +12,12 @@ class Solution:
     "Represent a near-minimal state of a spin system."
 
     def __init__(self, problem, num2syms, all_num2syms, phys2log, all_vars,
-                 raw_ss, fixed_soln, tally, energy):
+                 log2idx, raw_ss, fixed_soln, tally, energy):
 
         # Map named variables to spins.
         self.problem = problem
         self.phys2log = phys2log
+        self.log2idx = log2idx
         self.raw_ss = raw_ss
         self.fixed_soln = fixed_soln
         self.tally = tally
@@ -60,12 +61,31 @@ class Solution:
                                      chain_break_method=chain_breaks.discard)
         return len(unbroken) == 0
 
+    def broken_user_chains(self):
+        "Return True if the solution contains broken user-specified chains or anti-chains."
+        # Compare logical qubits for equal values.
+        for lq1, lq2 in self.problem.logical.chains:
+            try:
+                idx1, idx2 = self.log2idx[lq1], self.log2idx[lq1]
+            except KeyError:
+                pass  # Elided logical qubit
+            if self.fixed_soln[idx1] != self.fixed_soln[idx2]:
+                return True
+        for lq1, lq2 in self.problem.logical.antichains:
+            try:
+                idx1, idx2 = self.log2idx[lq1], self.log2idx[lq1]
+            except KeyError:
+                pass  # Elided logical qubit
+            if self.fixed_soln[idx1] == self.fixed_soln[idx2]:
+                return True
+        return False
+
     def broken_pins(self):
         "Return True if the solution contains broken pins."
         bool2spin = [-1, +1]
         for pq, pin in self.problem.logical.pinned:
             lq = self.phys2log[pq]
-            if self.soln_spins[lq] != bool2spin[pin]:
+            if self.fixed_soln[lq] != bool2spin[pin]:
                 return True
         return False
 
@@ -86,10 +106,13 @@ class Solutions(object):
         # Define a mapping of physical to logical qubits.
         phys2log = {}
         for lq in range(len(self.problem.embedding)):
-            for pq in self.problem.embedding[lq]:
-                phys2log[pq] = lq
+            try:
+                for pq in self.problem.embedding[lq]:
+                    phys2log[pq] = lq
+            except KeyError:
+                pass  # Pinned or elided logical qubit
 
-        # Establish mappings from qubit numbers to symbols.
+        # Establish a mapping from qubit numbers to symbols.
         self.qmasm = self.problem.qmasm
         max_num = self.qmasm.sym_map.max_number()
         num2syms = [[] for _ in range(max_num + 1)]
@@ -99,7 +122,14 @@ class Solutions(object):
             if all_vars or "$" not in s:
                 num2syms[n].append(s)
 
-        # Construct one solution object per solution.
+        # Establish a mapping from logical qubit number to index into a sample.
+        log2idx = {}
+        ss_vars = fixed_answer.variables
+        for i in range(len(ss_vars)):
+            log2idx[ss_vars[i]] = i
+        sys.stderr.write("DEBUG: log2idx = %s\n" % repr(log2idx))  # Temporary
+
+        # Construct one Solution object per solution.
         self.solutions = []
         energies = fixed_answer.record.energy
         tallies = fixed_answer.record.num_occurrences
@@ -108,7 +138,7 @@ class Solutions(object):
         for i in range(len(fixed_solns)):
             sset = self.answer.slice(i, i + 1)
             self.solutions.append(Solution(self.problem, num2syms, all_num2syms,
-                                           phys2log, all_vars, sset,
+                                           phys2log, all_vars, log2idx, sset,
                                            fixed_solns[i], tallies[i], energies[i]))
 
         # Store the frequency of chain breaks across the entire SampleSet.
@@ -157,6 +187,10 @@ class Solutions(object):
         "Discard solutions with broken chains.  Return the new solutions."
         return [s for s in self.solutions if not s.broken_chains()]
 
+    def discard_broken_user_chains(self):
+        "Discard solutions with broken user-specified chains.  Return the new solutions."
+        return [s for s in self.solutions if not s.broken_user_chains()]
+
     def filter(self, show, verbose, nsamples):
         '''Return solutions as filtered according to the "show" parameter.
         Output information about the filtering based on the "verbose"
@@ -180,5 +214,15 @@ class Solutions(object):
                 sys.stderr.write("    %*d with no broken chains\n" % (ndigits, len(valid_solns.solutions)))
         if show == "best":
             filtered_best_solns = best_solns.discard_broken_chains()
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Filter out broken user-defined chains.
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.discard_broken_user_chains()
+            if verbose >= 1:
+                sys.stderr.write("    %*d with no broken user-specified chains or anti-chains\n" % (ndigits, len(valid_solns.solutions)))
+        if show == "best":
+            filtered_best_solns = best_solns.discard_broken_user_chains()
             if len(filtered_best_solns) > 1:
                 best_solns.solutions = filtered_best_solns
