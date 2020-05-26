@@ -150,6 +150,9 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         solutions.report_timing_information(cl_args.verbose)
         solutions.report_chain_break_information(cl_args.verbose)
 
+        # Filter the solutions as directed by the user.
+        final_solns = solutions.filter(cl_args.show, cl_args.verbose, cl_args.samples)
+
 def main():
     "Run QMASM."
     q = QMASM()
