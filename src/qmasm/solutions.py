@@ -4,7 +4,7 @@
 ########################################
 
 import sys
-from dwave.embedding import unembed_sampleset, chain_breaks
+from dwave.embedding import unembed_sampleset, chain_breaks, chain_break_frequency
 
 # Define a class to represent a single solution.
 class Solution:
@@ -92,6 +92,10 @@ class Solutions(object):
                                            phys2log, all_vars, raw_solns[i],
                                            fixed_solns[i], tallies[i], energies[i]))
 
+        # Store the frequency of chain breaks across the entire SampleSet.
+        cbf = chain_break_frequency(self.answer, self.problem.embedding)
+        self.chain_breaks = [(num2syms[n], f) for n, f in cbf.items()]
+
     def report_timing_information(self, verbosity):
         "Output solver timing information."
         if verbosity == 0:
@@ -102,4 +106,30 @@ class Solutions(object):
         sys.stderr.write("    %s %s\n" % ("-" * 30, "-" * 10))
         for timing_value in timing_info:
             sys.stderr.write("    %-30s %10d\n" % timing_value)
+        sys.stderr.write("\n")
+
+    def report_chain_break_information(self, verbosity):
+        "Output information about common chain breaks."
+        # Ensure we have something to report.
+        if verbosity < 2:
+            return
+        sys.stderr.write("Chain-break frequencies:\n\n")
+        total_breakage = sum([cb[1] for cb in self.chain_breaks])
+        if total_breakage == 0.0:
+            sys.stderr.write("    [No broken chains encountered]\n\n")
+            return
+
+        # Report only broken chains.
+        chain_breaks = []
+        max_name_len = 11
+        for vs, f in self.chain_breaks:
+            vstr = " ".join(sorted(vs))
+            chain_breaks.append((vstr, f))
+            max_name_len = max(max_name_len, len(vstr))
+        chain_breaks.sort()
+        sys.stderr.write("    %-*s  Broken\n" % (max_name_len, "Variable(s)"))
+        sys.stderr.write("    %s  -------\n" % ("-" * max_name_len))
+        for vs, f in chain_breaks:
+            if f > 0.0:
+                sys.stderr.write("    %-*s  %6.2f%%\n" % (max_name_len, vs, f*100.0))
         sys.stderr.write("\n")

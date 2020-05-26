@@ -148,6 +148,7 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
                                             cl_args.spin_revs,
                                             cl_args.postproc)
         solutions.report_timing_information(cl_args.verbose)
+        solutions.report_chain_break_information(cl_args.verbose)
 
 def main():
     "Run QMASM."
