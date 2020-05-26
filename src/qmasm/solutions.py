@@ -84,9 +84,12 @@ class Solution:
         "Return True if the solution contains broken pins."
         bool2spin = [-1, +1]
         for pq, pin in self.problem.logical.pinned:
-            lq = self.phys2log[pq]
-            if self.fixed_soln[lq] != bool2spin[pin]:
-                return True
+            try:
+                idx = self.log2idx[pq]
+                if self.fixed_soln[idx] != bool2spin[pin]:
+                    return True
+            except KeyError:
+                pass  # Elided logical qubit
         return False
 
 class Solutions(object):
@@ -127,7 +130,6 @@ class Solutions(object):
         ss_vars = fixed_answer.variables
         for i in range(len(ss_vars)):
             log2idx[ss_vars[i]] = i
-        sys.stderr.write("DEBUG: log2idx = %s\n" % repr(log2idx))  # Temporary
 
         # Construct one Solution object per solution.
         self.solutions = []
@@ -191,6 +193,10 @@ class Solutions(object):
         "Discard solutions with broken user-specified chains.  Return the new solutions."
         return [s for s in self.solutions if not s.broken_user_chains()]
 
+    def discard_broken_pins(self):
+        "Discard solutions with broken pins.  Return the new solutions."
+        return [s for s in self.solutions if not s.broken_pins()]
+
     def filter(self, show, verbose, nsamples):
         '''Return solutions as filtered according to the "show" parameter.
         Output information about the filtering based on the "verbose"
@@ -224,5 +230,15 @@ class Solutions(object):
                 sys.stderr.write("    %*d with no broken user-specified chains or anti-chains\n" % (ndigits, len(valid_solns.solutions)))
         if show == "best":
             filtered_best_solns = best_solns.discard_broken_user_chains()
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Filter out broken pins.
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.discard_broken_pins()
+            if verbose >= 1:
+                sys.stderr.write("    %*d with no broken pins\n" % (ndigits, len(valid_solns.solutions)))
+        if show == "best":
+            filtered_best_solns = best_solns.discard_broken_pins()
             if len(filtered_best_solns) > 1:
                 best_solns.solutions = filtered_best_solns
