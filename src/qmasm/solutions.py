@@ -239,6 +239,19 @@ class Solutions(object):
         min_energy = self.solutions[0].energy
         return [s for s in self.solutions if s.energy == min_energy]
 
+    def merge_duplicates(self):
+        """Merge duplicate solutions (same assignments to all non-ignored
+        variables).  Replace the merged solutions."""
+        id2soln = {}
+        for s in copy.deepcopy(self.solutions):  # Deep copy because of destructive update of tally
+            try:
+                id2soln[s.id].tally += s.tally
+            except KeyError:
+                id2soln[s.id] = s
+        solutions = list(id2soln.values())
+        solutions.sort(key=lambda s: (s.energy, s.id))
+        return solutions
+
     def filter(self, show, verbose, nsamples):
         '''Return solutions as filtered according to the "show" parameter.
         Output information about the filtering based on the "verbose"
@@ -303,5 +316,16 @@ class Solutions(object):
                 sys.stderr.write("    %*d at minimal energy\n" % (ndigits, len(valid_solns.solutions)))
         if show == "best":
             filtered_best_solns = best_solns.discard_non_minimal()
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Merge duplicate solutions.
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.merge_duplicates()
+            if verbose >= 1:
+                sys.stderr.write("    %*d excluding duplicate variable assignments\n" % (ndigits, len(valid_solns.solutions)))
+                sys.stderr.write("\n")
+        if show == "best":
+            filtered_best_solns = best_solns.merge_duplicates()
             if len(filtered_best_solns) > 1:
                 best_solns.solutions = filtered_best_solns

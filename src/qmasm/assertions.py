@@ -202,7 +202,7 @@ class AST(object):
         try:
             return self.code(i2b)
         except self.EvaluationError as e:
-            qmasm.abend("%s in assertion %s" % (e, self))
+            self.qmasm.abend("%s in assertion %s" % (e, self))
 
 class AssertParser(object):
     int_re = re.compile(r'\d+')
