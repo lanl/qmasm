@@ -319,14 +319,13 @@ class Sampler(object):
         # Embed the problem.  We first filter out isolated variables that don't
         # appear in the embedding graph to prevent embed_bqm from complaining.
         physical = self.find_problem_embedding(logical, topology_file, verbosity)
-        sub_bqm = physical.bqm.copy()
-        sub_bqm.remove_variables_from([q
-                                       for q in physical.bqm.linear
-                                       if q not in physical.embedding and physical.bqm.linear[q] == 0.0])
-        for q, wt in sub_bqm.linear.items():
+        physical.bqm.remove_variables_from([q
+                                            for q in physical.bqm.linear
+                                            if q not in physical.embedding and physical.bqm.linear[q] == 0.0])
+        for q, wt in physical.bqm.linear.items():
             if q not in physical.embedding and wt != 0.0:
                 abend("Logical qubit %d has a nonzero weight (%.5g) but was not embedded" % (q, wt))
-        physical.bqm = embed_bqm(sub_bqm, physical.embedding,
+        physical.bqm = embed_bqm(physical.bqm, physical.embedding,
                                  physical.hw_adj, -physical.qmasm.chain_strength)
 
         # Update weights and strengths.  Maintain a reference to the
