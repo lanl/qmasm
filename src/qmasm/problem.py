@@ -156,9 +156,12 @@ class Problem(object):
         # At the time of this writing, a BinaryQuadraticModel elides variables
         # with a weight of zero.  But then contract_variables complains that
         # the variable can't be found.  Hence, we add back all zero-valued
-        # variables just to keep contract_variables from failing.
+        # variables just to keep contract_variables from failing.  Similarly,
+        # we ensure we have a strength defined (even if zero) for all chains to
+        # prevent contract_variables from complaining.
         self.bqm.add_variables_from({q[0]: 0 for q in self.chains})
         self.bqm.add_variables_from({q[1]: 0 for q in self.chains})
+        self.bqm.add_interactions_from({q: 0 for q in self.chains})
 
         # Remove variables that are made equivalent to other variable via
         # user-defined chains.
