@@ -92,6 +92,39 @@ class Solution:
                 pass  # Elided logical qubit
         return False
 
+    def _check_assertions(self, stop_on_fail=False):
+        "Return the result of applying each assertion."
+        # Return the previous result, if any.
+        if self._checked_asserts != None:
+            return self._checked_asserts
+
+        # Construct a mapping from names to bits.
+        name2bit = {}
+        for i in range(len(self.all_spins)):
+            names = self.all_names[i].split()
+            spin = self.all_spins[i]
+            if spin in [-1, 1]:
+                bit = (spin + 1)//2
+            else:
+                bit = None
+            for nm in names:
+                name2bit[nm] = bit
+        for name, spin in self.problem.logical.known_values.items():
+            name2bit[name] = (spin + 1)//2
+
+        # Test each assertion in turn.
+        results = []
+        for a in self.problem.assertions:
+            results.append((str(a), a.evaluate(name2bit)))
+            if stop_on_fail and not results[-1][1]:
+                return results
+        self._checked_asserts = results
+        return self._checked_asserts
+
+    def failed_assertions(self, stop_on_fail):
+        "Return True if the solution contains failed assertions."
+        return not all([a[1] for a in self._check_assertions(stop_on_fail)])
+
 class Solutions(object):
     "Represent all near-minimal states of a spin system."
 
@@ -197,6 +230,10 @@ class Solutions(object):
         "Discard solutions with broken pins.  Return the new solutions."
         return [s for s in self.solutions if not s.broken_pins()]
 
+    def discard_failed_assertions(self, stop_on_fail):
+        "Discard solutions with failed assertions.  Return the new solutions."
+        return [s for s in self.solutions if not s.failed_assertions(stop_on_fail)]
+
     def filter(self, show, verbose, nsamples):
         '''Return solutions as filtered according to the "show" parameter.
         Output information about the filtering based on the "verbose"
@@ -240,5 +277,16 @@ class Solutions(object):
                 sys.stderr.write("    %*d with no broken pins\n" % (ndigits, len(valid_solns.solutions)))
         if show == "best":
             filtered_best_solns = best_solns.discard_broken_pins()
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Filter out failed assertions.
+        stop_on_fail = show == "valid" and verbose < 2
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.discard_failed_assertions(stop_on_fail)
+            if verbose >= 1:
+                sys.stderr.write("    %*d with no failed assertions\n" % (ndigits, len(valid_solns.solutions)))
+        if show == "best":
+            filtered_best_solns = best_solns.discard_failed_assertions(stop_on_fail)
             if len(filtered_best_solns) > 1:
                 best_solns.solutions = filtered_best_solns
