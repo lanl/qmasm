@@ -219,20 +219,25 @@ class Solutions(object):
         sys.stderr.write("\n")
 
     def discard_broken_chains(self):
-        "Discard solutions with broken chains.  Return the new solutions."
+        "Discard solutions with broken chains.  Return the remaining solutions."
         return [s for s in self.solutions if not s.broken_chains()]
 
     def discard_broken_user_chains(self):
-        "Discard solutions with broken user-specified chains.  Return the new solutions."
+        "Discard solutions with broken user-specified chains.  Return the remaining solutions."
         return [s for s in self.solutions if not s.broken_user_chains()]
 
     def discard_broken_pins(self):
-        "Discard solutions with broken pins.  Return the new solutions."
+        "Discard solutions with broken pins.  Return the remaining solutions."
         return [s for s in self.solutions if not s.broken_pins()]
 
     def discard_failed_assertions(self, stop_on_fail):
-        "Discard solutions with failed assertions.  Return the new solutions."
+        "Discard solutions with failed assertions.  Return the remaining solutions."
         return [s for s in self.solutions if not s.failed_assertions(stop_on_fail)]
+
+    def discard_non_minimal(self):
+        "Discard solutions with non-minimal energy.  Return the remaining solutions."
+        min_energy = self.solutions[0].energy
+        return [s for s in self.solutions if s.energy == min_energy]
 
     def filter(self, show, verbose, nsamples):
         '''Return solutions as filtered according to the "show" parameter.
@@ -288,5 +293,15 @@ class Solutions(object):
                 sys.stderr.write("    %*d with no failed assertions\n" % (ndigits, len(valid_solns.solutions)))
         if show == "best":
             filtered_best_solns = best_solns.discard_failed_assertions(stop_on_fail)
+            if len(filtered_best_solns) > 1:
+                best_solns.solutions = filtered_best_solns
+
+        # Filter out solutions that are not at minimal energy.
+        if verbose >= 1 or show == "valid":
+            valid_solns.solutions = valid_solns.discard_non_minimal()
+            if verbose >= 1:
+                sys.stderr.write("    %*d at minimal energy\n" % (ndigits, len(valid_solns.solutions)))
+        if show == "best":
+            filtered_best_solns = best_solns.discard_non_minimal()
             if len(filtered_best_solns) > 1:
                 best_solns.solutions = filtered_best_solns
