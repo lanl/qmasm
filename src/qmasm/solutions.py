@@ -4,8 +4,10 @@
 ########################################
 
 import copy
+import numpy as np
 import sys
 from dwave.embedding import unembed_sampleset, chain_breaks, chain_break_frequency
+from scipy.stats import median_absolute_deviation
 
 # Define a class to represent a single solution.
 class Solution:
@@ -211,6 +213,64 @@ class Solutions(object):
                 sys.stderr.write("    %-*s  %6.2f%%\n" % (max_name_len, sstr, f*100.0))
         sys.stderr.write("\n")
 
+    def report_energy_tallies(self, filtered_solns, full_output):
+        "Output information about the observed energy levels."
+        # Acquire a tally of each energy level.
+        energies_tallies = list(zip(self.answer.record.energy, self.answer.record.num_occurrences))
+
+        # If the caller requested full output, generate a complete energy
+        # histogram.
+        if full_output:
+            # Merge energies based on a fixed number of digits after
+            # the decimal point.
+            raw_hist = {}
+            for e, t in energies_tallies:
+                estr = "%11.4f" % e
+                try:
+                    raw_hist[estr] += t
+                except KeyError:
+                    raw_hist[estr] = t
+
+            # Output a histogram of energy values.
+            sys.stderr.write("Histogram of raw energy values (merged to 4 digits after the decimal point):\n\n")
+            sys.stderr.write("    Energy       Tally\n")
+            sys.stderr.write("    -----------  --------\n")
+            for et in sorted(raw_hist.items(), reverse=True):
+                sys.stderr.write("    %s  %8d\n" % et)
+            sys.stderr.write("\n")
+
+        # Compute various statistics on the raw energies.
+        raw_energies = np.array([v
+                                 for lst in [[e]*t for e, t in energies_tallies]
+                                 for v in lst])
+        raw_min = np.amin(raw_energies)
+        raw_mean = np.mean(raw_energies)
+        raw_median = np.median(raw_energies)
+        raw_mad = median_absolute_deviation(raw_energies)
+        raw_stddev = np.std(raw_energies)
+        raw_max = np.amin(raw_energies)
+
+        # Compute various statistics on the filtered energies.
+        filtered_energies = np.array([v
+                                      for lst in [[s.energy]*s.tally for s in filtered_solns.solutions]
+                                      for v in lst])
+        filtered_min = np.amin(filtered_energies)
+        filtered_mean = np.mean(filtered_energies)
+        filtered_median = np.median(filtered_energies)
+        filtered_mad = median_absolute_deviation(filtered_energies)
+        filtered_stddev = np.std(filtered_energies)
+        filtered_max = np.amin(filtered_energies)
+
+        # Output energy statistics.
+        sys.stderr.write("Energy statistics:\n\n")
+        sys.stderr.write("    Statistic  All solutions           Filtered solutions\n")
+        sys.stderr.write("    ---------  ----------------------  -----------------------\n")
+        sys.stderr.write("    Minimum    %11.4f              %11.4f\n" % (raw_min, filtered_min))
+        sys.stderr.write("    Median     %11.4f +/- %-7.4f  %11.4f +/- %-7.4f\n" % (raw_median, raw_mad, filtered_median, filtered_mad))
+        sys.stderr.write("    Mean       %11.4f +/- %-7.4f  %11.4f +/- %-7.4f\n" % (raw_mean, raw_stddev, filtered_mean, filtered_stddev))
+        sys.stderr.write("    Maximum    %11.4f              %11.4f\n" % (raw_max, filtered_max))
+        sys.stderr.write("\n")
+
     def discard_broken_chains(self):
         "Discard solutions with broken chains.  Return the remaining solutions."
         return [s for s in self.solutions if not s.broken_chains()]
@@ -324,3 +384,13 @@ class Solutions(object):
             filtered_best_solns = best_solns.merge_duplicates()
             if len(filtered_best_solns) > 1:
                 best_solns.solutions = filtered_best_solns
+
+        # Return the requested set of solutions.
+        if show == "valid":
+            return valid_solns
+        elif show == "all":
+            return all_solns
+        elif show == "best":
+            return best_solns
+        else:
+            raise Exception("Internal error processing --show=%s" % show)

@@ -151,7 +151,13 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         solutions.report_chain_break_information(cl_args.verbose)
 
         # Filter the solutions as directed by the user.
-        final_solns = solutions.filter(cl_args.show, cl_args.verbose, cl_args.samples)
+        filtered_solns = solutions.filter(cl_args.show, cl_args.verbose, cl_args.samples)
+
+        # Output energy tallies.
+        if cl_args.verbose >= 2:
+            solutions.report_energy_tallies(filtered_solns, True)
+        elif cl_args.verbose >= 1:
+            solutions.report_energy_tallies(filtered_solns, False)
 
 def main():
     "Run QMASM."
