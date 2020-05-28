@@ -11,48 +11,57 @@ from dwave.embedding import unembed_sampleset, chain_breaks, chain_break_frequen
 class Solution:
     "Represent a near-minimal state of a spin system."
 
-    def __init__(self, problem, num2syms, all_num2syms, phys2log, all_vars,
-                 log2idx, raw_ss, fixed_soln, tally, energy):
-
+    def __init__(self, problem, sym2col, num2col, raw_ss, fixed_soln, tally, energy, all_vars):
         # Map named variables to spins.
         self.problem = problem
-        self.phys2log = phys2log
-        self.log2idx = log2idx
+        self.sym2col = sym2col
+        self.num2col = num2col
         self.raw_ss = raw_ss
         self.fixed_soln = fixed_soln
         self.tally = tally
         self.energy = energy
-        self.names = []       # List of names for each spin
-        self.spins = []       # Spin for each named variable
-        self.all_names = []   # List of names for each spin, including "$" names
-        self.all_spins = []   # Spin for each named variable, including "$" name
-        self.id = 0           # Map from spins to an int
+        self.id = 0                   # Map from spins to an int
         self._checked_asserts = None  # Memoized result of check_assertions
 
-        # Populate various lists describing aspects of the problem/solution.
-        for q in range(len(fixed_soln)):
-            # Add all names to all_names and all_spins.
-            if all_num2syms[q] == []:
+        # Compute an ID for the solution.
+        for s, c in sorted(self.sym2col.items()):
+            if "$" in s and not all_vars:
                 continue
-            self.all_names.append(" ".join(all_num2syms[q]))
-            self.all_spins.append(fixed_soln[q])
+            self.id = self.id*2 + int((self.fixed_soln[c] + 1)//2)
 
-            # Add only non-"$" names to names and spins.
-            if num2syms[q] == []:
-                continue
-            self.names.append(" ".join(num2syms[q]))
-            self.spins.append(fixed_soln[q])
-            self.id = self.id*2 + (fixed_soln[q] + 1)/2
+        # Ensure every symbol has an associated value.
+        self.sym2bool = self._all_symbol_values()
 
-        # Additionally map the spins computed during simplification.
-        for nm, s in problem.logical.known_values.items():
-            self.all_names.append(nm)
-            self.all_spins.append(s)
-            if "$" in nm and not all_vars:
-                continue
-            self.names.append(nm)
-            self.spins.append(s)
-            self.id = self.id*2 + (s + 1)/2
+    def _all_symbol_values(self):
+        """Return a mapping from every symbol to a value, including symbols
+        with no physical representation."""
+        # Assign values to all symbols that were eventually embedded.
+        sym2bool = {}
+        sym_map = self.problem.qmasm.sym_map
+        all_sym2num = sym_map.symbol_number_items()
+        for s, n in all_sym2num:
+            try:
+                c = self.num2col[n]
+                sym2bool[s] = self.fixed_soln[c] == 1
+            except KeyError:
+                pass  # We handle non-embedded symbols below.
+
+        # Include values inferred from roof duality.
+        for s, spin in self.problem.logical.known_values.items():
+            sym2bool[s] = spin == 1
+
+        # Include variables pinned explicitly by the program or user.
+        for num, bval in self.problem.logical.pinned:
+            for s in sym_map.to_symbols(num):
+                sym2bool[s] = bval
+
+        # Include contracted variables (those chained to other another
+        # variable's value).
+        for num1, num2 in self.problem.logical.contractions.items():
+            for s1 in sym_map.to_symbols(num1):
+                s2 = list(sym_map.to_symbols(num2))[0]
+                sym2bool[s1] = sym2bool[s2]
+        return sym2bool
 
     def broken_chains(self):
         "Return True if the solution contains broken chains."
@@ -66,14 +75,14 @@ class Solution:
         # Compare logical qubits for equal values.
         for lq1, lq2 in self.problem.logical.chains:
             try:
-                idx1, idx2 = self.log2idx[lq1], self.log2idx[lq1]
+                idx1, idx2 = self.num2col[lq1], self.num2col[lq1]
             except KeyError:
                 pass  # Elided logical qubit
             if self.fixed_soln[idx1] != self.fixed_soln[idx2]:
                 return True
         for lq1, lq2 in self.problem.logical.antichains:
             try:
-                idx1, idx2 = self.log2idx[lq1], self.log2idx[lq1]
+                idx1, idx2 = self.num2col[lq1], self.num2col[lq1]
             except KeyError:
                 pass  # Elided logical qubit
             if self.fixed_soln[idx1] == self.fixed_soln[idx2]:
@@ -85,7 +94,7 @@ class Solution:
         bool2spin = [-1, +1]
         for pq, pin in self.problem.logical.pinned:
             try:
-                idx = self.log2idx[pq]
+                idx = self.num2col[pq]
                 if self.fixed_soln[idx] != bool2spin[pin]:
                     return True
             except KeyError:
@@ -98,24 +107,11 @@ class Solution:
         if self._checked_asserts != None:
             return self._checked_asserts
 
-        # Construct a mapping from names to bits.
-        name2bit = {}
-        for i in range(len(self.all_spins)):
-            names = self.all_names[i].split()
-            spin = self.all_spins[i]
-            if spin in [-1, 1]:
-                bit = (spin + 1)//2
-            else:
-                bit = None
-            for nm in names:
-                name2bit[nm] = bit
-        for name, spin in self.problem.logical.known_values.items():
-            name2bit[name] = (spin + 1)//2
-
         # Test each assertion in turn.
         results = []
+        sym2bit = {s: int(bval) for s, bval in self.sym2bool.items()}
         for a in self.problem.assertions:
-            results.append((str(a), a.evaluate(name2bit)))
+            results.append((str(a), a.evaluate(sym2bit)))
             if stop_on_fail and not results[-1][1]:
                 return results
         self._checked_asserts = results
@@ -139,31 +135,6 @@ class Solutions(object):
                                          self.problem.logical.bqm,
                                          chain_break_method=chain_breaks.majority_vote)
 
-        # Define a mapping of physical to logical qubits.
-        phys2log = {}
-        for lq in range(len(self.problem.embedding)):
-            try:
-                for pq in self.problem.embedding[lq]:
-                    phys2log[pq] = lq
-            except KeyError:
-                pass  # Pinned or elided logical qubit
-
-        # Establish a mapping from qubit numbers to symbols.
-        self.qmasm = self.problem.qmasm
-        max_num = self.qmasm.sym_map.max_number()
-        num2syms = [[] for _ in range(max_num + 1)]
-        all_num2syms = [[] for _ in range(max_num + 1)]
-        for s, n in self.qmasm.sym_map.symbol_number_items():
-            all_num2syms[n].append(s)
-            if all_vars or "$" not in s:
-                num2syms[n].append(s)
-
-        # Establish a mapping from logical qubit number to index into a sample.
-        log2idx = {}
-        ss_vars = fixed_answer.variables
-        for i in range(len(ss_vars)):
-            log2idx[ss_vars[i]] = i
-
         # Construct one Solution object per solution.
         self.solutions = []
         energies = fixed_answer.record.energy
@@ -172,13 +143,33 @@ class Solutions(object):
         raw_solns = self.answer.record.sample
         for i in range(len(fixed_solns)):
             sset = self.answer.slice(i, i + 1)
-            self.solutions.append(Solution(self.problem, num2syms, all_num2syms,
-                                           phys2log, all_vars, log2idx, sset,
-                                           fixed_solns[i], tallies[i], energies[i]))
+            sym2col, num2col = self._map_to_column(fixed_answer,
+                                                   self.problem.embedding,
+                                                   self.problem.qmasm.sym_map)
+            self.solutions.append(Solution(self.problem, sym2col, num2col, sset,
+                                           fixed_solns[i], tallies[i], energies[i],
+                                           all_vars))
 
         # Store the frequency of chain breaks across the entire SampleSet.
-        cbf = chain_break_frequency(self.answer, self.problem.embedding)
-        self.chain_breaks = [(num2syms[n], f) for n, f in cbf.items()]
+        self.chain_breaks = chain_break_frequency(self.answer, self.problem.embedding)
+
+    def _map_to_column(self, sset, embedding, sym_map):
+        """Return a mapping from a symbol name and from a logical qubit number
+        to a column number in a SampleSet."""
+        # Compute a mapping from logical qubit to column number.
+        num2col = {}
+        for i in range(len(sset.variables)):
+            num2col[sset.variables[i]] = i
+
+        # Compute a mapping from symbol to a column number.  We need to go
+        # symbol --> logical qubit --> column number.
+        sym2col = {}
+        for sym, num in sym_map.symbol_number_items():
+            try:
+                sym2col[sym] = num2col[num]
+            except KeyError:
+                pass
+        return sym2col, num2col
 
     def report_timing_information(self, verbosity):
         "Output solver timing information."
@@ -198,7 +189,7 @@ class Solutions(object):
         if verbosity < 2:
             return
         sys.stderr.write("Chain-break frequencies:\n\n")
-        total_breakage = sum([cb[1] for cb in self.chain_breaks])
+        total_breakage = sum(self.chain_breaks.values())
         if total_breakage == 0.0:
             sys.stderr.write("    [No broken chains encountered]\n\n")
             return
@@ -206,16 +197,18 @@ class Solutions(object):
         # Report only chains that have ever been broken.
         chain_breaks = []
         max_name_len = 11
-        for vs, f in self.chain_breaks:
-            vstr = " ".join(sorted(vs))
-            chain_breaks.append((vstr, f))
-            max_name_len = max(max_name_len, len(vstr))
+        sym_map = self.problem.qmasm.sym_map
+        for n, f in self.chain_breaks.items():
+            ss = sym_map.to_symbols(n)
+            sstr = " ".join(sorted(ss))
+            chain_breaks.append((sstr, f))
+            max_name_len = max(max_name_len, len(sstr))
         chain_breaks.sort()
         sys.stderr.write("    %-*s  Broken\n" % (max_name_len, "Variable(s)"))
         sys.stderr.write("    %s  -------\n" % ("-" * max_name_len))
-        for vs, f in chain_breaks:
+        for sstr, f in chain_breaks:
             if f > 0.0:
-                sys.stderr.write("    %-*s  %6.2f%%\n" % (max_name_len, vs, f*100.0))
+                sys.stderr.write("    %-*s  %6.2f%%\n" % (max_name_len, sstr, f*100.0))
         sys.stderr.write("\n")
 
     def discard_broken_chains(self):
@@ -236,6 +229,8 @@ class Solutions(object):
 
     def discard_non_minimal(self):
         "Discard solutions with non-minimal energy.  Return the remaining solutions."
+        if len(self.solutions) == 0:
+            return []
         min_energy = self.solutions[0].energy
         return [s for s in self.solutions if s.energy == min_energy]
 
