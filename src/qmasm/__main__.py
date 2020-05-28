@@ -159,6 +159,10 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         elif cl_args.verbose >= 1:
             solutions.report_energy_tallies(filtered_solns, False)
 
+        # Output the solution to the standard output device.
+        show_asserts = cl_args.verbose >= 2 or cl_args.show in ["best", "all"]
+        filtered_solns.output_solutions(cl_args.values, cl_args.verbose, show_asserts)
+
 def main():
     "Run QMASM."
     q = QMASM()

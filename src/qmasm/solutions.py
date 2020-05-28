@@ -123,6 +123,23 @@ class Solution:
         "Return True if the solution contains failed assertions."
         return not all([a[1] for a in self._check_assertions(stop_on_fail)])
 
+    def output_solution_bools(self, verbosity):
+        "Output the solution as a list of Boolean variables."
+        # Find the width of the longest symbol name.
+        all_syms = self.sym2bool.keys()
+        if verbosity < 2:
+            all_syms = [s for s in all_syms if "$" not in s]
+        all_syms.sort()
+        max_sym_name_len = max(8, max([len(s) for s in all_syms]))
+
+        # Output one symbol per line.
+        print("    %-*s  Value" % (max_sym_name_len, "Variable"))
+        print("    %s  -----" % ("-" * max_sym_name_len))
+        for s in all_syms:
+            bval = self.sym2bool[s]
+            print("    %-*s  %s" % (max_sym_name_len, s, bval))
+        print("")
+
 class Solutions(object):
     "Represent all near-minimal states of a spin system."
 
@@ -130,7 +147,6 @@ class Solutions(object):
         # Store our arguments.
         self.answer = answer
         self.problem = problem
-        self.all_vars = all_vars
 
         # Unembed the solutions.  Fix rather than discard invalid solutions.
         fixed_answer = unembed_sampleset(self.answer, self.problem.embedding,
@@ -143,11 +159,11 @@ class Solutions(object):
         tallies = fixed_answer.record.num_occurrences
         fixed_solns = fixed_answer.record.sample
         raw_solns = self.answer.record.sample
+        sym2col, num2col = self._map_to_column(fixed_answer,
+                                               self.problem.embedding,
+                                               self.problem.qmasm.sym_map)
         for i in range(len(fixed_solns)):
             sset = self.answer.slice(i, i + 1)
-            sym2col, num2col = self._map_to_column(fixed_answer,
-                                                   self.problem.embedding,
-                                                   self.problem.qmasm.sym_map)
             self.solutions.append(Solution(self.problem, sym2col, num2col, sset,
                                            fixed_solns[i], tallies[i], energies[i],
                                            all_vars))
@@ -385,12 +401,33 @@ class Solutions(object):
             if len(filtered_best_solns) > 1:
                 best_solns.solutions = filtered_best_solns
 
-        # Return the requested set of solutions.
+        # Return the requested set of solutions.  Sort these first by energy
+        # then by ID.
+        soln_key = lambda s: (s.energy, s.id)
         if show == "valid":
+            valid_solns.solutions.sort(key=soln_key)
             return valid_solns
         elif show == "all":
+            all_solns.solutions.sort(key=soln_key)
             return all_solns
         elif show == "best":
+            best_solns.solutions.sort(key=soln_key)
             return best_solns
         else:
             raise Exception("Internal error processing --show=%s" % show)
+
+    def output_solutions(self, style, verbosity, show_asserts):
+        "Output a user-readable solution to the standard output device."
+        # Output each solution in turn.
+        if len(self.solutions) == 0:
+            print("No valid solutions found.")
+            return
+        for snum in range(len(self.solutions)):
+            soln = self.solutions[snum]
+            print("Solution #%d (energy = %.4f, tally = %s):\n" % (snum + 1, soln.energy, soln.tally))
+            if style == "bools":
+                soln.output_solution_bools(verbosity)
+            elif style == "ints":
+                soln.output_solution_ints(verbosity)
+            else:
+                raise Exception('Output style "%s" not recognized' % style)
