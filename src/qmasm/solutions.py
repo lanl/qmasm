@@ -4,7 +4,9 @@
 ########################################
 
 import copy
+import math
 import numpy as np
+import re
 import sys
 from dwave.embedding import unembed_sampleset, chain_breaks, chain_break_frequency
 from scipy.stats import median_absolute_deviation
@@ -59,10 +61,15 @@ class Solution:
 
         # Include contracted variables (those chained to other another
         # variable's value).
-        for num1, num2 in self.problem.logical.contractions.items():
+        contracted = self.problem.traversal_order(self.problem.logical.chains)
+        contracted.reverse()
+        for num1, num2 in contracted:
             for s1 in sym_map.to_symbols(num1):
-                s2 = list(sym_map.to_symbols(num2))[0]
-                sym2bool[s1] = sym2bool[s2]
+                for s2 in sym_map.to_symbols(num2):
+                    try:
+                        sym2bool[s2] = sym2bool[s1]
+                    except KeyError:
+                        pass
         return sym2bool
 
     def broken_chains(self):
@@ -78,17 +85,17 @@ class Solution:
         for lq1, lq2 in self.problem.logical.chains:
             try:
                 idx1, idx2 = self.num2col[lq1], self.num2col[lq1]
+                if self.fixed_soln[idx1] != self.fixed_soln[idx2]:
+                    return True
             except KeyError:
                 pass  # Elided logical qubit
-            if self.fixed_soln[idx1] != self.fixed_soln[idx2]:
-                return True
         for lq1, lq2 in self.problem.logical.antichains:
             try:
                 idx1, idx2 = self.num2col[lq1], self.num2col[lq1]
+                if self.fixed_soln[idx1] == self.fixed_soln[idx2]:
+                    return True
             except KeyError:
                 pass  # Elided logical qubit
-            if self.fixed_soln[idx1] == self.fixed_soln[idx2]:
-                return True
         return False
 
     def broken_pins(self):
@@ -123,13 +130,41 @@ class Solution:
         "Return True if the solution contains failed assertions."
         return not all([a[1] for a in self._check_assertions(stop_on_fail)])
 
+    def _numeric_solution(self):
+        "Convert single- and multi-bit values to numbers."
+        # Map each name to a number and to the number of bits required.
+        idx_re = re.compile(r'^([^\[\]]+)\[(\d+)\]$')
+        name2num = {}
+        name2nbits = {}
+        for nm, bval in self.sym2bool.items():
+            # Parse the name into a prefix and array index.
+            match = idx_re.search(nm)
+            if match == None:
+                # No array index: Treat as a 1-bit number.
+                name2num[nm] = int(bval)
+                name2nbits[nm] = 1
+                continue
+
+            # Integrate the current spin into the overall number.
+            array, idx = match.groups()
+            b = int(bval) << int(idx)
+            try:
+                name2num[array] += b
+                name2nbits[array] = max(name2nbits[array], int(idx) + 1)
+            except KeyError:
+                name2num[array] = b
+                name2nbits[array] = int(idx) + 1
+
+        # Merge the two maps.
+        return {nm: (name2num[nm], name2nbits[nm]) for nm in name2num.keys()}
+
     def output_solution_bools(self, verbosity):
         "Output the solution as a list of Boolean variables."
         # Find the width of the longest symbol name.
         all_syms = self.sym2bool.keys()
         if verbosity < 2:
             all_syms = [s for s in all_syms if "$" not in s]
-        all_syms.sort()
+        all_syms = sorted(all_syms)
         max_sym_name_len = max(8, max([len(s) for s in all_syms]))
 
         # Output one symbol per line.
@@ -138,6 +173,31 @@ class Solution:
         for s in all_syms:
             bval = self.sym2bool[s]
             print("    %-*s  %s" % (max_sym_name_len, s, bval))
+        print("")
+
+    def output_solution_ints(self, verbosity):
+        "Output the solution as integer values."
+        # Convert each value to a decimal and a binary string.  Along the way,
+        # find the width of the longest name and the largest number.
+        name2info = self._numeric_solution()
+        if verbosity < 2:
+            name2info = {n: i for n, i in name2info.items() if "$" not in n}
+        max_sym_name_len = max([len(s) for s in list(name2info.keys()) + ["Name"]])
+        max_decimal_len = 7
+        max_binary_len = 6
+        name2strs = {}
+        for name, info in name2info.items():
+            bstr = ("{0:0" + str(info[1]) + "b}").format(info[0])
+            dstr = str(info[0])
+            max_binary_len = max(max_binary_len, len(bstr))
+            max_decimal_len = max(max_decimal_len, len(dstr))
+            name2strs[name] = (bstr, dstr)
+
+        # Output one name per line.
+        print("    %-*s  %-*s  Decimal" % (max_sym_name_len, "Name", max_binary_len, "Binary"))
+        print("    %s  %s  %s" % ("-" * max_sym_name_len, "-" * max_binary_len, "-" * max_decimal_len))
+        for name, (bstr, dstr) in sorted(name2strs.items()):
+            print("    %-*s  %*s  %*s" % (max_sym_name_len, name, max_binary_len, bstr, max_decimal_len, dstr))
         print("")
 
 class Solutions(object):
@@ -259,23 +319,31 @@ class Solutions(object):
         raw_energies = np.array([v
                                  for lst in [[e]*t for e, t in energies_tallies]
                                  for v in lst])
-        raw_min = np.amin(raw_energies)
+        raw_min = np.amin(raw_energies, initial=0.0)
         raw_mean = np.mean(raw_energies)
         raw_median = np.median(raw_energies)
         raw_mad = median_absolute_deviation(raw_energies)
         raw_stddev = np.std(raw_energies)
-        raw_max = np.amin(raw_energies)
+        raw_max = np.amax(raw_energies, initial=0.0)
 
         # Compute various statistics on the filtered energies.
         filtered_energies = np.array([v
                                       for lst in [[s.energy]*s.tally for s in filtered_solns.solutions]
                                       for v in lst])
-        filtered_min = np.amin(filtered_energies)
-        filtered_mean = np.mean(filtered_energies)
-        filtered_median = np.median(filtered_energies)
-        filtered_mad = median_absolute_deviation(filtered_energies)
-        filtered_stddev = np.std(filtered_energies)
-        filtered_max = np.amin(filtered_energies)
+        if len(filtered_energies) == 0:
+            filtered_min = math.nan
+            filtered_mean = math.nan
+            filtered_median = math.nan
+            filtered_mad = math.nan
+            filtered_stddev = math.nan
+            filtered_max = math.nan
+        else:
+            filtered_min = np.amin(filtered_energies)
+            filtered_mean = np.mean(filtered_energies)
+            filtered_median = np.median(filtered_energies)
+            filtered_mad = median_absolute_deviation(filtered_energies)
+            filtered_stddev = np.std(filtered_energies)
+            filtered_max = np.amin(filtered_energies)
 
         # Output energy statistics.
         sys.stderr.write("Energy statistics:\n\n")
