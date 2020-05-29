@@ -319,12 +319,12 @@ class Solutions(object):
         raw_energies = np.array([v
                                  for lst in [[e]*t for e, t in energies_tallies]
                                  for v in lst])
-        raw_min = np.amin(raw_energies, initial=0.0)
+        raw_min = np.amin(raw_energies)
         raw_mean = np.mean(raw_energies)
         raw_median = np.median(raw_energies)
         raw_mad = median_absolute_deviation(raw_energies)
         raw_stddev = np.std(raw_energies)
-        raw_max = np.amax(raw_energies, initial=0.0)
+        raw_max = np.amax(raw_energies)
 
         # Compute various statistics on the filtered energies.
         filtered_energies = np.array([v
@@ -343,7 +343,7 @@ class Solutions(object):
             filtered_median = np.median(filtered_energies)
             filtered_mad = median_absolute_deviation(filtered_energies)
             filtered_stddev = np.std(filtered_energies)
-            filtered_max = np.amin(filtered_energies)
+            filtered_max = np.amax(filtered_energies)
 
         # Output energy statistics.
         sys.stderr.write("Energy statistics:\n\n")
