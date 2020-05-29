@@ -19,6 +19,7 @@ setup(name = "QMASM",
       entry_points = {
           "console_scripts": ["qmasm = qmasm.__main__:main"]
       },
+      scripts = ["scripts/qb2qmasm"],
       packages = find_packages("src"),
       package_dir = {"": "src"},
       python_requires = ">= 3.8"
