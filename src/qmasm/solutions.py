@@ -110,7 +110,7 @@ class Solution:
                 pass  # Elided logical qubit
         return False
 
-    def _check_assertions(self, stop_on_fail=False):
+    def check_assertions(self, stop_on_fail=False):
         "Return the result of applying each assertion."
         # Return the previous result, if any.
         if self._checked_asserts != None:
@@ -128,7 +128,32 @@ class Solution:
 
     def failed_assertions(self, stop_on_fail):
         "Return True if the solution contains failed assertions."
-        return not all([a[1] for a in self._check_assertions(stop_on_fail)])
+        return not all([a[1] for a in self.check_assertions(stop_on_fail)])
+
+    def output_asserts(self, verbosity):
+        "Helper function for output_solution that outputs assertion results."
+        # Do nothing if the program contains no assertions.  Otherwise, output
+        # some header text.
+        if len(self.problem.assertions) == 0:
+            return
+        if verbosity >= 2:
+            print("    Assertions made")
+            print("    ---------------")
+        else:
+            print("    Assertions failed")
+            print("    -----------------")
+
+        # Output each assertion in turn.
+        n_failed = 0
+        for (astr, ok) in self.check_assertions():
+            if not ok:
+                print("    FAIL: %s" % astr)
+                n_failed += 1
+            elif verbosity >= 2:
+                print("    PASS: %s" % astr)
+        if verbosity < 2 and n_failed == 0:
+            print("    [none]")
+        print("")
 
     def _numeric_solution(self):
         "Convert single- and multi-bit values to numbers."
@@ -499,3 +524,5 @@ class Solutions(object):
                 soln.output_solution_ints(verbosity)
             else:
                 raise Exception('Output style "%s" not recognized' % style)
+            if show_asserts:
+                soln.output_asserts(verbosity)
