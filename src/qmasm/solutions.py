@@ -234,9 +234,12 @@ class Solutions(object):
         self.problem = problem
 
         # Unembed the solutions.  Fix rather than discard invalid solutions.
-        fixed_answer = unembed_sampleset(self.answer, self.problem.embedding,
-                                         self.problem.logical.bqm,
-                                         chain_break_method=chain_breaks.majority_vote)
+        if self.problem.embedding == {}:
+            fixed_answer = self.answer.copy()
+        else:
+            fixed_answer = unembed_sampleset(self.answer, self.problem.embedding,
+                                             self.problem.logical.bqm,
+                                             chain_break_method=chain_breaks.majority_vote)
 
         # Construct one Solution object per solution.
         self.solutions = []
@@ -382,6 +385,8 @@ class Solutions(object):
 
     def discard_broken_chains(self):
         "Discard solutions with broken chains.  Return the remaining solutions."
+        if self.problem.embedding == {}:
+            return self.solutions
         return [s for s in self.solutions if not s.broken_chains()]
 
     def discard_broken_user_chains(self):

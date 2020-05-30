@@ -10,6 +10,7 @@ import json
 import marshal
 import minorminer
 import os
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -66,6 +67,10 @@ class EmbeddingCache(object):
 
 class Sampler(object):
     "Interface to Ocean samplers."
+
+    # Keep track of parameters rejected by the solver.
+    unexp_arg_re = re.compile(r"got an unexpected keyword argument '(\w+)'")
+    rejected_params = []
 
     def __init__(self, qmasm, profile=None, solver=None):
         "Acquire either a software sampler or a sampler representing a hardware solver."
@@ -319,12 +324,16 @@ class Sampler(object):
         # Embed the problem.  We first filter out isolated variables that don't
         # appear in the embedding graph to prevent embed_bqm from complaining.
         physical = self.find_problem_embedding(logical, topology_file, verbosity)
+        if physical.embedding == {}:
+            # No embedding is necessary.
+            physical.logical = logical
+            return physical
         physical.bqm.remove_variables_from([q
                                             for q in physical.bqm.linear
                                             if q not in physical.embedding and physical.bqm.linear[q] == 0.0])
         for q, wt in physical.bqm.linear.items():
             if q not in physical.embedding and wt != 0.0:
-                abend("Logical qubit %d has a nonzero weight (%.5g) but was not embedded" % (q, wt))
+                self.qmasm.abend("Logical qubit %d has a nonzero weight (%.5g) but was not embedded" % (q, wt))
         physical.bqm = embed_bqm(physical.bqm, physical.embedding,
                                  physical.hw_adj, -physical.qmasm.chain_strength)
 
@@ -430,17 +439,37 @@ class Sampler(object):
         merged = dimod.concatenate(results)
         nsamples = len(merged)
         for sk in sum_keys:
-            timing[sk] = sum([r.info["timing"][sk] for r in results])
+            try:
+                timing[sk] = sum([r.info["timing"][sk] for r in results])
+            except KeyError:
+                pass
         for ak in avg_keys:
-            timing[ak] = sum([r.info["timing"][ak]*len(r) for r in results])//nsamples
+            try:
+                timing[ak] = sum([r.info["timing"][ak]*len(r) for r in results])//nsamples
+            except KeyError:
+                pass
         merged.info["timing"] = timing
         return merged
 
     def _submit_and_block(self, bqm, **params):
         "Submit a job and wait for it to complete"
-        # This is a workaround for a bug in dwave-system.  See
+        # This method is a workaround for a bug in dwave-system.  See
         # https://github.com/dwavesystems/dwave-system/issues/297#issuecomment-632384524
-        result = self.sampler.sample(bqm, **params)
+        sub_params = params
+        result = None
+        while result == None:
+            # I don't know of a way to query a solver for the parameters it
+            # accepts.  Hence, we resort to the grotesque hack of parsing the
+            # error string to determine what is and isn't acceptable.
+            try:
+                result = self.sampler.sample(bqm, **sub_params)
+            except TypeError as err:
+                match = self.unexp_arg_re.search(str(err))
+                if match == None:
+                    raise
+                p = match[1]
+                self.rejected_params.append(p)
+                del sub_params[p]
         result.resolve()
         return result
 
@@ -462,12 +491,15 @@ class Sampler(object):
         # Submit all of our QMIs asynchronously.
         results = [None for i in range(nqmis)]
         executor = ThreadPoolExecutor()
+        overall_start_time = time.time_ns()
         for i in range(nqmis):
             solver_params = dict(chains=list(physical.embedding.values()),
                                  num_reads=samples_list[i],
                                  annealing_time=anneal_time,
                                  num_spin_reversal_transforms=spin_rev_list[i],
                                  postprocess=postproc)
+            for p in self.rejected_params:
+                del solver_params[p]
             future = executor.submit(self._submit_and_block, physical.bqm, **solver_params)
             results[i] = SampleSet.from_future(future)
 
@@ -482,30 +514,33 @@ class Sampler(object):
             sys.stderr.write("Number of subproblems completed:\n\n")
             cdigits = len(str(nqmis))     # Digits in the number of completed QMIs
             tdigits = len(str(nqmis*5))   # Estimate 5 seconds per QMI submission
-            start_time = time.time()
+            start_time = time.time_ns()
         ncomplete = 0
         prev_ncomplete = 0
         while ncomplete < nqmis:
             ncomplete = sum([int(r.done()) for r in results])
             if verbosity >= 2 and ncomplete > prev_ncomplete:
-                end_time = time.time()
+                end_time = time.time_ns()
                 sys.stderr.write("    %*d of %d (%3.0f%%) after %*.0f seconds\n" %
                                  (cdigits, ncomplete, nqmis,
                                   100.0*float(ncomplete)/float(nqmis),
-                                  tdigits, end_time - start_time))
+                                  tdigits, (end_time - start_time)/1e9))
                 prev_ncomplete = ncomplete
             if ncomplete < nqmis:
                 time.sleep(1)
+        overall_end_time = time.time_ns()
         if verbosity >= 2:
             sys.stderr.write("\n")
-            sys.stderr.write("    Average time per subproblem: %.2g seconds\n\n" % ((end_time - start_time)/nqmis))
-            sys.stderr.write("IDs of completed subproblems:\n\n")
-            for i in range(nqmis):
-                sys.stderr.write("    %s\n" % results[i].info["problem_id"])
-            sys.stderr.write("\n")
+            sys.stderr.write("    Average time per subproblem: %.2g seconds\n\n" % ((overall_end_time - overall_start_time)/(nqmis*1e9)))
+            if "problem_id" in results[0].info:
+                sys.stderr.write("IDs of completed subproblems:\n\n")
+                for i in range(nqmis):
+                    sys.stderr.write("    %s\n" % results[i].info["problem_id"])
+                sys.stderr.write("\n")
 
         # Merge the result of seperate runs into a composite answer.
         answer = self._merge_results(results)
+        answer.info["timing"]["round_trip_time"] = (overall_end_time - overall_start_time)//1000
 
         # Return a Solutions object for further processing.
         return Solutions(answer, physical, verbosity >= 2)

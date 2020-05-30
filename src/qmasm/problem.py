@@ -271,8 +271,10 @@ class Problem(object):
                         try:
                             phys_list = "[Same as logical %d]" % self.contractions[i]
                         except KeyError:
-                            phys_list = "[Disconnected]"
-
+                            if self.embedding == {}:
+                                phys_list = str(i)
+                            else:
+                                phys_list = "[Disconnected]"
             sys.stderr.write("    %7d  %-*s  %s\n" % (i, max_sym_name_len, name_list, phys_list))
         sys.stderr.write("\n")
 
@@ -297,7 +299,10 @@ class Problem(object):
                         try:
                             phys_list = "[Same as logical %d]" % self.contractions[i]
                         except KeyError:
-                            phys_list = "[Disconnected]"
+                            if self.embedding == {}:
+                                phys_list = str(i)
+                            else:
+                                phys_list = "[Disconnected]"
             log2phys_comments.append("# %s --> %s" % (name_list, phys_list))
         log2phys_comments.sort()
         sys.stderr.write("\n".join(log2phys_comments) + "\n")
