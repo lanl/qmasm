@@ -405,7 +405,7 @@ class Solutions(object):
         "Discard solutions with non-minimal energy.  Return the remaining solutions."
         if len(self.solutions) == 0:
             return []
-        min_energy = self.solutions[0].energy
+        min_energy = min([s.energy for s in self.solutions])
         return [s for s in self.solutions if s.energy == min_energy]
 
     def merge_duplicates(self):
