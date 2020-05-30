@@ -84,14 +84,14 @@ class Solution:
         # Compare logical qubits for equal values.
         for lq1, lq2 in self.problem.logical.chains:
             try:
-                idx1, idx2 = self.num2col[lq1], self.num2col[lq1]
+                idx1, idx2 = self.num2col[lq1], self.num2col[lq2]
                 if self.fixed_soln[idx1] != self.fixed_soln[idx2]:
                     return True
             except KeyError:
                 pass  # Elided logical qubit
         for lq1, lq2 in self.problem.logical.antichains:
             try:
-                idx1, idx2 = self.num2col[lq1], self.num2col[lq1]
+                idx1, idx2 = self.num2col[lq1], self.num2col[lq2]
                 if self.fixed_soln[idx1] == self.fixed_soln[idx2]:
                     return True
             except KeyError:
