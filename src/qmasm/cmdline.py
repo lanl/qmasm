@@ -58,6 +58,8 @@ class ParseCommandLine(object):
                                help='show valid solutions, all solutions, or the best (even if invalid) solutions (default: "valid")')
         cl_parser.add_argument("--always-embed", action="store_true",
                                help="embed the problem in the physical topology even when not required (default: false)")
+        cl_parser.add_argument("--qbsolv", action="store_true",
+                               help="wrap the solver with QBSolv to break up large problems into pieces")
 
         # Parse the command line.
         cl_args = cl_parser.parse_args()

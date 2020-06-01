@@ -17,7 +17,8 @@ from concurrent.futures import ThreadPoolExecutor
 from dimod import ExactSolver, SampleSet
 from dwave.cloud import Client
 from dwave.embedding import embed_bqm
-from dwave.system import DWaveSampler
+from dwave.system import DWaveSampler, EmbeddingComposite
+from dwave_qbsolv import QBSolv
 from neal import SimulatedAnnealingSampler
 from qmasm.solutions import Solutions
 from tabu import TabuSampler
@@ -72,11 +73,19 @@ class Sampler(object):
     unexp_arg_re = re.compile(r"got an unexpected keyword argument '(\w+)'")
     rejected_params = []
 
-    def __init__(self, qmasm, profile=None, solver=None):
+    def __init__(self, qmasm, profile=None, solver=None, qbsolv=False):
         "Acquire either a software sampler or a sampler representing a hardware solver."
-        # Store our non-None parameters for later use.
         self.qmasm = qmasm
         self.sampler, self.client_info = self._get_sampler(profile, solver)
+        if qbsolv:
+            if solver == None:
+                self.qbsolv_sampler = EmbeddingComposite(self.sampler)
+            else:
+                self.qbsolv_sampler = self.sampler
+            self.sampler = QBSolv()
+        else:
+            self.qbsolv_sampler = None
+        self.client_info["qbsolv_wrapper"] = qbsolv
 
     def _get_sampler(self, profile, solver):
         "Return a dimod.Sampler object."
@@ -116,7 +125,10 @@ class Sampler(object):
 
         # Combine properties from various sources into a single dictionary.
         props = self.client_info.copy()
-        props.update(self.sampler.properties)
+        if self.qbsolv_sampler != None:
+            props.update(self.qbsolv_sampler.properties)
+        else:
+            props.update(self.sampler.properties)
 
         # Determine the width of the widest key.
         max_key_len = len("Parameter")
@@ -455,14 +467,17 @@ class Sampler(object):
         "Submit a job and wait for it to complete"
         # This method is a workaround for a bug in dwave-system.  See
         # https://github.com/dwavesystems/dwave-system/issues/297#issuecomment-632384524
-        sub_params = params
+        sampler = self.sampler
+        sub_params = copy.copy(params)
+        if self.qbsolv_sampler != None:
+            sub_params["solver"] = self.qbsolv_sampler
         result = None
         while result == None:
             # I don't know of a way to query a solver for the parameters it
             # accepts.  Hence, we resort to the grotesque hack of parsing the
             # error string to determine what is and isn't acceptable.
             try:
-                result = self.sampler.sample(bqm, **sub_params)
+                result = sampler.sample(bqm, **sub_params)
             except TypeError as err:
                 match = self.unexp_arg_re.search(str(err))
                 if match == None:
