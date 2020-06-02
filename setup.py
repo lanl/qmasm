@@ -19,7 +19,10 @@ setup(name = "qmasm",
       entry_points = {
           "console_scripts": ["qmasm = qmasm.__main__:main"]
       },
-      scripts = ["scripts/qb2qmasm"],
+      scripts = ["scripts/qb2qmasm",
+                 "extras/qmasm-gen-all-to-all",
+                 "extras/qmasm-gen-chimera",
+                 "extras/qmasm-gen-current"],
       packages = find_packages("src"),
       package_dir = {"": "src"},
       python_requires = ">= 3.8"
