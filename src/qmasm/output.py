@@ -208,9 +208,15 @@ class OutputMixin(object):
         num_nonzero_strengths = len([qs for qs, wt in output_strengths.items() if wt != 0.0])
 
         # Assign dummy qubit numbers to qubits whose value is known a priori.
-        n_known = len(qprob.known_values)
-        extra_nodes = dict(zip(sorted(qprob.known_values.keys()),
-                               range(max_node + 1, max_node + 1 + n_known)))
+        try:
+            n_known = len(qprob.known_values)
+        except TypeError:
+            n_known = 0
+        try:
+            extra_nodes = dict(zip(sorted(qprob.known_values.keys()),
+                                   range(max_node + 1, max_node + 1 + n_known)))
+        except AttributeError:
+            extra_nodes = {}
         max_node += n_known
         num_nonzero_weights += n_known
         output_weights.update({num: qprob.known_values[sym]*qmasm.pin_weight
@@ -228,9 +234,30 @@ class OutputMixin(object):
 
             # Map logical to physical if possible.
             try:
+                # Physical problem
+                known_values = qprob.logical.merged_known_values()
+                pin_map = {k: v for k, v in qprob.logical.pinned}
+            except AttributeError:
+                # Logical problem
+                known_values = qprob.merged_known_values()
+                pin_map = {k: v for k, v in qprob.pinned}
+            try:
                 nstr = " ".join([str(n) for n in sorted(qprob.embedding[n])])
             except AttributeError:
+                # Logical problem
                 nstr = str(n)
+            except KeyError:
+                try:
+                    nstr = "[Pinned to %s]" % repr(pin_map[n])
+                except KeyError:
+                    try:
+                        nstr = "[Provably %s]" % known_values[n]
+                    except KeyError:
+                        try:
+                            same = qprob.logical.contractions[n]
+                            nstr = "[Same as %s]" % " ".join(self.sym_map.to_symbols(same))
+                        except KeyError:
+                            nstr = "[Disconnected]"
             if len(nstr) > val_width:
                 val_width = len(nstr)
             items.append((s, nstr))

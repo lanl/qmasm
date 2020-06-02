@@ -300,7 +300,9 @@ class Problem(object):
                         phys_list = "[%s]" % known_values[i]
                     except KeyError:
                         try:
-                            phys_list = "[Same as logical %d]" % self.contractions[i]
+                            same = self.contractions[i]
+                            same_str = " ".join(self.qmasm.sym_map.to_symbols(same))
+                            phys_list = "[Same as %s]" % same_str
                         except KeyError:
                             if self.embedding == {}:
                                 phys_list = str(i)
