@@ -83,9 +83,9 @@ class Sampler(object):
             else:
                 self.qbsolv_sampler = self.sampler
             self.sampler = QBSolv()
+            self.client_info["solver_name"] = "QBSolv + " + self.client_info["solver_name"]
         else:
             self.qbsolv_sampler = None
-        self.client_info["qbsolv_wrapper"] = qbsolv
 
     def _get_sampler(self, profile, solver):
         "Return a dimod.Sampler object."
@@ -463,7 +463,7 @@ class Sampler(object):
         merged.info["timing"] = timing
         return merged
 
-    def _submit_and_block(self, bqm, **params):
+    def _submit_and_block(self, bqm, verbosity, **params):
         "Submit a job and wait for it to complete"
         # This method is a workaround for a bug in dwave-system.  See
         # https://github.com/dwavesystems/dwave-system/issues/297#issuecomment-632384524
@@ -471,6 +471,8 @@ class Sampler(object):
         sub_params = copy.copy(params)
         if self.qbsolv_sampler != None:
             sub_params["solver"] = self.qbsolv_sampler
+            if verbosity >= 2:
+                sub_params["verbosity"] = 10   # Arbitrary large number
         result = None
         while result == None:
             # I don't know of a way to query a solver for the parameters it
@@ -503,6 +505,14 @@ class Sampler(object):
         spin_rev_list = self._compute_spin_rev_counts(spin_revs, samples_list)
         nqmis = len(samples_list)   # Number of (non-unique) QMIs to submit
 
+        # QBSolv writes to standard output, but we want it to write to standard
+        # error instead.  Note that the following is imperfect because of C
+        # buffering.  Setting PYTHONUNBUFFERED=1 in the environment seems to
+        # help, though.
+        if self.qbsolv_sampler != None:
+            stdout_fileno = os.dup(sys.stdout.fileno())
+            os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
+
         # Submit all of our QMIs asynchronously.
         results = [None for i in range(nqmis)]
         executor = ThreadPoolExecutor()
@@ -515,7 +525,7 @@ class Sampler(object):
                                  postprocess=postproc)
             for p in self.rejected_params:
                 del solver_params[p]
-            future = executor.submit(self._submit_and_block, physical.bqm, **solver_params)
+            future = executor.submit(self._submit_and_block, physical.bqm, verbosity, **solver_params)
             results[i] = SampleSet.from_future(future)
 
         # Wait for the QMIs to finish.
@@ -556,6 +566,10 @@ class Sampler(object):
         # Merge the result of seperate runs into a composite answer.
         answer = self._merge_results(results)
         answer.info["timing"]["round_trip_time"] = (overall_end_time - overall_start_time)//1000
+
+        # Reset standard output.
+        if self.qbsolv_sampler != None:
+            os.dup2(stdout_fileno, sys.stdout.fileno())
 
         # Return a Solutions object for further processing.
         return Solutions(answer, physical, verbosity >= 2)
