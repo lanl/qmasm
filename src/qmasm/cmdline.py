@@ -15,7 +15,7 @@ class ParseCommandLine(object):
         # Define all of our command-line arguments.
         cl_parser = argparse.ArgumentParser(description="Assemble a symbolic Hamiltonian into a numeric one")
         cl_parser.add_argument("input", nargs="*",
-                               help="file from which to read a symbolic Hamiltonian")
+                               help="file(s) from which to read a symbolic Hamiltonian")
         cl_parser.add_argument("-v", "--verbose", action="count", default=0,
                                help="increase output verbosity (can be specified repeatedly)")
         cl_parser.add_argument("--run", action="store_true",
@@ -24,7 +24,7 @@ class ParseCommandLine(object):
                                help="file to which to write weights and strengths (default: none)")
         cl_parser.add_argument("-O", type=int, nargs="?", const=1, default=0,
                                metavar="LEVEL",
-                               help="optimize the layout; at -O1, remove unnecessary qubits; at -O2 additionally pack into fewer unit cells")
+                               help="optimize the layout; at -O1, remove unnecessary qubits")
         cl_parser.add_argument("--pin", action="append",
                                help="pin a set of qubits to a set of true or false values")
         cl_parser.add_argument("--format", choices=["qubist", "qbsolv", "qmasm", "minizinc", "bqpjson"], default="qubist",
@@ -55,7 +55,7 @@ class ParseCommandLine(object):
         cl_parser.add_argument("--show", choices=["valid", "all", "best"], default="valid",
                                help='show valid solutions, all solutions, or the best (even if invalid) solutions (default: "valid")')
         cl_parser.add_argument("--always-embed", action="store_true",
-                               help="embed the problem in the physical topology even when not required (default: false)")
+                               help="when writing an output file, embed the problem in the physical topology even when not required (default: false)")
         cl_parser.add_argument("--qbsolv", action="store_true",
                                help="wrap the solver with QBSolv to break up large problems into pieces")
 
