@@ -18,16 +18,16 @@ class ParseCommandLine(object):
                                help="file from which to read a symbolic Hamiltonian")
         cl_parser.add_argument("-v", "--verbose", action="count", default=0,
                                help="increase output verbosity (can be specified repeatedly)")
-        cl_parser.add_argument("-r", "--run", action="store_true",
+        cl_parser.add_argument("--run", action="store_true",
                                help="run the program on the current solver")
         cl_parser.add_argument("-o", "--output", metavar="FILE", default="<stdout>",
                                help="file to which to write weights and strengths (default: none)")
         cl_parser.add_argument("-O", type=int, nargs="?", const=1, default=0,
                                metavar="LEVEL",
                                help="optimize the layout; at -O1, remove unnecessary qubits; at -O2 additionally pack into fewer unit cells")
-        cl_parser.add_argument("-p", "--pin", action="append",
+        cl_parser.add_argument("--pin", action="append",
                                help="pin a set of qubits to a set of true or false values")
-        cl_parser.add_argument("-f", "--format", choices=["qubist", "qbsolv", "qmasm", "minizinc", "bqpjson"], default="qubist",
+        cl_parser.add_argument("--format", choices=["qubist", "qbsolv", "qmasm", "minizinc", "bqpjson"], default="qubist",
                                help="output-file format")
         cl_parser.add_argument("--values", choices=["bools", "ints"], default="bools",
                                help="output solution values as Booleans or integers (default: bools)")
@@ -35,20 +35,18 @@ class ParseCommandLine(object):
                                help="Profile name from dwave.conf to use")
         cl_parser.add_argument("--solver", type=str, default=None, metavar="NAME",
                                help='Solver name from dwave.conf to use or one of the special names "exact", "sim-anneal", or "tabu"')
-        cl_parser.add_argument("-C", "--chain-strength", metavar="NEG_NUM", type=float,
+        cl_parser.add_argument("--chain-strength", metavar="NEG_NUM", type=float,
                                help="negative-valued chain strength (default: automatic)")
-        cl_parser.add_argument("-P", "--pin-weight", metavar="NEG_NUM", type=float,
+        cl_parser.add_argument("--pin-weight", metavar="NEG_NUM", type=float,
                                help="negative-valued pin weight (default: automatic)")
-        cl_parser.add_argument("-q", "--qubo", action="store_true",
+        cl_parser.add_argument("--qubo", action="store_true",
                                help="treat inputs as QUBOs rather than Ising systems")
-        cl_parser.add_argument("-s", "--samples", metavar="POS_INT", type=int, default=1000,
+        cl_parser.add_argument("--samples", metavar="POS_INT", type=int, default=1000,
                                help="number of samples to take (default: 1000)")
         cl_parser.add_argument("--anneal-time", metavar="POS_INT", type=int, default=None,
                                help="annealing time in microseconds (default: automatic)")
         cl_parser.add_argument("--spin-revs", metavar="POS_INT", type=int, default=0,
                                help="number of spin-reversal transforms to perform (default: 0)")
-        cl_parser.add_argument("--extra-args", default="",
-                               help="extra arguments to pass to a solver command (default: none)")
         cl_parser.add_argument("--topology-file", default=None, metavar="FILE",
                                help="name of a file describing the topology (list of vertex pairs)")
         cl_parser.add_argument("--postproc", choices=["none", "sample", "opt"],
