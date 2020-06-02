@@ -7,7 +7,7 @@
 
 from setuptools import setup, find_packages
 
-setup(name = "QMASM",
+setup(name = "qmasm",
       version = "4.0",
       description = "Quantum Macro Assembler",
       author = "Scott Pakin",
