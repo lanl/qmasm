@@ -3,47 +3,19 @@ sudo: false
 language: python
 
 python:
-  - "2.7"
-  - "3.6"
-  - "pypy"
-  - "pypy3"
+  - "3.8"
 
 install:
   - python setup.py install
 
-# Do an initial run in which all output is retained.  Then, for each output
-# format, both with and without forced embedding, for each verbosity level,
-# both with and without optimization, run qmasm on each top-level QMASM
-# file in the examples directory.  Finally, perform a couple of tests of
-# qmasm-ground-state.
-#
-# In all cases, we're merely performing a smoke test.  That is, we merely
-# ensure that the tool runs to completion and exits with a success code.
 script:
   - cd examples
-  - qmasm --format=qmasm feature-test.qmasm
-  - qmasm -f qbsolv -v -v -O2 --pin="in[1:4] := 0110" sort4.qmasm
-  - (set -x &&
-     for solver in qbsolv minizinc bqpjson qmasm ; do
-         for always_embed in "" "--always-embed" ; do
-             for verbosity in "" "-v" "-v -v" ; do
-                 read -r -a vs <<< "$verbosity" ;
-                 for opt in "" "-O" ; do
-                     qmasm -f $solver "${vs[@]}" $opt -o 1of5.out 1of5.qmasm ;
-                     if [ "$verbosity" = "-v -v" ] ; then
-                         qmasm -f $solver "${vs[@]}" $opt maze6x6.qmasm > /dev/null 2>&1 ;
-                         qmasm -f $solver "${vs[@]}" $opt and4.qmasm > /dev/null 2>&1 ;
-                         qmasm -f $solver "${vs[@]}" $opt --pin="x10 := true" circsat.qmasm > /dev/null 2>&1 ;
-                         qmasm -f $solver "${vs[@]}" $opt --pin="in[1:4] := 0110" sort4.qmasm > /dev/null 2>&1 ;
-                     else
-                         qmasm -f $solver "${vs[@]}" $opt -o and4.out and4.qmasm ;
-                         qmasm -f $solver "${vs[@]}" $opt -o maze6x6.out maze6x6.qmasm ;
-                         qmasm -f $solver "${vs[@]}" $opt --pin="x10 := true" -o circsat.out circsat.qmasm ;
-                         qmasm -f $solver "${vs[@]}" $opt --pin="in[1:4] := 0110" -o sort4.out sort4.qmasm ;
-                     fi ;
-                 done ;
-             done ;
-         done ;
-     done)
-  - qmasm-ground-state --macro=comparator sort4.qmasm
-  - qmasm-ground-state --macro=comparator --all sort4.qmasm
+  - test "$(qmasm --format=qmasm --solver=neal feature-test.qmasm | md5sum | awk '{print $1}')" = d1602c0935f3e1ca494e43f4eee6b933
+  - test "$(qmasm --solver=tabu 1of5.qmasm | md5sum | awk '{print $1}')" = 38d9318cd4f4d34d1aafadcfca145362
+  - test "$(qmasm --solver=exact --run 1of5.qmasm | md5sum | awk '{print $1}')" = 5296b7ddbf24c9a2f7785acb782ea2c8
+  - test "$(qmasm --solver=exact --run -v 1of5.qmasm 2>&1 | wc -l)" -eq 117
+  - qmasm --solver=exact --run -v -v and4.qmasm 2>&1 | grep -q '16 excluding duplicate variable assignments'
+  - test "$(qmasm --samples=1234 -v --solver=neal --run --pin="x10 := true" circsat.qmasm | awk '$2 == "True" && $1 ~ /^x(1|2|10)$/ {good++; next} $2 == "False" && $1 == "x3" {good++; next} $2 ~ /^(True|False)$/ {bad++} END {print good+0, bad+0}')" = "4 0"
+  - test "$(qmasm --solver=tabu --run -v -v --pin="x10 := true" circsat.qmasm | grep -c PASS:)" -eq 22
+  - test "$(qmasm --qbsolv --solver=neal --run -v -v --pin="x10 := true" circsat.qmasm | grep -c PASS:)" -eq 22
+  - qmasm --solver=tabu --run --values=ints --pin="in[4:1] := 1001" sort4.qmasm | grep -q -E 'out.*11000.*24'

@@ -546,7 +546,7 @@ class Sampler(object):
             ncomplete = sum([int(r.done()) for r in results])
             if verbosity >= 2 and ncomplete > prev_ncomplete:
                 end_time = time.time_ns()
-                sys.stderr.write("    %*d of %d (%3.0f%%) after %*.0f seconds\n" %
+                sys.stderr.write("    %*d of %d (%3.0f%%) after %*.0f second(s)\n" %
                                  (cdigits, ncomplete, nqmis,
                                   100.0*float(ncomplete)/float(nqmis),
                                   tdigits, (end_time - start_time)/1e9))
@@ -556,7 +556,7 @@ class Sampler(object):
         overall_end_time = time.time_ns()
         if verbosity >= 2:
             sys.stderr.write("\n")
-            sys.stderr.write("    Average time per subproblem: %.2g seconds\n\n" % ((overall_end_time - overall_start_time)/(nqmis*1e9)))
+            sys.stderr.write("    Average time per subproblem: %.2g second(s)\n\n" % ((overall_end_time - overall_start_time)/(nqmis*1e9)))
             if "problem_id" in results[0].info:
                 sys.stderr.write("IDs of completed subproblems:\n\n")
                 for i in range(nqmis):

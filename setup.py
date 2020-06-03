@@ -25,5 +25,6 @@ setup(name = "qmasm",
                  "extras/qmasm-gen-current"],
       packages = find_packages("src"),
       package_dir = {"": "src"},
-      python_requires = ">= 3.8"
+      python_requires = ">= 3.8",
+      install_requires = ["dwave-ocean-sdk"]
 )
