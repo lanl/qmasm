@@ -388,10 +388,10 @@ func ReadMazes(r *bufio.Reader) ([]Maze, []int) {
 		case !haveSoln:
 			// Don't get confused by header text.
 
-		case len(f) == 3 && (f[2] == "True" || f[2] == "False"):
+		case len(f) == 2 && (f[1] == "True" || f[1] == "False"):
 			// Append a room to the current maze when we see a
 			// solution row.
-			m = m.Extend(f[0], f[2] == "True")
+			m = m.Extend(f[0], f[1] == "True")
 		}
 	}
 	if m != nil {

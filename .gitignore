@@ -1,5 +1,4 @@
-*.pyc
-QMASM.egg-info/
 build/
 dist/
 examples/qmasm-maze
+src/qmasm.egg-info/

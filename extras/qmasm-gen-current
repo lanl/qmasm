@@ -7,15 +7,32 @@
 # By Scott Pakin <pakin@lanl.gov>  #
 ####################################
 
-import qmasm
+import argparse
 import sys
+from dwave.system import DWaveSampler
+
+def abend(msg):
+    "Output an error message and abort the program."
+    sys.stderr.write('%s: %s\n' % (sys.argv[0], msg))
+    sys.exit(1)
+
+# Parse the command line.
+cl_parser = argparse.ArgumentParser(description='Generate a connectivity list for a given hardware topology')
+cl_parser.add_argument('--profile', type=str, default=None, metavar='NAME',
+                       help='Profile name from dwave.conf to use')
+cl_parser.add_argument('--solver', type=str, default=None, metavar='NAME',
+                       help='Solver name from dwave.conf to use')
+cl_args = cl_parser.parse_args()
 
 # Acquire the current topology.
-qmasm.connect_to_dwave()
 try:
-    hw_adj = qmasm.get_hardware_adjacency(qmasm.solver)
+    sampler = DWaveSampler(profile=cl_args.profile, solver=cl_args.solver)
+except Exception as e:
+    abend(str(e))
+try:
+    hw_adj = sampler.properties["couplers"]
 except KeyError:
-    qmasm.abend("Failed to query solver %s's topology" % qmasm.solver_name)
+    abend("Failed to query solver %s's topology" % sampler.solver.id)
 
 # Canonicalize and sort the edge list.
 edges = set()
