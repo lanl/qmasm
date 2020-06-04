@@ -19,6 +19,7 @@ setup(name = 'qmasm',
           'Programming Language :: Python :: 3',
           'Intended Audience :: Developers'],
       url = 'https://github.com/lanl/qmasm',
+      download_url = 'https://github.com/lanl/qmasm/archive/v4.0.tar.gz',
       license = 'BSD-ish',
       keywords = ['quantum', 'annealing', 'macro', 'assembler', 'd-wave'],
       entry_points = {
