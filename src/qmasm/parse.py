@@ -219,7 +219,10 @@ class Weight(Statement):
 
     def update_qmi(self, prefix, next_prefix, problem):
         num = self.qmasm.symbol_to_number(prefix + self.sym, prefix, next_prefix)
-        problem.weights[num] += self.weight
+        if self.as_qubo:
+            problem.weights[num] += self.weight/2.0
+        else:
+            problem.weights[num] += self.weight
 
 class Chain(Statement):
     "Chain between qubits."
@@ -418,7 +421,13 @@ class Strength(Statement):
             self.error_in_line("A coupler cannot connect a spin to itself")
         elif num1 > num2:
             num1, num2 = num2, num1
-        problem.strengths[(num1, num2)] += self.strength
+        if self.as_qubo:
+            s4 = self.strength/4.0
+            problem.strengths[(num1, num2)] += s4
+            problem.weights[num1] += s4
+            problem.weights[num2] += s4
+        else:
+            problem.strengths[(num1, num2)] += self.strength
 
 class Assert(Statement):
     "Instantiation of a run-time assertion."
