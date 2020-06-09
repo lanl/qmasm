@@ -40,7 +40,7 @@ class ParseCommandLine(object):
         cl_parser.add_argument("--pin-weight", metavar="NEG_NUM", type=float,
                                help="negative-valued pin weight (default: automatic)")
         cl_parser.add_argument("--qubo", action="store_true",
-                               help="treat inputs as QUBOs rather than Ising systems")
+                               help="where supported, produce output files in QUBO rather than Ising format")
         cl_parser.add_argument("--samples", metavar="POS_INT", type=int, default=1000,
                                help="number of samples to take (default: 1000)")
         cl_parser.add_argument("--anneal-time", metavar="POS_INT", type=int, default=None,

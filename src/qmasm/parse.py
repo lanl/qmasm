@@ -466,7 +466,7 @@ class MacroUse(Statement):
                 if "!next." not in sstr:
                     stmt_strs.append(sstr)
         else:
-            # At least one prefix -- disaply the macro body in a new scope
+            # At least one prefix -- display the macro body in a new scope
             # (i.e., by augmenting the given prefix with each new prefix in
             # turn).
             for p in range(nprefixes):
