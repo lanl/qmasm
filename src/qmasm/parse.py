@@ -285,7 +285,7 @@ class Pin(Statement):
         problem.pending_asserts.append((sym, "=", str(int(self.goal))))
 
 class Alias(Statement):
-    "Alias of one symbol to another."
+    "Alias one symbol to another."
     def __init__(self, qmasm, filename, lineno, as_qubo, sym1, sym2):
         super(Alias, self).__init__(qmasm, filename, lineno, as_qubo)
         self.sym1 = self.validate_ident(sym1)
@@ -301,6 +301,20 @@ class Alias(Statement):
             sym1 = sym1.replace(prefix + "!next.", next_prefix)
             sym2 = sym2.replace(prefix + "!next.", next_prefix)
         self.qmasm.sym_map.alias(sym1, sym2)
+
+class BQMType(Statement):
+    "Set the BQM mode to either Ising or QUBO."
+    def __init__(self, qmasm, filename, lineno, as_qubo):
+        super(BQMType, self).__init__(qmasm, filename, lineno, as_qubo)
+
+    def as_str(self, prefix=""):
+        if self.as_qubo:
+            return "!bqm_type qubo"
+        else:
+            return "!bqm_type ising"
+
+    def update_qmi(self, prefix, next_prefix, problem):
+        pass
 
 class Rename(Statement):
     "Rename one set of symbols to another."
@@ -539,7 +553,8 @@ class FileParser(object):
             "!begin_macro": self.parse_line_begin_macro,
             "!end_macro":   self.parse_line_end_macro,
             "!use_macro":   self.parse_line_use_macro,
-            "!alias":       self.parse_line_sym_alias
+            "!alias":       self.parse_line_sym_alias,
+            "!bqm_type":    self.parse_line_bqm_type
         }
 
     def is_float(self, str):
@@ -753,6 +768,18 @@ class FileParser(object):
         if len(fields) != 3:
             error_in_line(filename, lineno, "Expected a symbol name and replacement to follow !alias")
         self.env[fields[1]] = self.env.sub_syms(fields[2])
+
+    def parse_line_bqm_type(self, filename, lineno, as_qubo, fields):
+        "Parse a !bqm_type directive."
+        if len(fields) != 2:
+            error_in_line(filename, lineno, 'Expected either "qubo" or "ising" to follow !bqm_type')
+        if fields[1] == "qubo":
+            as_qubo = True
+        elif fields[1] == "ising":
+            as_qubo = False
+        else:
+            error_in_line(filename, lineno, 'Expected either "qubo" or "ising" to follow !bqm_type')
+        self.target.append(BQMType(self.qmasm, filename, lineno, as_qubo))
 
     def process_if(self, filename, lineno, as_qubo, fields, all_lines):
         """Parse and process an !if directive.  Recursively parse the remaining
