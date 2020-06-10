@@ -49,7 +49,7 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
                 self.program.extend(fparse.process_pin("[command line]", 1, pin))
 
         # Walk the statements in the program, processing each in turn.
-        logical = Problem(self, cl_args.qubo)
+        logical = Problem(self)
         for stmt in self.program:
             stmt.update_qmi("", "<ERROR>", logical)
 

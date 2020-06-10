@@ -81,7 +81,7 @@ class OutputMixin(object):
         # Output the problem in JSON format.
         outfile.write(json.dumps(bqp, indent=2, sort_keys=True) + "\n")
 
-    def output_minizinc(self, outfile, problem, energy=None):
+    def output_minizinc(self, outfile, as_qubo, problem, energy=None):
         "Output weights and strengths as a MiniZinc constraint problem."
         # Write some header information.
         outfile.write("""% Use MiniZinc to minimize a given Hamiltonian.
@@ -92,7 +92,7 @@ class OutputMixin(object):
         outfile.write("%% Command line: %s\n\n" % " ".join([shlex.quote(a) for a in sys.argv]))
 
         # The model is easier to express as a QUBO so convert to that format.
-        if problem.qubo:
+        if as_qubo:
             qprob = problem
         else:
             qprob = problem.convert_to_qubo()
@@ -188,7 +188,7 @@ class OutputMixin(object):
             syms = " ".join(ss)
             line = ""
             line += '"    %-*s  ", ' % (max_sym_name_len, syms)
-            if problem.qubo:
+            if as_qubo:
                 line += 'show_int(4, q%d), ' % n
             else:
                 line += 'show_int(4, 2*q%d - 1), ' % n
@@ -321,7 +321,7 @@ class OutputMixin(object):
         elif oformat == "qmasm":
             self.output_qmasm(outfile)
         elif oformat == "minizinc":
-            self.output_minizinc(outfile, problem)
+            self.output_minizinc(outfile, as_qubo, problem)
         elif oformat == "bqpjson":
             self.output_bqpjson(outfile, as_qubo, problem)
 

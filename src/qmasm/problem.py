@@ -13,11 +13,10 @@ from qmasm.assertions import AssertParser
 # it turns out we don't even need this veneer, we may replace it with direct
 # use of dimod.BinaryQuadraticModel.
 class Problem(object):
-    "Represent either an Ising or QUBO problem."
+    "Represent an Ising problem."
 
-    def __init__(self, qmasm, qubo):
+    def __init__(self, qmasm):
         self.qmasm = qmasm   # Pointer to the top-level QMASM class
-        self.qubo = qubo     # True=QUBO; False=Ising
         self.weights = defaultdict(lambda: 0.0)    # Map from a spin to a point weight
         self.strengths = defaultdict(lambda: 0.0)  # Map from a pair of spins to a coupler strength
         self.chains = set()       # Subset of strengths keys that represents user-defined chains (always logical)
@@ -45,10 +44,6 @@ class Problem(object):
                 except ValueError:
                     # No weights or strengths -- arbitrarily choose -1.
                     chain_strength = -1.0
-        elif self.qubo:
-            # With QUBO input we need to divide the chain strength by 4 for
-            # consistency with the other coupler strengths.
-            chain_strength /= 4.0
         for c in self.chains:
             self.strengths[c] += chain_strength
         for c in self.antichains:
@@ -57,13 +52,8 @@ class Problem(object):
 
     def generate_bqm(self):
         "Generate a BinaryQuadraticModel version of the Problem."
-        # Create a BQM.
-        btype = dimod.SPIN
-        if self.qubo:
-            btype = dimod.BINARY
-        bqm = dimod.BinaryQuadraticModel(self.weights, self.strengths, 0, btype, problem=self)
-        if self.qubo:
-            bqm.change_vartype(dimod.SPIN, inplace=True)
+        # Create an Ising-model BQM.
+        bqm = dimod.BinaryQuadraticModel(self.weights, self.strengths, 0, dimod.SPIN, problem=self)
 
         # Pin all variables the user asked to pin.
         bool2spin = {False: -1, True: +1}
