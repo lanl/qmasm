@@ -82,6 +82,20 @@ alfa[idx1] = alfa[idx2]
   icao[42] zulu -3.25
 !end_for
 
+# Changing the BQM type.
+!bqm_type qubo
+!begin_macro OR
+A 1
+B 1
+Y 1
+A B  1
+A Y -2
+B Y -2
+!end_macro OR
+!bqm_type ising
+!use_macro OR qubo_or
+!assert qubo_or.Y = qubo_or.A | qubo_or.B
+
 # Chain of macros
 !begin_macro XOR_chain
   !use_macro XOR xor
