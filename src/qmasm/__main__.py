@@ -40,7 +40,7 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
 
         # Parse the original input file(s) into an internal representation.
         fparse = FileParser(self)
-        fparse.process_files(cl_args.input, False)
+        fparse.process_files(cl_args.input)
 
         # Parse the variable pinnings specified on the command line.  Append
         # these to the program.

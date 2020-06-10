@@ -544,6 +544,7 @@ class FileParser(object):
         self.env = Environment()      # Stack of maps from compile-time variable names to values
         self.expr_parser = ExprParser(qmasm)     # Expression parser
         self.rel_parser = RelationParser(qmasm)  # Relation parser
+        self._as_qubo = False   # Current BQM mode (QUBO or Ising)
 
         # Establish a mapping from a first-field directive to a parsing function.
         self.dir_to_func = {
@@ -945,7 +946,7 @@ class FileParser(object):
             self.qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (alias_str, len(lhs_list), len(rhs_list)))
         return [Alias(self.qmasm, filename, lineno, as_qubo, l, r) for l, r in zip(lhs_list, rhs_list)]
 
-    def process_file_contents(self, filename, all_lines, as_qubo):
+    def process_file_contents(self, filename, all_lines):
         """Parse the contents of a file.  Contents are passed as a list plus an
         initial line number."""
         for idx in range(len(all_lines)):
@@ -961,10 +962,10 @@ class FileParser(object):
             # Process the line.
             if fields[0] == "!if":
                 # Special case for !if directives
-                return self.process_if(filename, lineno, as_qubo, fields, all_lines[idx:])
+                return self.process_if(filename, lineno, self._as_qubo, fields, all_lines[idx:])
             elif fields[0] == "!for":
                 # Special case for !for directives
-                return self.process_for(filename, lineno, as_qubo, fields, all_lines[idx:])
+                return self.process_for(filename, lineno, self._as_qubo, fields, all_lines[idx:])
             try:
                 # Parse first-field directives.
                 func = self.dir_to_func[fields[0]]
@@ -1002,9 +1003,11 @@ class FileParser(object):
                 else:
                     # None of the above
                     error_in_line(filename, lineno, 'Failed to parse "%s"' % line)
-            func(filename, lineno, False, fields)
+            func(filename, lineno, self._as_qubo, fields)
+            if func == self.parse_line_bqm_type:
+                self._as_qubo = self.target[-1].as_qubo
 
-    def process_file(self, filename, infile, as_qubo):
+    def process_file(self, filename, infile):
         """Define a function that parses an input file into an internal
         representation.  This function can be called recursively (due to !include
         directives)."""
@@ -1015,9 +1018,9 @@ class FileParser(object):
         for line in infile:
             all_lines.append((lineno, line.strip()))
             lineno += 1
-        self.process_file_contents(filename, all_lines, as_qubo)
+        self.process_file_contents(filename, all_lines)
 
-    def process_files(self, file_list, as_qubo):
+    def process_files(self, file_list):
         "Parse a list of file(s) into an internal representation."
         if file_list == []:
             # No files were specified: Read from standard input.
@@ -1031,7 +1034,7 @@ class FileParser(object):
                     infile = open(infilename)
                 except IOError:
                     self.qmasm.abend('Failed to open %s for input' % infilename)
-                self.process_file(infilename, infile, as_qubo)
+                self.process_file(infilename, infile)
                 if self.current_macro[0] != None:
                     error_in_line(filename, lineno, "Unterminated definition of macro %s" % self.current_macro[0])
                 infile.close()
