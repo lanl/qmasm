@@ -585,7 +585,7 @@ class FileParser(object):
                 return fname_qmasm
         return None
 
-    def parse_line_include(self, filename, lineno, as_qubo, fields):
+    def parse_line_include(self, filename, lineno, fields):
         "Parse an !include directive."
         # "!include" "<filename>" -- process a named auxiliary file.
         if len(fields) != 2:
@@ -617,14 +617,14 @@ class FileParser(object):
         self.process_file(incname, incfile)
         incfile.close()
 
-    def parse_line_assert(self, filename, lineno, as_qubo, fields):
+    def parse_line_assert(self, filename, lineno, fields):
         "Parse an !assert directive."
         # "!assert" <expr> -- assert a property that must be true at run time.
         if len(fields) < 2:
             error_in_line(filename, lineno, "Expected an expression to follow !assert")
-        self.target.append(Assert(self.qmasm, filename, lineno, as_qubo, " ".join(self.env.sub_syms(fields[1:]))))
+        self.target.append(Assert(self.qmasm, filename, lineno, self._as_qubo, " ".join(self.env.sub_syms(fields[1:]))))
 
-    def parse_line_let(self, filename, lineno, as_qubo, fields):
+    def parse_line_let(self, filename, lineno, fields):
         "Parse a !let directive."
         # "!let" <name> := <expr> -- evaluate <expr> and assign the result to <name>.
         if len(fields) < 4 or fields[2] != ":=":
@@ -641,21 +641,21 @@ class FileParser(object):
         rhs = ast.evaluate(dict(self.env))
         self.env[lhs] = rhs
 
-    def parse_line_begin_macro(self, filename, lineno, as_qubo, fields):
+    def parse_line_begin_macro(self, filename, lineno, fields):
         "Parse a !begin_macro directive."
         # "!begin_macro" <name> -- begin a macro definition.
         if len(fields) != 2:
             error_in_line(filename, lineno, "Expected a macro name to follow !begin_macro")
         name = fields[1]
         if name in self.macros:
-            error_in_line(self, filename, lineno, as_qubo, "Macro %s is multiply defined" % name)
+            error_in_line(self, filename, lineno, "Macro %s is multiply defined" % name)
         if self.current_macro[0] != None:
             error_in_line(filename, lineno, "Nested macros are not supported")
         self.current_macro = (name, [])
         self.target = self.current_macro[1]
         self.env.push()
 
-    def parse_line_end_macro(self, filename, lineno, as_qubo, fields):
+    def parse_line_end_macro(self, filename, lineno, fields):
         "Parse an !end_macro directive."
         # "!end_macro" <name> -- end a macro definition.
         if len(fields) != 2:
@@ -670,7 +670,7 @@ class FileParser(object):
         self.current_macro = (None, [])
         self.env.pop()
 
-    def parse_line_weight(self, filename, lineno, as_qubo, fields):
+    def parse_line_weight(self, filename, lineno, fields):
         "Parse a qubit weight."
         # <symbol> <weight> -- increment a symbol's point weight.
         if len(fields) != 2:
@@ -679,43 +679,43 @@ class FileParser(object):
             val = float(self.env.sub_syms(fields[1]))
         except ValueError:
             error_in_line(filename, lineno, 'Failed to parse "%s %s" as a symbol followed by a numerical weight' % (fields[0], fields[1]))
-        self.target.append(Weight(self.qmasm, filename, lineno, as_qubo, self.env.sub_syms(fields[0]), val))
+        self.target.append(Weight(self.qmasm, filename, lineno, self._as_qubo, self.env.sub_syms(fields[0]), val))
 
-    def parse_line_chain(self, filename, lineno, as_qubo, fields):
+    def parse_line_chain(self, filename, lineno, fields):
         "Parse a qubit chain."
         # <symbol_1> = <symbol_2> -- create a chain between <symbol_1>
         # and <symbol_2>.
         if len(fields) != 3 or fields[1] != "=":
             error_in_line(filename, lineno, "Internal error in parse_line_chain")
         code = "%s = %s" % (self.env.sub_syms(fields[0]), self.env.sub_syms(fields[2]))
-        self.target.extend(self.process_chain(filename, lineno, as_qubo, code))
+        self.target.extend(self.process_chain(filename, lineno, code))
 
-    def parse_line_antichain(self, filename, lineno, as_qubo, fields):
+    def parse_line_antichain(self, filename, lineno, fields):
         "Parse a qubit anti-chain."
         # <symbol_1> /= <symbol_2> -- create an anti-chain between <symbol_1>
         # and <symbol_2>.
         if len(fields) != 3 or fields[1] != "/=":
             error_in_line(filename, lineno, "Internal error in parse_line_antichain")
         code = "%s /= %s" % (self.env.sub_syms(fields[0]), self.env.sub_syms(fields[2]))
-        self.target.extend(self.process_antichain(filename, lineno, as_qubo, code))
+        self.target.extend(self.process_antichain(filename, lineno, code))
 
-    def parse_line_pin(self, filename, lineno, as_qubo, fields):
+    def parse_line_pin(self, filename, lineno, fields):
         "Parse a qubit pin."
         # <symbol> := <value> -- force symbol <symbol> to have value <value>.
         if len(fields) != 3 or fields[1] != ":=":
             error_in_line(filename, lineno, "Internal error in parse_line_pin")
         code = "%s := %s" % (self.env.sub_syms(fields[0]), self.env.sub_syms(fields[2]))
-        self.target.extend(self.process_pin(filename, lineno, as_qubo, code))
+        self.target.extend(self.process_pin(filename, lineno, code))
 
-    def parse_line_alias(self, filename, lineno, as_qubo, fields):
+    def parse_line_alias(self, filename, lineno, fields):
         "Parse a qubit alias."
         # <symbol_1> <-> <symbol_2> -- make <symbol_1> an alias of <symbol_2>.
         if len(fields) != 3 or fields[1] != "<->":
             error_in_line(filename, lineno, "Internal error in parse_line_alias")
         code = "%s <-> %s" % (self.env.sub_syms(fields[0]), self.env.sub_syms(fields[2]))
-        self.target.extend(self.process_alias(filename, lineno, as_qubo, code))
+        self.target.extend(self.process_alias(filename, lineno, code))
 
-    def parse_line_rename(self, filename, lineno, as_qubo, fields):
+    def parse_line_rename(self, filename, lineno, fields):
         "Parse a qubit rename."
         # <symbol_1> ... -> <symbol_2> ... -- make <symbol_1> an alias of <symbol_2>.
         if len(fields) < 3 or len(fields)%2 == 0:
@@ -737,9 +737,9 @@ class FileParser(object):
         if num_arrows != 1 or rhs[0] != "->":
             error_in_line(filename, lineno, 'Failed to parse "%s" as a symbol rename' % (" ".join(fields)))
         rhs = rhs[1:]  # Drop the "->".
-        self.target.append(Rename(self.qmasm, filename, lineno, as_qubo, lhs, rhs))
+        self.target.append(Rename(self.qmasm, filename, lineno, self._as_qubo, lhs, rhs))
 
-    def parse_line_strength(self, filename, lineno, as_qubo, fields):
+    def parse_line_strength(self, filename, lineno, fields):
         "Parse a coupler strength."
         # <symbol_1> <symbol_2> <strength> -- increment a coupler strength.
         if len(fields) != 3:
@@ -748,9 +748,9 @@ class FileParser(object):
             strength = float(self.env.sub_syms(fields[2]))
         except ValueError:
             error_in_line(filename, lineno, 'Failed to parse "%s" as a number' % fields[2])
-        self.target.append(Strength(self.qmasm, filename, lineno, as_qubo, self.env.sub_syms(fields[0]), self.env.sub_syms(fields[1]), strength))
+        self.target.append(Strength(self.qmasm, filename, lineno, self._as_qubo, self.env.sub_syms(fields[0]), self.env.sub_syms(fields[1]), strength))
 
-    def parse_line_use_macro(self, filename, lineno, as_qubo, fields):
+    def parse_line_use_macro(self, filename, lineno, fields):
         "Parse a !use_macro directive."
         # "!use_macro" <macro_name> [<instance_name> ...] -- instantiate a
         # macro using <instance_name> as each variable's prefix.
@@ -759,18 +759,18 @@ class FileParser(object):
         name = self.env.sub_syms(fields[1])
         prefixes = [self.env.sub_syms(p) for p in fields[2:]]
         try:
-            self.target.append(MacroUse(self.qmasm, filename, lineno, as_qubo, name, self.macros[name], prefixes))
+            self.target.append(MacroUse(self.qmasm, filename, lineno, self._as_qubo, name, self.macros[name], prefixes))
         except KeyError:
             error_in_line(filename, lineno, "Unknown macro %s" % name)
 
-    def parse_line_sym_alias(self, filename, lineno, as_qubo, fields):
+    def parse_line_sym_alias(self, filename, lineno, fields):
         "Parse an !alias directive."
         sys.stderr.write('%s:%d: warning: !alias is deprecated; use "!let %s := %s" instead\n' % (filename, lineno, fields[1], fields[2]))
         if len(fields) != 3:
             error_in_line(filename, lineno, "Expected a symbol name and replacement to follow !alias")
         self.env[fields[1]] = self.env.sub_syms(fields[2])
 
-    def parse_line_bqm_type(self, filename, lineno, as_qubo, fields):
+    def parse_line_bqm_type(self, filename, lineno, fields):
         "Parse a !bqm_type directive."
         if len(fields) != 2:
             error_in_line(filename, lineno, 'Expected either "qubo" or "ising" to follow !bqm_type')
@@ -782,7 +782,7 @@ class FileParser(object):
             error_in_line(filename, lineno, 'Expected either "qubo" or "ising" to follow !bqm_type')
         self.target.append(BQMType(self.qmasm, filename, lineno, as_qubo))
 
-    def process_if(self, filename, lineno, as_qubo, fields, all_lines):
+    def process_if(self, filename, lineno, fields, all_lines):
         """Parse and process an !if directive.  Recursively parse the remaining
         file contents."""
         if len(fields) < 2:
@@ -838,7 +838,7 @@ class FileParser(object):
         # Process the rest of the file.
         self.process_file_contents(filename, all_lines[end_idx+1:])
 
-    def process_for(self, filename, lineno, as_qubo, fields, all_lines):
+    def process_for(self, filename, lineno, fields, all_lines):
         """Parse and process a !for directive.  Recursively parse the remaining
         file contents."""
         # Parse the !for line.
@@ -895,7 +895,7 @@ class FileParser(object):
         self.process_file_contents(filename, all_lines[end_idx+1:])
 
 
-    def process_pin(self, filename, lineno, as_qubo, pin_str):
+    def process_pin(self, filename, lineno, pin_str):
         "Parse a pin statement into one or more Pin objects and add these to the program."
         lhs_rhs = pin_str.split(":=")
         if len(lhs_rhs) != 2:
@@ -905,9 +905,9 @@ class FileParser(object):
         rhs_list = pin_parser.parse_rhs(self.env.sub_syms(lhs_rhs[1]))
         if len(lhs_list) != len(rhs_list):
             self.qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (pin_str, len(lhs_list), len(rhs_list)))
-        return [Pin(self.qmasm, filename, lineno, as_qubo, l, r) for l, r in zip(lhs_list, rhs_list)]
+        return [Pin(self.qmasm, filename, lineno, self._as_qubo, l, r) for l, r in zip(lhs_list, rhs_list)]
 
-    def process_chain(self, filename, lineno, as_qubo, chain_str):
+    def process_chain(self, filename, lineno, chain_str):
         "Parse a chain statement into one or more Chain objects and add these to the program."
         # We use the LHS parser from PinParser to parse both sides of the chain.
         lhs_rhs = chain_str.split("=")
@@ -918,9 +918,9 @@ class FileParser(object):
         rhs_list = pin_parser.parse_lhs(self.env.sub_syms(lhs_rhs[1]))  # Note use of parse_lhs to parse the RHS.
         if len(lhs_list) != len(rhs_list):
             self.qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (chain_str, len(lhs_list), len(rhs_list)))
-        return [Chain(self.qmasm, filename, lineno, as_qubo, l, r) for l, r in zip(lhs_list, rhs_list)]
+        return [Chain(self.qmasm, filename, lineno, self._as_qubo, l, r) for l, r in zip(lhs_list, rhs_list)]
 
-    def process_antichain(self, filename, lineno, as_qubo, antichain_str):
+    def process_antichain(self, filename, lineno, antichain_str):
         "Parse an anti-chain statement into one or more AntiChain objects and add these to the program."
         # We use the LHS parser from PinParser to parse both sides of the anti-chain.
         lhs_rhs = antichain_str.split("/=")
@@ -931,9 +931,9 @@ class FileParser(object):
         rhs_list = pin_parser.parse_lhs(self.env.sub_syms(lhs_rhs[1]))  # Note use of parse_lhs to parse the RHS.
         if len(lhs_list) != len(rhs_list):
             self.qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (antichain_str, len(lhs_list), len(rhs_list)))
-        return [AntiChain(self.qmasm, filename, lineno, as_qubo, l, r) for l, r in zip(lhs_list, rhs_list)]
+        return [AntiChain(self.qmasm, filename, lineno, self._as_qubo, l, r) for l, r in zip(lhs_list, rhs_list)]
 
-    def process_alias(self, filename, lineno, as_qubo, alias_str):
+    def process_alias(self, filename, lineno, alias_str):
         "Parse an alias statement into one or more Alias objects and add these to the program."
         # We use the LHS parser from PinParser to parse both sides of the alias.
         lhs_rhs = alias_str.split("<->")
@@ -944,7 +944,7 @@ class FileParser(object):
         rhs_list = pin_parser.parse_lhs(self.env.sub_syms(lhs_rhs[1]))  # Note use of parse_lhs to parse the RHS.
         if len(lhs_list) != len(rhs_list):
             self.qmasm.abend('Different number of left- and right-hand-side values in "%s" (%d vs. %d)' % (alias_str, len(lhs_list), len(rhs_list)))
-        return [Alias(self.qmasm, filename, lineno, as_qubo, l, r) for l, r in zip(lhs_list, rhs_list)]
+        return [Alias(self.qmasm, filename, lineno, self._as_qubo, l, r) for l, r in zip(lhs_list, rhs_list)]
 
     def process_file_contents(self, filename, all_lines):
         """Parse the contents of a file.  Contents are passed as a list plus an
@@ -962,10 +962,10 @@ class FileParser(object):
             # Process the line.
             if fields[0] == "!if":
                 # Special case for !if directives
-                return self.process_if(filename, lineno, self._as_qubo, fields, all_lines[idx:])
+                return self.process_if(filename, lineno, fields, all_lines[idx:])
             elif fields[0] == "!for":
                 # Special case for !for directives
-                return self.process_for(filename, lineno, self._as_qubo, fields, all_lines[idx:])
+                return self.process_for(filename, lineno, fields, all_lines[idx:])
             try:
                 # Parse first-field directives.
                 func = self.dir_to_func[fields[0]]
@@ -1003,7 +1003,7 @@ class FileParser(object):
                 else:
                     # None of the above
                     error_in_line(filename, lineno, 'Failed to parse "%s"' % line)
-            func(filename, lineno, self._as_qubo, fields)
+            func(filename, lineno, fields)
             if func == self.parse_line_bqm_type:
                 self._as_qubo = self.target[-1].as_qubo
 
