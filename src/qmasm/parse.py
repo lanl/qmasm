@@ -614,7 +614,7 @@ class FileParser(object):
             incfile = open(incname)
         except IOError:
             error_in_line(filename, lineno, 'Failed to open %s for input' % incname)
-        self.process_file(incname, incfile, as_qubo)
+        self.process_file(incname, incfile)
         incfile.close()
 
     def parse_line_assert(self, filename, lineno, as_qubo, fields):
@@ -832,11 +832,11 @@ class FileParser(object):
         elif else_idx != -1:
             # Evaluate the else clause in a new scope.
             self.env.push()
-            self.process_file_contents(filename, all_lines[else_idx+1:end_idx], as_qubo)
+            self.process_file_contents(filename, all_lines[else_idx+1:end_idx])
             self.env.pop()
 
         # Process the rest of the file.
-        self.process_file_contents(filename, all_lines[end_idx+1:], as_qubo)
+        self.process_file_contents(filename, all_lines[end_idx+1:])
 
     def process_for(self, filename, lineno, as_qubo, fields, all_lines):
         """Parse and process a !for directive.  Recursively parse the remaining
@@ -888,11 +888,11 @@ class FileParser(object):
         for val in iter:
             self.env.push()
             self.env[fields[1]] = val
-            self.process_file_contents(filename, all_lines[1:end_idx], as_qubo)
+            self.process_file_contents(filename, all_lines[1:end_idx])
             self.env.pop()
 
         # Process the rest of the file.
-        self.process_file_contents(filename, all_lines[end_idx+1:], as_qubo)
+        self.process_file_contents(filename, all_lines[end_idx+1:])
 
 
     def process_pin(self, filename, lineno, as_qubo, pin_str):
