@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dimod import ExactSolver, SampleSet
 from dwave.cloud import Client
 from dwave.embedding import embed_bqm
-from dwave.system import DWaveSampler, EmbeddingComposite
+from dwave.system import DWaveSampler, EmbeddingComposite, VirtualGraphComposite
 from dwave_qbsolv import QBSolv
 from neal import SimulatedAnnealingSampler
 from qmasm.solutions import Solutions
@@ -463,11 +463,10 @@ class Sampler(object):
         merged.info["timing"] = timing
         return merged
 
-    def _submit_and_block(self, bqm, verbosity, **params):
+    def _submit_and_block(self, sampler, bqm, verbosity, **params):
         "Submit a job and wait for it to complete"
         # This method is a workaround for a bug in dwave-system.  See
         # https://github.com/dwavesystems/dwave-system/issues/297#issuecomment-632384524
-        sampler = self.sampler
         sub_params = copy.copy(params)
         if self.qbsolv_sampler != None:
             sub_params["solver"] = self.qbsolv_sampler
@@ -490,8 +489,42 @@ class Sampler(object):
         result.resolve()
         return result
 
-    def acquire_samples(self, verbosity, physical, samples, anneal_time, spin_revs, postproc):
+    def _wrap_virtual_graph(self, sampler, bqm):
+        "Return a VirtualGraphComposite and an associated BQM."
+        # Explicitly scale the BQM to within the allowed h and J ranges.
+        bqm = bqm.copy()
+        props = sampler.properties
+        h_range = props["h_range"]
+        J_range = props["j_range"]
+        scale = min([h_range[0]/min(bqm.linear.values()),
+                     h_range[1]/max(bqm.linear.values()),
+                     J_range[0]/min(bqm.quadratic.values()),
+                     J_range[1]/max(bqm.quadratic.values())])
+        bqm.scale(scale)
+
+        # Define an identity mapping because the problem is already embedded.
+        id_embed = {q: [q] for q in bqm.linear.keys()}
+        id_embed.update({q[0]: [q[0]] for q in bqm.quadratic.keys()})
+        id_embed.update({q[1]: [q[1]] for q in bqm.quadratic.keys()})
+
+        # Return a VirtualGraph and the new BQM.
+        return VirtualGraphComposite(sampler=self.sampler, embedding=id_embed), bqm
+
+    def acquire_samples(self, verbosity, composites, physical, samples, anneal_time, spin_revs, postproc):
         "Acquire a number of samples from either a hardware or software sampler."
+        # Wrap composites around our sampler if requested.
+        sampler, bqm = self.sampler, physical.bqm
+        for c in composites:
+            try:
+                if c == "VirtualGraph":
+                    sampler, bqm = self._wrap_virtual_graph(sampler, bqm)
+                else:
+                    self.qmasm.abend('Internal error: unrecognized composite "%s"' % c)
+            except SystemExit as err:
+                raise err
+            except:
+                self.qmasm.abend("Failed to wrap a %s composite around the underlying sampler" % c)
+
         # Map abbreviated to full names for postprocessing types.
         postproc = {"none": "", "opt": "optimization", "sample": "sampling"}[postproc]
 
@@ -525,7 +558,7 @@ class Sampler(object):
                                  postprocess=postproc)
             for p in self.rejected_params:
                 del solver_params[p]
-            future = executor.submit(self._submit_and_block, physical.bqm, verbosity, **solver_params)
+            future = executor.submit(self._submit_and_block, self.sampler, physical.bqm, verbosity, **solver_params)
             results[i] = SampleSet.from_future(future)
 
         # Wait for the QMIs to finish.

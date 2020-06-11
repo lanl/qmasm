@@ -58,6 +58,9 @@ class ParseCommandLine(object):
                                help="when writing an output file, embed the problem in the physical topology even when not required (default: false)")
         cl_parser.add_argument("--qbsolv", action="store_true",
                                help="wrap the solver with QBSolv to break up large problems into pieces")
+        cl_parser.add_argument("--composites", metavar="COMP1,COMP2,...",
+                               default="",
+                               help='wrap the solver within one or more composites (currently only "virtualgraph")')
 
         # Parse the command line.
         cl_args = cl_parser.parse_args()
@@ -69,7 +72,20 @@ class ParseCommandLine(object):
             self.warn("A non-negative pin strength (%.20g) was specified\n" % cl_args.pin_weight)
         if cl_args.spin_revs > cl_args.samples:
             self.abend("The number of spin reversals is not allowed to exceed the number of samples")
+        self.parse_composite_string(cl_args.composites)  # Check for errors and discard the result.
         return cl_args
+
+    def parse_composite_string(self, cstr):
+        "Split the composites string into a list.  Abort on error."
+        comps = []
+        if cstr == "":
+            return comps
+        for c in cstr.split(","):
+            if c == "virtualgraph":
+                comps.append("VirtualGraph")
+            else:
+                self.abend('Unrecognized composite "%s"' % c)
+        return comps
 
     def get_command_line(self):
         "Return the command line as a string, properly quoted."
