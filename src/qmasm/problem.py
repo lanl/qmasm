@@ -241,64 +241,84 @@ class Problem(object):
         except KeyError:
             pass  # Probably a software solver.
 
+    def _describe_logical_to_physical(self, num2syms):
+        "Map each logical qubit to zero or more physical qubits."
+        log2phys = []   # Map from a logical qubit to a descriptive tuple
+        known_values = self.logical.merged_known_values()
+        pin_map = {k: v for k, v in self.logical.pinned}
+        for i in range(len(num2syms)):
+            if num2syms[i] == []:
+                log2phys.append(("unused",))
+                continue
+            try:
+                log2phys.append(("physical", sorted(self.embedding[i])))
+            except KeyError:
+                try:
+                    log2phys.append(("pinned", pin_map[i]))
+                except KeyError:
+                    try:
+                        log2phys.append(("known", known_values[i]))
+                    except KeyError:
+                        try:
+                            log2phys.append(("same_as", self.contractions[i]))
+                        except KeyError:
+                            if self.embedding == {}:
+                                log2phys.append(("physical", [i]))
+                            else:
+                                log2phys.append(("disconnected",))
+        return log2phys
+
     def _output_embedding_verbosely(self, max_sym_name_len, num2syms):
         "Verbosely output the mapping from logical to physical qubits."
         sys.stderr.write("Established a mapping from logical to physical qubits:\n\n")
         sys.stderr.write("    Logical  %-*s  Physical\n" % (max_sym_name_len, "Name(s)"))
         sys.stderr.write("    -------  %s  -------------------------\n" % ("-" * max_sym_name_len))
-        known_values = self.logical.merged_known_values()
-        pin_map = {k: v for k, v in self.logical.pinned}
-        for i in range(len(num2syms)):
-            if num2syms[i] == []:
+        log2phys_desc = self._describe_logical_to_physical(num2syms)
+        for i in range(len(log2phys_desc)):
+            desc = log2phys_desc[i]
+            tag = desc[0]
+            if tag == "unused":
                 continue
             name_list = " ".join(sorted(num2syms[i]))
-            try:
-                phys_list = " ".join(["%4d" % e for e in sorted(self.embedding[i])])
-            except KeyError:
-                try:
-                    phys_list = "[Pinned to %s]" % repr(pin_map[i])
-                except KeyError:
-                    try:
-                        phys_list = "[Provably %s]" % known_values[i]
-                    except KeyError:
-                        try:
-                            phys_list = "[Same as logical %d]" % self.contractions[i]
-                        except KeyError:
-                            if self.embedding == {}:
-                                phys_list = str(i)
-                            else:
-                                phys_list = "[Disconnected]"
-            sys.stderr.write("    %7d  %-*s  %s\n" % (i, max_sym_name_len, name_list, phys_list))
+            if tag == "physical":
+                phys_str = " ".join(["%4d" % e for e in desc[1]])
+            elif tag == "pinned":
+                phys_str = "[Pinned to %s]" % repr(desc[1])
+            elif tag == "known":
+                phys_str = "[Provably %s]" % repr(desc[1])
+            elif tag == "same_as":
+                phys_str = "[Same as logical %d]" % desc[1]
+            elif tag == "disconnected":
+                phys_str = "[Disconnected]"
+            else:
+                self.qmasm.abend('Internal error: Unknown tag type "%s"' % tag)
+            sys.stderr.write("    %7d  %-*s  %s\n" % (i, max_sym_name_len, name_list, phys_str))
         sys.stderr.write("\n")
 
     def _output_embedding_tersely(self, max_sym_name_len, num2syms):
         "Tersely output the mapping from logical to physical qubits."
         log2phys_comments = []
-        known_values = self.logical.merged_known_values()
-        pin_map = {k: v for k, v in self.logical.pinned}
-        for i in range(len(num2syms)):
-            if num2syms[i] == []:
+        log2phys_desc = self._describe_logical_to_physical(num2syms)
+        for i in range(len(log2phys_desc)):
+            desc = log2phys_desc[i]
+            tag = desc[0]
+            if tag == "unused":
                 continue
             name_list = " ".join(sorted(num2syms[i]))
-            try:
-                phys_list = " ".join(["%4d" % e for e in sorted(self.embedding[i])])
-            except KeyError:
-                try:
-                    phys_list = "[%s]" % repr(pin_map[i])
-                except KeyError:
-                    try:
-                        phys_list = "[%s]" % known_values[i]
-                    except KeyError:
-                        try:
-                            same = self.contractions[i]
-                            same_str = " ".join(self.qmasm.sym_map.to_symbols(same))
-                            phys_list = "[Same as %s]" % same_str
-                        except KeyError:
-                            if self.embedding == {}:
-                                phys_list = str(i)
-                            else:
-                                phys_list = "[Disconnected]"
-            log2phys_comments.append("# %s --> %s" % (name_list, phys_list))
+            if tag == "physical":
+                phys_str = " ".join(["%4d" % e for e in desc[1]])
+            elif tag == "pinned":
+                phys_str = "[%s]" % repr(desc[1])
+            elif tag == "known":
+                phys_str = "[%s]" % repr(desc[1])
+            elif tag == "same_as":
+                same_str = " ".join(self.qmasm.sym_map.to_symbols(desc[1]))
+                phys_str = "[Same as logical %s]" % same_str
+            elif tag == "disconnected":
+                phys_str = "[Disconnected]"
+            else:
+                self.qmasm.abend('Internal error: Unknown tag type "%s"' % tag)
+            log2phys_comments.append("# %s --> %s" % (name_list, phys_str))
         log2phys_comments.sort()
         sys.stderr.write("\n".join(log2phys_comments) + "\n")
 
