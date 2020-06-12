@@ -558,7 +558,7 @@ class Sampler(object):
                                  postprocess=postproc)
             for p in self.rejected_params:
                 del solver_params[p]
-            future = executor.submit(self._submit_and_block, self.sampler, physical.bqm, verbosity, **solver_params)
+            future = executor.submit(self._submit_and_block, sampler, bqm, verbosity, **solver_params)
             results[i] = SampleSet.from_future(future)
 
         # Wait for the QMIs to finish.
