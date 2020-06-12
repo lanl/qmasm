@@ -119,7 +119,7 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
                 max_sym_name_len = max(max_sym_name_len, len(repr(num2syms[n])) - 1)
 
         # Output the embedding.
-        physical.output_embedding(cl_args.verbose, max_sym_name_len, num2syms)
+        physical.output_embedding(cl_args.verbose, max_sym_name_len, all_num2syms)
 
         # Abort if any variables failed to embed.
         if physical.embedding != {}:

@@ -241,8 +241,10 @@ class Problem(object):
         except KeyError:
             pass  # Probably a software solver.
 
-    def _describe_logical_to_physical(self, num2syms):
+    def _describe_logical_to_physical(self, num2syms, reduce_contractions):
         "Map each logical qubit to zero or more physical qubits."
+        # On the first pass, assign a descriptive tuple to each logical qubit
+        # number.
         log2phys = []   # Map from a logical qubit to a descriptive tuple
         known_values = self.logical.merged_known_values()
         pin_map = {k: v for k, v in self.logical.pinned}
@@ -266,20 +268,36 @@ class Problem(object):
                                 log2phys.append(("physical", [i]))
                             else:
                                 log2phys.append(("disconnected",))
+
+        # On the second, optional, pass, replace same_as tuples with whatever
+        # they transitively point to.
+        if reduce_contractions:
+            for i in range(len(log2phys)):
+                while log2phys[i][0] == "same_as":
+                    log2phys[i] = log2phys[log2phys[i][1]]
         return log2phys
 
-    def _output_embedding_verbosely(self, max_sym_name_len, num2syms):
+    def _output_embedding_verbosely(self, max_sym_name_len, num2syms, verbosity):
         "Verbosely output the mapping from logical to physical qubits."
         sys.stderr.write("Established a mapping from logical to physical qubits:\n\n")
         sys.stderr.write("    Logical  %-*s  Physical\n" % (max_sym_name_len, "Name(s)"))
         sys.stderr.write("    -------  %s  -------------------------\n" % ("-" * max_sym_name_len))
-        log2phys_desc = self._describe_logical_to_physical(num2syms)
+        log2phys_desc = self._describe_logical_to_physical(num2syms, verbosity < 2)
         for i in range(len(log2phys_desc)):
+            # Ignore unused logical qubits and "uninteresting" symbols (i.e.,
+            # those containing a "$").
             desc = log2phys_desc[i]
             tag = desc[0]
             if tag == "unused":
                 continue
-            name_list = " ".join(sorted(num2syms[i]))
+            syms = num2syms[i]
+            if verbosity < 2:
+                syms = [s for s in syms if "$" not in s]
+            if len(syms) == 0:
+                continue
+            name_list = " ".join(sorted(syms))
+
+            # Determine how to display the qubit based on the tag.
             if tag == "physical":
                 phys_str = " ".join(["%4d" % e for e in desc[1]])
             elif tag == "pinned":
@@ -298,13 +316,20 @@ class Problem(object):
     def _output_embedding_tersely(self, max_sym_name_len, num2syms):
         "Tersely output the mapping from logical to physical qubits."
         log2phys_comments = []
-        log2phys_desc = self._describe_logical_to_physical(num2syms)
+        log2phys_desc = self._describe_logical_to_physical(num2syms, True)
         for i in range(len(log2phys_desc)):
+            # Ignore unused logical qubits and "uninteresting" symbols (i.e.,
+            # those containing a "$").
             desc = log2phys_desc[i]
             tag = desc[0]
             if tag == "unused":
                 continue
-            name_list = " ".join(sorted(num2syms[i]))
+            syms = [s for s in num2syms[i] if "$" not in s]
+            if len(syms) == 0:
+                continue
+            name_list = " ".join(sorted(syms))
+
+            # Determine how to display the qubit based on the tag.
             if tag == "physical":
                 phys_str = " ".join(["%4d" % e for e in desc[1]])
             elif tag == "pinned":
@@ -325,7 +350,7 @@ class Problem(object):
     def output_embedding(self, verbosity, max_sym_name_len, num2syms):
         "Output the mapping from logical to physical qubits."
         if verbosity > 0:
-            self._output_embedding_verbosely(max_sym_name_len, num2syms)
+            self._output_embedding_verbosely(max_sym_name_len, num2syms, verbosity)
         else:
             self._output_embedding_tersely(max_sym_name_len, num2syms)
 
