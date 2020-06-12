@@ -318,12 +318,16 @@ class Sampler(object):
             sys.stderr.write("  No existing embedding found in the embedding cache.\n")
 
         # Minor-embed the logical problem onto the hardware topology.
+        embed_args = {"tries": 100, "max_no_improvement": 25}
         if verbosity < 2:
-            physical.embedding = self._find_embedding(edges, hw_adj)
+            physical.embedding = self._find_embedding(edges, hw_adj, **embed_args)
         else:
             sys.stderr.write("  Running the embedder.\n\n")
-            physical.embedding = self._find_embedding(edges, hw_adj, verbose=1)
+            embed_args["verbose"] = verbosity - 1
+            physical.embedding = self._find_embedding(edges, hw_adj, **embed_args)
             sys.stderr.write("\n")
+        if physical.embedding == {}:
+            self.qmasm.abend("Failed to find an embedding")
 
         # Cache the embedding for next time.
         ec.write(physical.embedding)
