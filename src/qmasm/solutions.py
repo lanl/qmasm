@@ -51,8 +51,12 @@ class Solution:
                 pass  # We handle non-embedded symbols below.
 
         # Include values inferred from roof duality.
-        for s, spin in self.problem.logical.known_values.items():
-            sym2bool[s] = spin == 1
+        for s, n in all_sym2num:
+            try:
+                spin = self.problem.logical.known_values[n]
+                sym2bool[s] = spin == 1
+            except KeyError:
+                pass
 
         # Include variables pinned explicitly by the program or user.
         for num, bval in self.problem.logical.pinned:
