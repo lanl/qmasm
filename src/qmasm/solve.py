@@ -9,10 +9,12 @@ import hashlib
 import json
 import marshal
 import minorminer
+import networkx as nx
 import os
 import re
 import sys
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dimod import ExactSolver, SampleSet
 from dwave.cloud import Client
@@ -274,7 +276,39 @@ class Sampler(object):
             embedding = json.loads(pipe.readline())
             return {int(k): v for k, v in embedding.items()}
 
-    def find_problem_embedding(self, logical, topology_file, verbosity):
+    def _adj_subset(self, hw_adj, num):
+        "Return a subset of a given size of the hardware adjacency graph."
+        # Construct a NetworkX graph from the given adjacency list.
+        G = nx.Graph()
+        for n1, ns in hw_adj.items():
+            G.add_edges_from([(n1, n2) for n2 in ns])
+
+        # Perform a breadth-first traversal of the graph.
+        s0 = min(G.nodes)
+        bfs = nx.bfs_edges(G, s0, depth_limit=num)
+
+        # Find the first num nodes encountered in the BFS traversal.
+        nodes = {s0}
+        for edge in bfs:
+            nodes.add(edge[1])
+            if len(nodes) >= num:
+                break
+
+        # Find all edges connecting the first num nodes, and convert these to
+        # the format Ocean expects.
+        adj = defaultdict(lambda: [])
+        for u, v in G.subgraph(nodes).edges:
+            adj[u].append(v)
+            adj[v].append(u)
+        return adj
+
+    def _impose_qubit_packing(self, max_qubits, edges, hw_adj, embed_args):
+        'Pack qubits into a "corner" of the physical topology.'
+        packed_adj = self._adj_subset(hw_adj, max_qubits)
+        packed_embedding = self._find_embedding(edges, packed_adj, **embed_args)
+        return packed_embedding
+
+    def find_problem_embedding(self, logical, topology_file, max_qubits, verbosity):
         """Find an embedding of a problem on a physical topology, if
         necessary.  Return a physical Sampler object."""
         # Create a physical Problem.
@@ -321,9 +355,14 @@ class Sampler(object):
         embed_args = {"tries": 100,
                       "max_no_improvement": 25,
                       "verbose": max(verbosity - 1, 0)}
-        if verbosity >= 2:
-            sys.stderr.write("  Running the embedder.\n\n")
-        physical.embedding = self._find_embedding(edges, hw_adj, **embed_args)
+        if max_qubits == None:
+            if verbosity >= 2:
+                sys.stderr.write("  Running the embedder.\n\n")
+            physical.embedding = self._find_embedding(edges, hw_adj, **embed_args)
+        else:
+            if verbosity >= 2:
+                sys.stderr.write("  Running the embedder, limiting it to %d qubits.\n\n" % max_qubits)
+            physical.embedding = self._impose_qubit_packing(max_qubits, edges, hw_adj, embed_args)
         if verbosity >= 2:
             sys.stderr.write("\n")
         if physical.embedding == {}:
@@ -335,11 +374,11 @@ class Sampler(object):
             sys.stderr.write("  Caching the embedding as %s.\n\n" % ec.hash)
         return physical
 
-    def embed_problem(self, logical, topology_file, verbosity):
+    def embed_problem(self, logical, topology_file, max_qubits, verbosity):
         "Embed a problem on a physical topology, if necessary."
         # Embed the problem.  We first filter out isolated variables that don't
         # appear in the embedding graph to prevent embed_bqm from complaining.
-        physical = self.find_problem_embedding(logical, topology_file, verbosity)
+        physical = self.find_problem_embedding(logical, topology_file, max_qubits, verbosity)
         if physical.embedding == {}:
             # No embedding is necessary.
             physical.logical = logical
