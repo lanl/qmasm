@@ -10,13 +10,14 @@ import sys
 class AST(object):
     "Represent an abstract syntax tree."
 
-    def __init__(self, qmasm, type, value, kids=[]):
-        self.qmasm = qmasm
+    def __init__(self, qmasm_obj, type, value, kids=[]):
+        self.qmasm = qmasm_obj
         self.type = type
         self.value = value
         self.kids = kids
-        self.code = lambda isb: qmasm.abend("Internal error: Attempt to evaluate an AST without compiling it first")     # Function that evaluates the AST given a mapping from identifiers to bits
+        self.code = lambda isb: self.qmasm.abend("Internal error: Attempt to evaluate an AST without compiling it first")     # Function that evaluates the AST given a mapping from identifiers to bits
         self._str = None   # Memoized string representation
+        self.pin_parser = qmasm.parse.PinParser()
 
     def _needs_parens(self):
         "Return True if an AST node should be parenthesized."
@@ -75,14 +76,17 @@ class AST(object):
         pass
 
     def _evaluate_ident(self, i2b):
-        "Evaluate a variable."
-        try:
-            bit = i2b[self.value]
-            if bit == None:
-                raise self.EvaluationError("Unused variable %s" % self.value)
-            return bit
-        except KeyError:
-            raise self.EvaluationError("Undefined variable %s" % self.value)
+        "Evaluate a variable, including array variables."
+        val = 0
+        for v in self.pin_parser.parse_lhs(self.value):
+            try:
+                bit = i2b[v]
+                if bit == None:
+                    raise self.EvaluationError("Unused variable %s" % v)
+                val = val*2 + bit
+            except KeyError:
+                raise self.EvaluationError("Undefined variable %s" % v)
+        return val
 
     def _compile_unary(self, kvals):
         "Compile a unary expression."
@@ -167,6 +171,7 @@ class AST(object):
         return lambda i2b: self._evaluate_if_expr(i2b, kvals)
 
     def _compile_node(self):
+
         """Compile the AST to a function that returns either True or False
         given a mapping from identifiers to bits."""
         kvals = [k._compile_node() for k in self.kids]
@@ -213,7 +218,7 @@ class AssertParser(object):
 
     def __init__(self, qmasm):
         self.qmasm = qmasm
-    
+
     class ParseError(Exception):
         pass
 
