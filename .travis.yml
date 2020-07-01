@@ -10,7 +10,7 @@ install:
 
 script:
   - cd examples
-  - test "$(qmasm --format=qmasm --solver=neal feature-test.qmasm | md5sum | awk '{print $1}')" = 3298b7d3632b9c796b298c5ecc4c7292
+  - test "$(qmasm --format=qmasm --solver=neal feature-test.qmasm | md5sum | awk '{print $1}')" = 08399934cd8092743d5a69f4ec637701
   - test "$(qmasm --solver=tabu 1of5.qmasm | md5sum | awk '{print $1}')" = 38d9318cd4f4d34d1aafadcfca145362
   - test "$(qmasm --solver=exact --run 1of5.qmasm | md5sum | awk '{print $1}')" = 5296b7ddbf24c9a2f7785acb782ea2c8
   - test "$(qmasm --solver=exact --run -v 1of5.qmasm 2>&1 | wc -l)" -eq 117
