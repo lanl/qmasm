@@ -118,3 +118,4 @@ six[2:0] := 110
 six[2] = six[1]
 six[1] /= six[0]
 six[2:0] -> six[0:2]  # Convert from 110 to 011.
+!assert six[2:0] = 3
