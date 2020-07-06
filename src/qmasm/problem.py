@@ -5,6 +5,7 @@
 
 import copy
 import dimod
+import re
 import sys
 from collections import defaultdict
 from qmasm.assertions import AssertParser
@@ -92,6 +93,17 @@ class Problem(object):
             self.bqm_vars.add(u)
             self.bqm_vars.add(v)
         return self.bqm_vars
+
+    def numeric_variables(self):
+        """Return a mapping from a variable name to a list of physical qubits
+        to which it should be mapped."""
+        var2phys = {}
+        num_re = re.compile(r'\d+')
+        for s, n in self.qmasm.sym_map.symbol_number_items():
+            nums = num_re.findall(s)
+            if nums != []:
+                var2phys[n] = [int(k) for k in nums]
+        return var2phys
 
     def _edges_to_adj_list(self, edges):
         "Convert a list of edges to an adjacency list."

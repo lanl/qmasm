@@ -28,7 +28,7 @@ from tabu import TabuSampler
 class EmbeddingCache(object):
     "Read and write an embedding cache file."
 
-    def __init__(self, qmasm, edges, adj):
+    def __init__(self, qmasm, edges, adj, var2phys):
         # Ensure we have a valid cache directory.
         self.hash = None
         try:
@@ -43,6 +43,7 @@ class EmbeddingCache(object):
         sha = hashlib.sha1()
         sha.update(str(sorted(edges)).encode("utf-8"))
         sha.update(str(sorted(adj)).encode("utf-8"))
+        sha.update(str(sorted(var2phys.items())).encode("utf-8"))
         self.hash = sha.hexdigest()
 
     def read(self):
@@ -302,13 +303,13 @@ class Sampler(object):
             adj[v].append(u)
         return adj
 
-    def _impose_qubit_packing(self, max_qubits, edges, hw_adj, embed_args):
+    def _impose_qubit_packing(self, max_qubits, edges, hw_adj, **embed_args):
         'Pack qubits into a "corner" of the physical topology.'
         packed_adj = self._adj_subset(hw_adj, max_qubits)
-        packed_embedding = self._find_embedding(edges, packed_adj, **embed_args)
+        packed_embedding = self._find_embedding(edges, packed_adj, embed_args)
         return packed_embedding
 
-    def find_problem_embedding(self, logical, topology_file, max_qubits, verbosity):
+    def find_problem_embedding(self, logical, topology_file, max_qubits, physical_nums, verbosity):
         """Find an embedding of a problem on a physical topology, if
         necessary.  Return a physical Sampler object."""
         # Create a physical Problem.
@@ -323,6 +324,11 @@ class Sampler(object):
             hw_adj = self.read_hardware_adjacency(topology_file, verbosity)
         physical.hw_adj = hw_adj
 
+        # Identify any forced variable-to-qubit mappings.
+        forced_mappings = {}
+        if physical_nums:
+            forced_mappings = physical.numeric_variables()
+
         # See if we already have an embedding in the embedding cache.
         edges = logical.bqm.quadratic
         if hw_adj == None or len(edges) == 0:
@@ -331,7 +337,7 @@ class Sampler(object):
             return physical
         if verbosity >= 2:
             sys.stderr.write("Minor-embedding the logical problem onto the physical topology:\n\n")
-        ec = EmbeddingCache(self.qmasm, edges, hw_adj)
+        ec = EmbeddingCache(self.qmasm, edges, hw_adj, forced_mappings)
         if verbosity >= 2:
             if ec.cachedir == None:
                 sys.stderr.write("  No embedding cache directory was specified ($QMASMCACHE).\n")
@@ -354,6 +360,7 @@ class Sampler(object):
         # Minor-embed the logical problem onto the hardware topology.
         embed_args = {"tries": 100,
                       "max_no_improvement": 25,
+                      "fixed_chains": forced_mappings,
                       "verbose": max(verbosity - 1, 0)}
         if max_qubits == None:
             if verbosity >= 2:
@@ -362,7 +369,7 @@ class Sampler(object):
         else:
             if verbosity >= 2:
                 sys.stderr.write("  Running the embedder, limiting it to %d qubits.\n\n" % max_qubits)
-            physical.embedding = self._impose_qubit_packing(max_qubits, edges, hw_adj, embed_args)
+            physical.embedding = self._impose_qubit_packing(max_qubits, edges, hw_adj, **embed_args)
         if verbosity >= 2:
             sys.stderr.write("\n")
         if physical.embedding == {}:
@@ -374,11 +381,11 @@ class Sampler(object):
             sys.stderr.write("  Caching the embedding as %s.\n\n" % ec.hash)
         return physical
 
-    def embed_problem(self, logical, topology_file, max_qubits, verbosity):
+    def embed_problem(self, logical, topology_file, max_qubits, physical_nums, verbosity):
         "Embed a problem on a physical topology, if necessary."
         # Embed the problem.  We first filter out isolated variables that don't
         # appear in the embedding graph to prevent embed_bqm from complaining.
-        physical = self.find_problem_embedding(logical, topology_file, max_qubits, verbosity)
+        physical = self.find_problem_embedding(logical, topology_file, max_qubits, physical_nums, verbosity)
         if physical.embedding == {}:
             # No embedding is necessary.
             physical.logical = logical
@@ -389,8 +396,11 @@ class Sampler(object):
         for q, wt in physical.bqm.linear.items():
             if q not in physical.embedding and wt != 0.0:
                 self.qmasm.abend("Logical qubit %d has a nonzero weight (%.5g) but was not embedded" % (q, wt))
-        physical.bqm = embed_bqm(physical.bqm, physical.embedding,
-                                 physical.hw_adj, -physical.qmasm.chain_strength)
+        try:
+            physical.bqm = embed_bqm(physical.bqm, physical.embedding,
+                                     physical.hw_adj, -physical.qmasm.chain_strength)
+        except Exception as e:
+            self.qmasm.abend("Failed to embed the problem: %s" % e)
 
         # Update weights and strengths.  Maintain a reference to the
         # logical problem.

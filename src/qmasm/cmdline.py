@@ -63,6 +63,8 @@ class ParseCommandLine(object):
                                help='wrap the solver within one or more composites (currently only "virtualgraph")')
         cl_parser.add_argument("--pack-qubits", metavar="POS_INT", type=int,
                                help='attempt to pack the problem into an N-qubit "corner" of the physical topology during embedding')
+        cl_parser.add_argument("--physical", action="store_true",
+                               help="map variables containing a number to the physical qubits represented by that number")
 
         # Parse the command line.
         cl_args = cl_parser.parse_args()
