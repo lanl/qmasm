@@ -2,6 +2,7 @@ QMASM: A Quantum Macro Assembler
 ================================
 
 [![Build Status](https://travis-ci.org/lanl/qmasm.svg?branch=master)](https://travis-ci.org/lanl/qmasm)
+[![PyPI version](https://badge.fury.io/py/qmasm.svg)](https://badge.fury.io/py/qmasm)
 
 Description
 -----------
