@@ -21,6 +21,7 @@ from dwave.cloud import Client
 from dwave.embedding import embed_bqm
 from dwave.system import DWaveSampler, EmbeddingComposite, VirtualGraphComposite
 from dwave_qbsolv import QBSolv
+from hybrid.reference.kerberos import KerberosSampler
 from neal import SimulatedAnnealingSampler
 from qmasm.solutions import Solutions
 from tabu import TabuSampler
@@ -74,12 +75,14 @@ class Sampler(object):
 
     # Keep track of parameters rejected by the solver.
     unexp_arg_re = re.compile(r"got an unexpected keyword argument '(\w+)'")
+    not_param_re = re.compile(r"(\w+) is not a parameter of this solver")
     rejected_params = []
 
     def __init__(self, qmasm, profile=None, solver=None, qbsolv=False):
         "Acquire either a software sampler or a sampler representing a hardware solver."
         self.qmasm = qmasm
-        self.sampler, self.client_info = self._get_sampler(profile, solver)
+        self.profile = profile
+        self.sampler, self.client_info = self.get_sampler(profile, solver)
         if qbsolv:
             if solver == None:
                 self.qbsolv_sampler = EmbeddingComposite(self.sampler)
@@ -90,8 +93,8 @@ class Sampler(object):
         else:
             self.qbsolv_sampler = None
 
-    def _get_sampler(self, profile, solver):
-        "Return a dimod.Sampler object."
+    def get_sampler(self, profile, solver):
+        "Return a dimod.Sampler object and associated solver information."
         # Handle built-in software samplers as special cases.
         info = {}
         if solver != None:
@@ -102,6 +105,8 @@ class Sampler(object):
             return SimulatedAnnealingSampler(), info
         elif solver == "tabu":
             return TabuSampler(), info
+        elif solver == "kerberos":
+            return KerberosSampler(), info
 
         # In the common case, read the configuration file, either the
         # default or the one named by the DWAVE_CONFIG_FILE environment
@@ -535,7 +540,14 @@ class Sampler(object):
             except TypeError as err:
                 match = self.unexp_arg_re.search(str(err))
                 if match == None:
-                    raise
+                    raise err
+                p = match[1]
+                self.rejected_params.append(p)
+                del sub_params[p]
+            except KeyError as err:
+                match = self.not_param_re.search(str(err))
+                if match == None:
+                    raise err
                 p = match[1]
                 self.rejected_params.append(p)
                 del sub_params[p]

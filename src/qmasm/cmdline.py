@@ -34,7 +34,7 @@ class ParseCommandLine(object):
         cl_parser.add_argument("--profile", type=str, default=None, metavar="NAME",
                                help="Profile name from dwave.conf to use")
         cl_parser.add_argument("--solver", type=str, default=None, metavar="NAME",
-                               help='Solver name from dwave.conf to use or one of the special names "exact", "sim-anneal", or "tabu"')
+                               help='Solver name from dwave.conf to use or one of the special names "exact", "sim-anneal", "tabu", or "kerberos"')
         cl_parser.add_argument("--chain-strength", metavar="NEG_NUM", type=float,
                                help="negative-valued chain strength (default: automatic)")
         cl_parser.add_argument("--pin-weight", metavar="NEG_NUM", type=float,
