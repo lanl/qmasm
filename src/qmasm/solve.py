@@ -105,16 +105,28 @@ class Sampler(object):
             return SimulatedAnnealingSampler(), info
         elif solver == "tabu":
             return TabuSampler(), info
-        elif solver == "kerberos":
-            return KerberosSampler(), info
+        elif solver == "kerberos" or (solver != None and solver[:9] == "kerberos,"):
+            base_sampler = KerberosSampler()
+            try:
+                sub_sampler_name = solver.split(",")[1]
+            except IndexError:
+                sub_sampler_name = None
+            sub_sampler, sub_info = self.get_sampler_from_config(profile, sub_sampler_name, "qpu")
+            self.kerberos_sampler = sub_sampler
+            info["sub_solver_name"] = sub_info["solver_name"]
+            return base_sampler, info
 
         # In the common case, read the configuration file, either the
         # default or the one named by the DWAVE_CONFIG_FILE environment
         # variable.
+        return self.get_sampler_from_config(profile, solver)
+
+    def get_sampler_from_config(self, profile=None, solver=None, sampler_type=None):
+        "Return a dimod.Sampler object found in the user's configuration file plus associated solver information."
         if profile != None:
             info["profile"] = profile
         try:
-            with Client.from_config(profile=profile) as client:
+            with Client.from_config(profile=profile, client=sampler_type) as client:
                 if solver == None:
                     solver = client.default_solver
                 else:
@@ -620,6 +632,10 @@ class Sampler(object):
                                  annealing_time=anneal_time,
                                  num_spin_reversal_transforms=spin_rev_list[i],
                                  postprocess=postproc)
+            try:
+                solver_params["qpu_sampler"] = self.kerberos_sampler
+            except AttributeError:
+                pass
             for p in self.rejected_params:
                 del solver_params[p]
             future = executor.submit(self._submit_and_block, sampler, bqm, verbosity, **solver_params)
