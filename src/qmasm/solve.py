@@ -551,7 +551,6 @@ class Sampler(object):
                 p = match[1]
                 self.rejected_params.append(p)
                 del sub_params[p]
-        result.resolve()
         return result
 
     def _wrap_virtual_graph(self, sampler, bqm):

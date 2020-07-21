@@ -54,7 +54,7 @@ class Problem(object):
     def generate_bqm(self):
         "Generate a BinaryQuadraticModel version of the Problem."
         # Create an Ising-model BQM.
-        bqm = dimod.BinaryQuadraticModel(self.weights, self.strengths, 0, dimod.SPIN, problem=self)
+        bqm = dimod.BinaryQuadraticModel(self.weights, self.strengths, 0, dimod.SPIN)
 
         # Pin all variables the user asked to pin.
         bool2spin = {False: -1, True: +1}
