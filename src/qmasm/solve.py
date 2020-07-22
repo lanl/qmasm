@@ -142,6 +142,16 @@ class Sampler(object):
         except Exception as err:
             self.qmasm.abend("Failed to construct a sampler (%s)" % str(err))
 
+    def _recursive_properties(self, sampler):
+        "Perform a postfix traversal of a sampler's children's properties."
+        if sampler == None:
+            return {}
+        props = {}
+        for c in getattr(sampler, "children", []):
+            props.update(c.properties)
+        props.update(sampler.properties)
+        return props
+
     def show_properties(self, verbose):
         "Output either short or all solver properties."
         if verbose == 0:
@@ -149,16 +159,10 @@ class Sampler(object):
 
         # Combine properties from various sources into a single dictionary.
         props = self.client_info.copy()
-        try:
-            props.update(self.kerberos_sampler.properties)
-        except AttributeError:
-            try:
-                props.update(self.qbsolv_sampler.child.properties)  # Structured
-            except AttributeError:
-                try:
-                    props.update(self.qbsolv_sampler.properties)  # Unstructured
-                except AttributeError:
-                    props.update(self.sampler.properties)
+        for s in [getattr(self, "kerberos_sampler", None),
+                  getattr(self, "qbsolv_sampler", None),
+                  self.sampler]:
+            props.update(self._recursive_properties(s))
 
         # Determine the width of the widest key.
         max_key_len = len("Parameter")
