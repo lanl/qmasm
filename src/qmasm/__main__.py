@@ -71,7 +71,7 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
             logical.simplify_problem(cl_args.verbose)
 
         # Establish a connection to a D-Wave or software sampler.
-        sampler = Sampler(self, profile=cl_args.profile, solver=cl_args.solver, qbsolv=cl_args.qbsolv)
+        sampler = Sampler(self, profile=cl_args.profile, solver=cl_args.solver)
         sampler.show_properties(cl_args.verbose)
 
         # Convert user-specified chains, anti-chains, and pins to assertions.

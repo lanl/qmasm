@@ -34,7 +34,7 @@ class ParseCommandLine(object):
         cl_parser.add_argument("--profile", type=str, default=None, metavar="NAME",
                                help="Profile name from dwave.conf to use")
         cl_parser.add_argument("--solver", type=str, default=None, metavar="NAME",
-                               help='Solver name from dwave.conf to use or one of the special names "exact", "sim-anneal", "tabu", or "kerberos[,<solver>]"')
+                               help='Solver name from dwave.conf to use or one of the special names "exact", "sim-anneal", "tabu", "kerberos[,<solver>]", or "qbsolv[,<solver>]"')
         cl_parser.add_argument("--chain-strength", metavar="NEG_NUM", type=float,
                                help="negative-valued chain strength (default: automatic)")
         cl_parser.add_argument("--pin-weight", metavar="NEG_NUM", type=float,
@@ -56,8 +56,6 @@ class ParseCommandLine(object):
                                help='show valid solutions, all solutions, or the best (even if invalid) solutions (default: "valid")')
         cl_parser.add_argument("--always-embed", action="store_true",
                                help="when writing an output file, embed the problem in the physical topology even when not required (default: false)")
-        cl_parser.add_argument("--qbsolv", action="store_true",
-                               help="wrap the solver with QBSolv to break up large problems into pieces")
         cl_parser.add_argument("--composites", metavar="COMP1,COMP2,...",
                                default="",
                                help='wrap the solver within one or more composites (currently only "virtualgraph")')

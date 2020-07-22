@@ -78,20 +78,11 @@ class Sampler(object):
     not_param_re = re.compile(r"(\w+) is not a parameter of this solver")
     rejected_params = []
 
-    def __init__(self, qmasm, profile=None, solver=None, qbsolv=False):
+    def __init__(self, qmasm, profile=None, solver=None):
         "Acquire either a software sampler or a sampler representing a hardware solver."
         self.qmasm = qmasm
         self.profile = profile
         self.sampler, self.client_info = self.get_sampler(profile, solver)
-        if qbsolv:
-            if solver == None:
-                self.qbsolv_sampler = EmbeddingComposite(self.sampler)
-            else:
-                self.qbsolv_sampler = self.sampler
-            self.sampler = QBSolv()
-            self.client_info["solver_name"] = "QBSolv + " + self.client_info["solver_name"]
-        else:
-            self.qbsolv_sampler = None
 
     def get_sampler(self, profile, solver):
         "Return a dimod.Sampler object and associated solver information."
@@ -113,7 +104,20 @@ class Sampler(object):
                 sub_sampler_name = None
             sub_sampler, sub_info = self.get_sampler_from_config(profile, sub_sampler_name, "qpu")
             self.kerberos_sampler = sub_sampler
-            info["sub_solver_name"] = sub_info["solver_name"]
+            info["solver_name"] = "kerberos + %s" % sub_info["solver_name"]
+            return base_sampler, info
+        elif solver == "qbsolv" or (solver != None and solver[:7] == "qbsolv,"):
+            base_sampler = QBSolv()
+            try:
+                sub_sampler_name = solver.split(",")[1]
+            except IndexError:
+                sub_sampler_name = None
+            sub_sampler, sub_info = self.get_sampler(profile, sub_sampler_name)
+            if getattr(sub_sampler, "structure", None) == None:
+                self.qbsolv_sampler = sub_sampler
+            else:
+                self.qbsolv_sampler = EmbeddingComposite(sub_sampler)
+            info["solver_name"] = "QBSolv + %s" % sub_info["solver_name"]
             return base_sampler, info
 
         # In the common case, read the configuration file, either the
@@ -145,10 +149,16 @@ class Sampler(object):
 
         # Combine properties from various sources into a single dictionary.
         props = self.client_info.copy()
-        if self.qbsolv_sampler != None:
-            props.update(self.qbsolv_sampler.properties)
-        else:
-            props.update(self.sampler.properties)
+        try:
+            props.update(self.kerberos_sampler.properties)
+        except AttributeError:
+            try:
+                props.update(self.qbsolv_sampler.child.properties)  # Structured
+            except AttributeError:
+                try:
+                    props.update(self.qbsolv_sampler.properties)  # Unstructured
+                except AttributeError:
+                    props.update(self.sampler.properties)
 
         # Determine the width of the widest key.
         max_key_len = len("Parameter")
@@ -533,15 +543,11 @@ class Sampler(object):
         merged.info["timing"] = timing
         return merged
 
-    def _submit_and_block(self, sampler, bqm, verbosity, **params):
+    def _submit_and_block(self, sampler, bqm, **params):
         "Submit a job and wait for it to complete"
         # This method is a workaround for a bug in dwave-system.  See
         # https://github.com/dwavesystems/dwave-system/issues/297#issuecomment-632384524
         sub_params = copy.copy(params)
-        if self.qbsolv_sampler != None:
-            sub_params["solver"] = self.qbsolv_sampler
-            if verbosity >= 2:
-                sub_params["verbosity"] = 10   # Arbitrary large number
         result = None
         while result == None:
             # I don't know of a way to query a solver for the parameters it
@@ -618,7 +624,7 @@ class Sampler(object):
         # error instead.  Note that the following is imperfect because of C
         # buffering.  Setting PYTHONUNBUFFERED=1 in the environment seems to
         # help, though.
-        if self.qbsolv_sampler != None:
+        if getattr(self, "qbsolv_sampler", None) != None:
             stdout_fileno = os.dup(sys.stdout.fileno())
             os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
 
@@ -636,9 +642,15 @@ class Sampler(object):
                 solver_params["qpu_sampler"] = self.kerberos_sampler
             except AttributeError:
                 pass
+            try:
+                solver_params["solver"] = self.qbsolv_sampler
+                if verbosity >= 2:
+                    solver_params["verbosity"] = 10   # Arbitrary large number
+            except AttributeError:
+                pass
             for p in self.rejected_params:
                 del solver_params[p]
-            future = executor.submit(self._submit_and_block, sampler, bqm, verbosity, **solver_params)
+            future = executor.submit(self._submit_and_block, sampler, bqm, **solver_params)
             results[i] = SampleSet.from_future(future)
 
         # Wait for the QMIs to finish.
@@ -681,7 +693,7 @@ class Sampler(object):
         answer.info["timing"]["round_trip_time"] = (overall_end_time - overall_start_time)//1000
 
         # Reset standard output.
-        if self.qbsolv_sampler != None:
+        if getattr(self, "qbsolv_sampler", None) != None:
             os.dup2(stdout_fileno, sys.stdout.fileno())
 
         # Return a Solutions object for further processing.

@@ -17,5 +17,5 @@ script:
   - qmasm --solver=exact --run -v -v and4.qmasm 2>&1 | grep -q '16 excluding duplicate variable assignments'
   - test "$(qmasm --samples=1234 -v --solver=neal --run --pin="x10 := true" circsat.qmasm | awk '$2 == "True" && $1 ~ /^x(1|2|10)$/ {good++; next} $2 == "False" && $1 == "x3" {good++; next} $2 ~ /^(True|False)$/ {bad++} END {print good+0, bad+0}')" = "4 0"
   - test "$(qmasm --solver=tabu --run -v -v --pin="x10 := true" circsat.qmasm | grep -c PASS:)" -eq 22
-  - test "$(qmasm --qbsolv --solver=neal --run -v -v --pin="x10 := true" circsat.qmasm | grep -c PASS:)" -eq 22
+  - test "$(qmasm --solver=qbsolv,neal --run -v -v --pin="x10 := true" circsat.qmasm | grep -c PASS:)" -eq 22
   - qmasm --solver=tabu --run --values=ints --pin="in[4:1] := 1001" sort4.qmasm | grep -q -E 'out.*11000.*24'
