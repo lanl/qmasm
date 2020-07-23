@@ -64,7 +64,7 @@ class ParseCommandLine(object):
                                help='attempt to pack the problem into an N-qubit "corner" of the physical topology during embedding')
         cl_parser.add_argument("--physical", action="store_true",
                                help="map variables containing a number to the physical qubits represented by that number")
-        cl_parser.add_argument("--schedule", metavar="(T,S),...", type=str,
+        cl_parser.add_argument("--schedule", metavar="T,S,...", type=str,
                                help="specify an annealing schedule as alternating lists of times (microseconds) and annealing fractions (0.0 to 1.0)")
 
         # Parse the command line.
