@@ -146,9 +146,11 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         if cl_args.verbose >= 1:
             sys.stderr.write("Submitting the problem to the %s solver.\n\n" % sampler.client_info["solver_name"])
         composites = self.parse_composite_string(cl_args.composites)
+        anneal_sched = self.parse_anneal_sched_string(cl_args.schedule)
         solutions = sampler.acquire_samples(cl_args.verbose,
                                             composites,
                                             physical,
+                                            anneal_sched,
                                             cl_args.samples,
                                             cl_args.anneal_time,
                                             cl_args.spin_revs,

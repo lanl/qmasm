@@ -4,6 +4,7 @@
 ###################################
 
 import argparse
+import re
 import shlex
 import string
 import sys
@@ -63,6 +64,8 @@ class ParseCommandLine(object):
                                help='attempt to pack the problem into an N-qubit "corner" of the physical topology during embedding')
         cl_parser.add_argument("--physical", action="store_true",
                                help="map variables containing a number to the physical qubits represented by that number")
+        cl_parser.add_argument("--schedule", metavar="(T,S),...", type=str,
+                               help="specify an annealing schedule as alternating lists of times (microseconds) and annealing fractions (0.0 to 1.0)")
 
         # Parse the command line.
         cl_args = cl_parser.parse_args()
@@ -75,6 +78,7 @@ class ParseCommandLine(object):
         if cl_args.spin_revs > cl_args.samples:
             self.abend("The number of spin reversals is not allowed to exceed the number of samples")
         self.parse_composite_string(cl_args.composites)  # Check for errors and discard the result.
+        self.parse_anneal_sched_string(cl_args.schedule)  # Check for errors and discard the result.
         return cl_args
 
     def parse_composite_string(self, cstr):
@@ -88,6 +92,27 @@ class ParseCommandLine(object):
             else:
                 self.abend('Unrecognized composite "%s"' % c)
         return comps
+
+    def parse_anneal_sched_string(self, astr):
+        "Parse an annealing schedule into a list of (time, frac) tuples."
+        num_re = re.compile(r'[-+Ee.\d]+')  # All characters that can appear in a floating-point-number
+        nums = num_re.findall(astr)
+        if len(nums)%2 == 1:
+            self.abend('Failed to parse "%s" as alternating times and annealing fractions' % astr)
+        sched = []
+        for i in range(0, len(nums), 2):
+            try:
+                t = float(nums[i])
+            except ValueError:
+                self.abend('Failed to parse "%s" as a floating-point number' % nums[i])
+            try:
+                s = float(nums[i + 1])
+            except ValueError:
+                self.abend('Failed to parse "%s" as a floating-point number' % nums[i + 1])
+            sched.append((t, s))
+        if len(sched) < 2:
+            self.abend('Failed to parse "%s" into two or more (time, frac) pairs' % astr)
+        return sched
 
     def get_command_line(self):
         "Return the command line as a string, properly quoted."
