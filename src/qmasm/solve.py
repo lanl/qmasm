@@ -615,14 +615,17 @@ class Sampler(object):
             # Output our final parameters and their values.
             sys.stderr.write("Parameters accepted by %s (first subproblem):\n\n" % self.client_info["solver_name"])
             self.final_params_sem.acquire()
-            max_param_name_len = max([len(k) for k in self.final_params])
-            max_param_value_len = max([len(repr(v)) for v in self.final_params.values()])
-            sys.stderr.write("    %-*.*s  Value\n" %
-                             (max_param_name_len, max_param_name_len, "Parameter"))
-            sys.stderr.write("    %s  %s\n" % ("-"*max_param_name_len, "-"*max_param_value_len))
-            for k, v in sorted(self.final_params.items()):
-                sys.stderr.write("    %-*.*s  %s\n" %
-                                 (max_param_name_len, max_param_name_len, k, repr(v)))
+            if len(self.final_params) == 0:
+                sys.stderr.write("    [none]\n")
+            else:
+                max_param_name_len = max([len(k) for k in self.final_params])
+                max_param_value_len = max([len(repr(v)) for v in self.final_params.values()])
+                sys.stderr.write("    %-*.*s  Value\n" %
+                                 (max_param_name_len, max_param_name_len, "Parameter"))
+                sys.stderr.write("    %s  %s\n" % ("-"*max_param_name_len, "-"*max_param_value_len))
+                for k, v in sorted(self.final_params.items()):
+                    sys.stderr.write("    %-*.*s  %s\n" %
+                                     (max_param_name_len, max_param_name_len, k, repr(v)))
             sys.stderr.write("\n")
 
             # Keep track of the number of subproblems completed.
