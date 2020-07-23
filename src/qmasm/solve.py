@@ -82,7 +82,7 @@ class Sampler(object):
         "Acquire either a software sampler or a sampler representing a hardware solver."
         self.qmasm = qmasm
         self.profile = profile
-        self.sampler, self.client_info = self.get_sampler(profile, solver)
+        self.sampler, self.client_info, self.extra_solver_params = self.get_sampler(profile, solver)
 
     def get_sampler(self, profile, solver):
         "Return a dimod.Sampler object and associated solver information."
@@ -91,34 +91,35 @@ class Sampler(object):
         if solver != None:
             info["solver_name"] = solver
         if solver == "exact":
-            return ExactSolver(), info
+            return ExactSolver(), info, {}
         elif solver == "neal":
-            return SimulatedAnnealingSampler(), info
+            return SimulatedAnnealingSampler(), info, {}
         elif solver == "tabu":
-            return TabuSampler(), info
+            return TabuSampler(), info, {}
         elif solver == "kerberos" or (solver != None and solver[:9] == "kerberos,"):
             base_sampler = KerberosSampler()
             try:
                 sub_sampler_name = solver.split(",")[1]
             except IndexError:
                 sub_sampler_name = None
-            sub_sampler, sub_info = self.get_sampler_from_config(profile, sub_sampler_name, "qpu")
-            self.kerberos_sampler = sub_sampler
+            sub_sampler, sub_info, params = self.get_sampler_from_config(profile, sub_sampler_name, "qpu")
+            info.update(self._recursive_properties(sub_sampler))
             info["solver_name"] = "kerberos + %s" % sub_info["solver_name"]
-            return base_sampler, info
+            params["qpu_sampler"] = sub_sampler
+            return base_sampler, info, params
         elif solver == "qbsolv" or (solver != None and solver[:7] == "qbsolv,"):
             base_sampler = QBSolv()
             try:
                 sub_sampler_name = solver.split(",")[1]
             except IndexError:
                 sub_sampler_name = None
-            sub_sampler, sub_info = self.get_sampler(profile, sub_sampler_name)
-            if getattr(sub_sampler, "structure", None) == None:
-                self.qbsolv_sampler = sub_sampler
-            else:
-                self.qbsolv_sampler = EmbeddingComposite(sub_sampler)
+            sub_sampler, sub_info, params = self.get_sampler(profile, sub_sampler_name)
+            if getattr(sub_sampler, "structure", None) != None:
+                sub_sampler = EmbeddingComposite(sub_sampler)
+            info.update(self._recursive_properties(sub_sampler))
             info["solver_name"] = "QBSolv + %s" % sub_info["solver_name"]
-            return base_sampler, info
+            params["solver"] = sub_sampler
+            return base_sampler, info, params
 
         # In the common case, read the configuration file, either the
         # default or the one named by the DWAVE_CONFIG_FILE environment
@@ -126,7 +127,8 @@ class Sampler(object):
         return self.get_sampler_from_config(profile, solver)
 
     def get_sampler_from_config(self, profile=None, solver=None, sampler_type=None):
-        "Return a dimod.Sampler object found in the user's configuration file plus associated solver information."
+        """Return a dimod.Sampler object found in the user's configuration file,
+        associated solver information, and any extra parameters needed."""
         if profile != None:
             info["profile"] = profile
         try:
@@ -136,9 +138,10 @@ class Sampler(object):
                 else:
                     solver = {"name": solver}
                 sampler = DWaveSampler(profile=profile, solver=solver)
-                info = {"solver_name": sampler.solver.name,
-                        "endpoint": client.endpoint}
-                return sampler, info
+                info = self._recursive_properties(sampler)
+                info["solver_name"] = sampler.solver.name
+                info["endpoint"] = client.endpoint
+                return sampler, info, {}
         except Exception as err:
             self.qmasm.abend("Failed to construct a sampler (%s)" % str(err))
 
@@ -157,14 +160,8 @@ class Sampler(object):
         if verbose == 0:
             return
 
-        # Combine properties from various sources into a single dictionary.
-        props = self.client_info.copy()
-        for s in [getattr(self, "kerberos_sampler", None),
-                  getattr(self, "qbsolv_sampler", None),
-                  self.sampler]:
-            props.update(self._recursive_properties(s))
-
         # Determine the width of the widest key.
+        props = self.client_info.copy()
         max_key_len = len("Parameter")
         prop_keys = sorted(props)
         for k in prop_keys:
@@ -642,16 +639,7 @@ class Sampler(object):
                                  annealing_time=anneal_time,
                                  num_spin_reversal_transforms=spin_rev_list[i],
                                  postprocess=postproc)
-            try:
-                solver_params["qpu_sampler"] = self.kerberos_sampler
-            except AttributeError:
-                pass
-            try:
-                solver_params["solver"] = self.qbsolv_sampler
-                if verbosity >= 2:
-                    solver_params["verbosity"] = 10   # Arbitrary large number
-            except AttributeError:
-                pass
+            solver_params.update(self.extra_solver_params)
             for p in self.rejected_params:
                 del solver_params[p]
             future = executor.submit(self._submit_and_block, sampler, bqm, **solver_params)
