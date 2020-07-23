@@ -603,6 +603,70 @@ class Sampler(object):
         # Return a VirtualGraph and the new BQM.
         return VirtualGraphComposite(sampler=self.sampler, embedding=id_embed), bqm
 
+    def complete_sample_acquisition(self, verbosity, results, overall_start_time, physical):
+        "Wait for all results to complete then return a Solutions object."
+        nqmis = len(results)
+        if verbosity == 1:
+            if nqmis == 1:
+                sys.stderr.write("Waiting for the problem to complete.\n\n")
+            else:
+                sys.stderr.write("Waiting for all %d subproblems to complete.\n\n" % nqmis)
+        elif verbosity >= 2:
+            # Output our final parameters and their values.
+            sys.stderr.write("Parameters accepted by %s (first subproblem):\n\n" % self.client_info["solver_name"])
+            self.final_params_sem.acquire()
+            max_param_name_len = max([len(k) for k in self.final_params])
+            max_param_value_len = max([len(repr(v)) for v in self.final_params.values()])
+            sys.stderr.write("    %-*.*s  Value\n" %
+                             (max_param_name_len, max_param_name_len, "Parameter"))
+            sys.stderr.write("    %s  %s\n" % ("-"*max_param_name_len, "-"*max_param_value_len))
+            for k, v in sorted(self.final_params.items()):
+                sys.stderr.write("    %-*.*s  %s\n" %
+                                 (max_param_name_len, max_param_name_len, k, repr(v)))
+            sys.stderr.write("\n")
+
+            # Keep track of the number of subproblems completed.
+            sys.stderr.write("Number of subproblems completed:\n\n")
+            cdigits = len(str(nqmis))     # Digits in the number of completed QMIs
+            tdigits = len(str(nqmis*5))   # Estimate 5 seconds per QMI submission
+            start_time = time.time_ns()
+        ncomplete = 0
+        prev_ncomplete = 0
+        while ncomplete < nqmis:
+            ncomplete = sum([int(r.done()) for r in results])
+            if verbosity >= 2 and ncomplete > prev_ncomplete:
+                end_time = time.time_ns()
+                sys.stderr.write("    %*d of %d (%3.0f%%) after %*.0f second(s)\n" %
+                                 (cdigits, ncomplete, nqmis,
+                                  100.0*float(ncomplete)/float(nqmis),
+                                  tdigits, (end_time - start_time)/1e9))
+                prev_ncomplete = ncomplete
+            if ncomplete < nqmis:
+                time.sleep(1)
+        overall_end_time = time.time_ns()
+        if verbosity >= 2:
+            sys.stderr.write("\n")
+            sys.stderr.write("    Average time per subproblem: %.2g second(s)\n\n" % ((overall_end_time - overall_start_time)/(nqmis*1e9)))
+            if "problem_id" in results[0].info:
+                sys.stderr.write("IDs of completed subproblems:\n\n")
+                for i in range(nqmis):
+                    sys.stderr.write("    %s\n" % results[i].info["problem_id"])
+                sys.stderr.write("\n")
+
+        # Merge the result of seperate runs into a composite answer.
+        try:
+            answer = self._merge_results(results)
+        except SolverFailureError as err:
+            self.qmasm.abend("Solver error: %s" % err)
+        answer.info["timing"]["round_trip_time"] = (overall_end_time - overall_start_time)//1000
+
+        # Reset standard output.
+        if getattr(self, "qbsolv_sampler", None) != None:
+            os.dup2(stdout_fileno, sys.stdout.fileno())
+
+        # Return a Solutions object for further processing.
+        return Solutions(answer, physical, verbosity >= 2)
+
     def acquire_samples(self, verbosity, composites, physical, anneal_sched, samples, anneal_time, spin_revs, postproc):
         "Acquire a number of samples from either a hardware or software sampler."
         # Wrap composites around our sampler if requested.
@@ -666,65 +730,6 @@ class Sampler(object):
             future = executor.submit(self._submit_and_block, sampler, bqm, i == 0, **solver_params)
             results[i] = SampleSet.from_future(future)
 
-        # Wait for the QMIs to finish.
+        # Wait for the QMIs to finish then return the results.
         executor.shutdown(wait=False)
-        if verbosity == 1:
-            if nqmis == 1:
-                sys.stderr.write("Waiting for the problem to complete.\n\n")
-            else:
-                sys.stderr.write("Waiting for all %d subproblems to complete.\n\n" % nqmis)
-        elif verbosity >= 2:
-            # Output our final parameters and their values.
-            sys.stderr.write("Parameters accepted by %s (first subproblem):\n\n" % self.client_info["solver_name"])
-            self.final_params_sem.acquire()
-            max_param_name_len = max([len(k) for k in self.final_params])
-            max_param_value_len = max([len(repr(v)) for v in self.final_params.values()])
-            sys.stderr.write("    %-*.*s  Value\n" %
-                             (max_param_name_len, max_param_name_len, "Parameter"))
-            sys.stderr.write("    %s  %s\n" % ("-"*max_param_name_len, "-"*max_param_value_len))
-            for k, v in sorted(self.final_params.items()):
-                sys.stderr.write("    %-*.*s  %s\n" %
-                                 (max_param_name_len, max_param_name_len, k, repr(v)))
-            sys.stderr.write("\n")
-
-            # Keep track of the number of subproblems completed.
-            sys.stderr.write("Number of subproblems completed:\n\n")
-            cdigits = len(str(nqmis))     # Digits in the number of completed QMIs
-            tdigits = len(str(nqmis*5))   # Estimate 5 seconds per QMI submission
-            start_time = time.time_ns()
-        ncomplete = 0
-        prev_ncomplete = 0
-        while ncomplete < nqmis:
-            ncomplete = sum([int(r.done()) for r in results])
-            if verbosity >= 2 and ncomplete > prev_ncomplete:
-                end_time = time.time_ns()
-                sys.stderr.write("    %*d of %d (%3.0f%%) after %*.0f second(s)\n" %
-                                 (cdigits, ncomplete, nqmis,
-                                  100.0*float(ncomplete)/float(nqmis),
-                                  tdigits, (end_time - start_time)/1e9))
-                prev_ncomplete = ncomplete
-            if ncomplete < nqmis:
-                time.sleep(1)
-        overall_end_time = time.time_ns()
-        if verbosity >= 2:
-            sys.stderr.write("\n")
-            sys.stderr.write("    Average time per subproblem: %.2g second(s)\n\n" % ((overall_end_time - overall_start_time)/(nqmis*1e9)))
-            if "problem_id" in results[0].info:
-                sys.stderr.write("IDs of completed subproblems:\n\n")
-                for i in range(nqmis):
-                    sys.stderr.write("    %s\n" % results[i].info["problem_id"])
-                sys.stderr.write("\n")
-
-        # Merge the result of seperate runs into a composite answer.
-        try:
-            answer = self._merge_results(results)
-        except SolverFailureError as err:
-            self.qmasm.abend("Solver error: %s" % err)
-        answer.info["timing"]["round_trip_time"] = (overall_end_time - overall_start_time)//1000
-
-        # Reset standard output.
-        if getattr(self, "qbsolv_sampler", None) != None:
-            os.dup2(stdout_fileno, sys.stdout.fileno())
-
-        # Return a Solutions object for further processing.
-        return Solutions(answer, physical, verbosity >= 2)
+        return self.complete_sample_acquisition(verbosity, results, overall_start_time, physical)
