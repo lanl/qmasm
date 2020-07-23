@@ -95,6 +95,8 @@ class ParseCommandLine(object):
 
     def parse_anneal_sched_string(self, astr):
         "Parse an annealing schedule into a list of (time, frac) tuples."
+        if astr == None:
+            return None
         num_re = re.compile(r'[-+Ee.\d]+')  # All characters that can appear in a floating-point-number
         nums = num_re.findall(astr)
         if len(nums)%2 == 1:
