@@ -31,7 +31,7 @@ from tabu import TabuSampler
 class EmbeddingCache(object):
     "Read and write an embedding cache file."
 
-    def __init__(self, qmasm, edges, adj, var2phys):
+    def __init__(self, qmasm, edges, adj, max_qubits, var2phys):
         # Ensure we have a valid cache directory.
         self.hash = None
         try:
@@ -46,6 +46,7 @@ class EmbeddingCache(object):
         sha = hashlib.sha1()
         sha.update(str(sorted(edges)).encode("utf-8"))
         sha.update(str(sorted(adj)).encode("utf-8"))
+        sha.update(str(max_qubits).encode("utf-8"))
         sha.update(str(sorted(var2phys.items())).encode("utf-8"))
         self.hash = sha.hexdigest()
 
@@ -263,7 +264,7 @@ class Sampler(object):
                 adj_dict[v] = [u]
         return adj_dict
 
-    def _find_embedding(self, edges, adj, **kwargs):
+    def _find_embedding(self, edges, adj, max_qubits, **kwargs):
         "Wrap minorminer.find_embedding with a version that intercepts its output."
         # Minorminer accepts the hardware adjacency as a list of
         # pairs, not a map from each node to its neighbors.
@@ -339,7 +340,7 @@ class Sampler(object):
     def _impose_qubit_packing(self, max_qubits, edges, hw_adj, **embed_args):
         'Pack qubits into a "corner" of the physical topology.'
         packed_adj = self._adj_subset(hw_adj, max_qubits)
-        packed_embedding = self._find_embedding(edges, packed_adj, embed_args)
+        packed_embedding = self._find_embedding(edges, packed_adj, max_qubits, **embed_args)
         return packed_embedding
 
     def find_problem_embedding(self, logical, topology_file, max_qubits, physical_nums, verbosity):
@@ -370,7 +371,7 @@ class Sampler(object):
             return physical
         if verbosity >= 2:
             sys.stderr.write("Minor-embedding the logical problem onto the physical topology:\n\n")
-        ec = EmbeddingCache(self.qmasm, edges, hw_adj, forced_mappings)
+        ec = EmbeddingCache(self.qmasm, edges, hw_adj, max_qubits, forced_mappings)
         if verbosity >= 2:
             if ec.cachedir == None:
                 sys.stderr.write("  No embedding cache directory was specified ($QMASMCACHE).\n")
@@ -398,7 +399,7 @@ class Sampler(object):
         if max_qubits == None:
             if verbosity >= 2:
                 sys.stderr.write("  Running the embedder.\n\n")
-            physical.embedding = self._find_embedding(edges, hw_adj, **embed_args)
+            physical.embedding = self._find_embedding(edges, hw_adj, max_qubits, **embed_args)
         else:
             if verbosity >= 2:
                 sys.stderr.write("  Running the embedder, limiting it to %d qubits.\n\n" % max_qubits)
