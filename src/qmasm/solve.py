@@ -137,8 +137,6 @@ class Sampler(object):
     def get_sampler_from_config(self, profile=None, solver=None, sampler_type=None):
         """Return a dimod.Sampler object found in the user's configuration file,
         associated solver information, and any extra parameters needed."""
-        if profile != None:
-            info["profile"] = profile
         try:
             with Client.from_config(profile=profile, client=sampler_type) as client:
                 if solver == None:
@@ -149,6 +147,8 @@ class Sampler(object):
                 info = self._recursive_properties(sampler)
                 info["solver_name"] = sampler.solver.name
                 info["endpoint"] = client.endpoint
+                if profile != None:
+                    info["profile"] = profile
                 return sampler, info, {}
         except Exception as err:
             self.qmasm.abend("Failed to construct a sampler (%s)" % str(err))
