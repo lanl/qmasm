@@ -5,6 +5,7 @@
 
 from collections import defaultdict
 import copy
+import heapq
 import math
 import qmasm
 import sys
@@ -169,3 +170,28 @@ class SymbolMapping:
         for s, n in zip(after_syms, before_nums):
             sym2num[s] = n
         self.overwrite_with(sym2num)
+
+class SpecializedPriorityQueue(object):
+    """Implement a specialized priority queue that supports priority
+    replacement but not insertion.  Elements are expected to be unique."""
+
+    def __init__(self, items):
+        self.queue = [(0, i, items[i]) for i in range(len(items))]  # {priority, original index, value}
+        heapq.heapify(self.queue)
+        self.val2pri = {k: 0 for k in items}
+        self.val2dist = {items[i]: i for i in range(len(items))}
+
+    def pop_max(self):
+        "Pop the highest-priority item."
+        valid = False
+        while not valid:
+            pri, dist, m = heapq.heappop(self.queue)
+            valid = self.val2pri[m] == pri
+        return m
+
+    def increase_priority(self, m):
+        "Increase the priority of a given item."
+        new_pri = self.val2pri[m] - 1   # heapq return the smallest value in the heap.
+        dist = self.val2dist[m]
+        heapq.heappush(self.queue, (new_pri, dist, m))
+        self.val2pri[m] = new_pri

@@ -11,6 +11,7 @@ import marshal
 import minorminer
 import networkx as nx
 import os
+import random
 import re
 import sys
 import threading
@@ -26,6 +27,7 @@ from dwave_qbsolv import QBSolv
 from hybrid.reference.kerberos import KerberosSampler
 from neal import SimulatedAnnealingSampler
 from qmasm.solutions import Solutions
+from qmasm.utils import SpecializedPriorityQueue
 from tabu import TabuSampler
 
 class EmbeddingCache(object):
@@ -314,25 +316,38 @@ class Sampler(object):
     def _adj_subset(self, hw_adj, num):
         "Return a subset of a given size of the hardware adjacency graph."
         # Construct a NetworkX graph from the given adjacency list.
+        # Set each node's popularity to 0.
         G = nx.Graph()
         for n1, ns in hw_adj.items():
             G.add_edges_from([(n1, n2) for n2 in ns])
-
-        # Perform a breadth-first traversal of the graph.
         s0 = min(G.nodes)
-        bfs = nx.bfs_edges(G, s0, depth_limit=num)
 
-        # Find the first num nodes encountered in the BFS traversal.
-        nodes = {s0}
-        for edge in bfs:
-            nodes.add(edge[1])
-            if len(nodes) >= num:
-                break
+        # Construct a priority queue of nodes.
+        shuffled_nodes = list(G.nodes)
+        random.shuffle(shuffled_nodes)
+        priQ = SpecializedPriorityQueue(shuffled_nodes)
+
+        # Traverse the graph in order of decreasing node popularity.
+        priQ.increase_priority(s0)
+        visited = set()
+        order = []
+        while len(order) < num:
+            # Pop the most popular node.
+            node = priQ.pop_max()
+            if node in visited:
+                continue
+            visited.add(node)
+            order.append(node)
+
+            # Increase the popularity of the current node's immediate neighbors.
+            for nn in G.neighbors(node):
+                if nn not in visited:
+                    priQ.increase_priority(nn)
 
         # Find all edges connecting the first num nodes, and convert these to
         # the format Ocean expects.
         adj = defaultdict(lambda: [])
-        for u, v in G.subgraph(nodes).edges:
+        for u, v in G.subgraph(order).edges:
             adj[u].append(v)
             adj[v].append(u)
         return adj
