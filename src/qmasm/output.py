@@ -307,6 +307,49 @@ class OutputMixin(object):
         for d in data:
             outfile.write("%s\n" % d)
 
+    def output_ocean(self, outfile, as_qubo, problem, sampler):
+        "Output weights and strengths as an Ocean program, either Ising or QUBO."
+        # Select each variable's alphabetically first symbol, favoring symbols
+        # without dollar signs.
+        all_nums = self.sym_map.all_numbers()
+        num2sym = {}
+        for n in all_nums:
+            syms = list(self.sym_map.to_symbols(n))
+            syms.sort(key=lambda s: ("$" in s, s))
+            num2sym[n] = syms[0]
+
+        # Output some Python boilerplate.
+        outfile.write("#! /usr/bin/env python\n\n")
+        outfile.write("import dimod\n")
+        physical = getattr(problem, "logical", None) != None
+        if physical:
+            outfile.write("from dwave.system import DWaveSampler\n\n")
+        else:
+            outfile.write("from dwave.system import DWaveSampler, EmbeddingComposite\n\n")
+
+        # Output code to set up the problem.
+        if physical:
+            linear = ", ".join(["%d: %.16g" % e for e in sorted(problem.bqm.linear.items())])
+            quadratic = ", ".join(["(%d, %d): %.20g" % (ns[0], ns[1], wt) for ns, wt in sorted(problem.bqm.quadratic.items())])
+        else:
+            linear = ", ".join(sorted(["'%s': %.20g" % (num2sym[n], wt) for n, wt in problem.bqm.linear.items()]))
+            quadratic = ", ".join(sorted(["('%s', '%s'): %.20g" % (num2sym[ns[0]], num2sym[ns[1]], wt) for ns, wt in problem.bqm.quadratic.items()]))
+        outfile.write("linear = {%s}\n" % linear)
+        outfile.write("quadratic = {%s}\n" % quadratic)
+        if as_qubo:
+            vtype = "BINARY"
+        else:
+            vtype = "SPIN"
+        outfile.write("bqm = dimod.BinaryQuadraticModel(linear, quadratic, %.5g, dimod.%s)\n\n" % (problem.bqm.offset, vtype))
+
+        # Output code to solve the problem.
+        if physical:
+            outfile.write("sampler = DWaveSampler()\n")
+        else:
+            outfile.write("sampler = EmbeddingComposite(DWaveSampler())\n")
+        outfile.write("result = sampler.sample(bqm, num_reads=100)\n")
+        outfile.write("print(result)\n")
+
     def write_output(self, problem, oname, oformat, as_qubo, sampler):
         "Write an output file in one of a variety of formats."
 
@@ -316,6 +359,8 @@ class OutputMixin(object):
         # Output the weights and strengths in the specified format.
         if oformat == "qubist":
             self.output_qubist(outfile, as_qubo, problem, sampler)
+        if oformat == "ocean":
+            self.output_ocean(outfile, as_qubo, problem, sampler)
         elif oformat == "qbsolv":
             self.output_qbsolv(outfile, problem)
         elif oformat == "qmasm":
