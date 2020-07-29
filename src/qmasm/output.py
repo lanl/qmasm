@@ -348,7 +348,21 @@ class OutputMixin(object):
         else:
             outfile.write("sampler = EmbeddingComposite(DWaveSampler())\n")
         outfile.write("result = sampler.sample(bqm, num_reads=100)\n")
-        outfile.write("print(result)\n")
+
+        # Output code to display the results QMASM-style.
+        outfile.write(r'''
+data = result.data(fields=["sample", "energy", "num_occurrences"])
+wd = min(8, max([len(v) for v in result.variables]))
+vnames = sorted(result.variables, key=lambda v: ("$" in v, v))
+for i in range(len(result.samples())):
+    if i > 0:
+        print("")
+    s = next(data)
+    print("Solution #%d (energy = %.4g, tally = %d):\n" % (i + 1, s.energy, s.num_occurrences))
+    print("    %-*s  Value" % (wd, "Variable"))
+    print("    %s  -----" % ("-"*wd))
+    for v in vnames:
+        print("    %-*s  %s" % (wd, v, s.sample[v] == 1))''')
 
     def write_output(self, problem, oname, oformat, as_qubo, sampler):
         "Write an output file in one of a variety of formats."
