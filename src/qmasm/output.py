@@ -307,7 +307,7 @@ class OutputMixin(object):
         for d in data:
             outfile.write("%s\n" % d)
 
-    def output_ocean(self, outfile, as_qubo, problem, sampler):
+    def output_ocean(self, outfile, as_qubo, problem, sampler, sampler_args):
         "Output weights and strengths as an Ocean program, either Ising or QUBO."
         # Select each variable's alphabetically first symbol, favoring symbols
         # without dollar signs.
@@ -342,12 +342,36 @@ class OutputMixin(object):
             vtype = "SPIN"
         outfile.write("bqm = dimod.BinaryQuadraticModel(linear, quadratic, %.5g, dimod.%s)\n\n" % (problem.bqm.offset, vtype))
 
+        # Modify the sampler arguments as necessary.
+        sampler_args = {k: v for k, v in sampler_args.items() if v != None}
+        try:
+            if sampler_args["anneal_schedule"] != None:
+                del sampler_args["annealing_time"]
+        except KeyError:
+            pass
+        try:
+            pp = sampler_args["postprocess"]
+            if pp == "sample":
+                sampler_args["postprocess"] = "sampling"
+            elif pp == "opt":
+                sampler_args["postprocess"] = "optimization"
+            else:
+                del sampler_args["postprocess"]
+        except KeyError:
+            pass
+        try:
+            if sampler_args["num_spin_reversal_transforms"] == 0:
+                del sampler_args["num_spin_reversal_transforms"]
+        except:
+            pass
+        arg_str = ", ".join(["%s=%s" % (k, repr(v)) for k, v in sampler_args.items()])
+
         # Output code to solve the problem.
         if physical:
             outfile.write("sampler = DWaveSampler()\n")
         else:
             outfile.write("sampler = EmbeddingComposite(DWaveSampler())\n")
-        outfile.write("result = sampler.sample(bqm, num_reads=100)\n")
+        outfile.write("result = sampler.sample(bqm, %s)\n" % arg_str)
 
         # Output code to display the results QMASM-style.
         outfile.write(r'''
@@ -362,9 +386,10 @@ for i in range(len(result.samples())):
     print("    %-*s  Value" % (wd, "Variable"))
     print("    %s  -----" % ("-"*wd))
     for v in vnames:
-        print("    %-*s  %s" % (wd, v, s.sample[v] == 1))''')
+        print("    %-*s  %s" % (wd, v, s.sample[v] == 1))
+''')
 
-    def write_output(self, problem, oname, oformat, as_qubo, sampler):
+    def write_output(self, problem, oname, oformat, as_qubo, sampler, sampler_args):
         "Write an output file in one of a variety of formats."
 
         # Open the output file.
@@ -374,7 +399,7 @@ for i in range(len(result.samples())):
         if oformat == "qubist":
             self.output_qubist(outfile, as_qubo, problem, sampler)
         if oformat == "ocean":
-            self.output_ocean(outfile, as_qubo, problem, sampler)
+            self.output_ocean(outfile, as_qubo, problem, sampler, sampler_args)
         elif oformat == "qbsolv":
             self.output_qbsolv(outfile, problem)
         elif oformat == "qmasm":

@@ -12,7 +12,7 @@ script:
   - cd examples
   - test "$(qmasm --format=qmasm --solver=neal feature-test.qmasm | md5sum | awk '{print $1}')" = 08399934cd8092743d5a69f4ec637701
   - test "$(qmasm --solver=tabu 1of5.qmasm | md5sum | awk '{print $1}')" = 38d9318cd4f4d34d1aafadcfca145362
-  - test "$(qmasm --solver=neal --format=ocean --pin="x10 := true" circsat.qmasm | md5sum | awk '{print $1}')" = 03b92375785bb75e312428babf1e2e07
+  - test "$(qmasm --solver=neal --format=ocean --pin="x10 := true" circsat.qmasm | md5sum | awk '{print $1}')" = 06f8e8acf6f6c44256fe49907769a62b
   - test "$(qmasm --solver=exact --run 1of5.qmasm | md5sum | awk '{print $1}')" = 5296b7ddbf24c9a2f7785acb782ea2c8
   - test "$(qmasm --solver=exact --run -v 1of5.qmasm 2>&1 | wc -l)" -eq 117
   - qmasm --solver=exact --run -v -v and4.qmasm 2>&1 | grep -q '16 excluding duplicate variable assignments'

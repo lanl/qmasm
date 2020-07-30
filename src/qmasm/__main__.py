@@ -99,8 +99,14 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
                 write_time = "post"
 
         # Produce pre-embedding output files.
+        anneal_sched = self.parse_anneal_sched_string(cl_args.schedule)
+        sampler_args = {"anneal_schedule": anneal_sched,
+                        "annealing_time": cl_args.anneal_time,
+                        "num_reads": cl_args.samples,
+                        "num_spin_reversal_transforms": cl_args.spin_revs,
+                        "postprocess": cl_args.postproc}
         if write_output_file and write_time == "pre":
-            self.write_output(logical, cl_args.output, cl_args.format, cl_args.qubo, sampler)
+            self.write_output(logical, cl_args.output, cl_args.format, cl_args.qubo, sampler, sampler_args)
             if not cl_args.run:
                 sys.exit(0)
 
@@ -136,7 +142,7 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
 
         # Produce post-embedding output files.
         if write_output_file and write_time == "post":
-            self.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo, sampler)
+            self.write_output(physical, cl_args.output, cl_args.format, cl_args.qubo, sampler, sampler_args)
 
         # If we weren't told to run anything we can exit now.
         if not cl_args.run:
@@ -146,7 +152,6 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         if cl_args.verbose >= 1:
             sys.stderr.write("Submitting the problem to the %s solver.\n\n" % sampler.client_info["solver_name"])
         composites = self.parse_composite_string(cl_args.composites)
-        anneal_sched = self.parse_anneal_sched_string(cl_args.schedule)
         solutions = sampler.acquire_samples(cl_args.verbose,
                                             composites,
                                             physical,
