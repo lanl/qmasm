@@ -376,7 +376,7 @@ class OutputMixin(object):
         # Output code to display the results QMASM-style.
         outfile.write(r'''
 data = result.data(fields=["sample", "energy", "num_occurrences"])
-wd = min(8, max([len(v) for v in result.variables]))
+wd = max([8] + [len(v) for v in result.variables])
 vnames = sorted(result.variables, key=lambda v: ("$" in v, v))
 for i in range(len(result.samples())):
     if i > 0:

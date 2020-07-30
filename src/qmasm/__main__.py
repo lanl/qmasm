@@ -104,7 +104,8 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
                         "annealing_time": cl_args.anneal_time,
                         "num_reads": cl_args.samples,
                         "num_spin_reversal_transforms": cl_args.spin_revs,
-                        "postprocess": cl_args.postproc}
+                        "postprocess": cl_args.postproc,
+                        "chain_strength": -self.chain_strength}
         if write_output_file and write_time == "pre":
             self.write_output(logical, cl_args.output, cl_args.format, cl_args.qubo, sampler, sampler_args)
             if not cl_args.run:
