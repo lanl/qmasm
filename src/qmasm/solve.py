@@ -19,10 +19,10 @@ import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dimod import ExactSolver, SampleSet
-from dwave.cloud import Client
+from dwave.cloud import Client, hybrid
 from dwave.cloud.exceptions import SolverFailureError
 from dwave.embedding import embed_bqm
-from dwave.system import DWaveSampler, EmbeddingComposite, VirtualGraphComposite
+from dwave.system import DWaveSampler, EmbeddingComposite, VirtualGraphComposite, LeapHybridSampler
 from dwave_qbsolv import QBSolv
 from hybrid.reference.kerberos import KerberosSampler
 from neal import SimulatedAnnealingSampler
@@ -81,6 +81,7 @@ class Sampler(object):
     # Keep track of parameters rejected by the solver.
     unexp_arg_re = re.compile(r"got an unexpected keyword argument '(\w+)'")
     not_param_re = re.compile(r"(\w+) is not a parameter of this solver")
+    unk_param_re = re.compile(r"Unknown parameter (\w+)")
 
     def __init__(self, qmasm, profile=None, solver=None):
         "Acquire either a software sampler or a sampler representing a hardware solver."
@@ -143,7 +144,10 @@ class Sampler(object):
                     solver = client.default_solver
                 else:
                     solver = {"name": solver}
-                sampler = DWaveSampler(profile=profile, solver=solver)
+                if isinstance(client, hybrid.Client):
+                    sampler = LeapHybridSampler(profile=profile, solver=solver)
+                else:
+                    sampler = DWaveSampler(profile=profile, solver=solver)
                 info = self._recursive_properties(sampler)
                 info["solver_name"] = sampler.solver.name
                 info["endpoint"] = client.endpoint
@@ -577,6 +581,17 @@ class Sampler(object):
             # error string to determine what is and isn't acceptable.
             try:
                 result = sampler.sample(bqm, **sub_params)
+                if store_params:
+                    result.resolve()
+            except SolverFailureError as err:
+                match = self.unk_param_re.search(str(err))
+                if match == None:
+                    raise err
+                p = match[1]
+                with self.rejected_params_lock:
+                    self.rejected_params.append(p)
+                del sub_params[p]
+                result = None
             except TypeError as err:
                 match = self.unexp_arg_re.search(str(err))
                 if match == None:
@@ -585,6 +600,7 @@ class Sampler(object):
                 with self.rejected_params_lock:
                     self.rejected_params.append(p)
                 del sub_params[p]
+                result = None
             except KeyError as err:
                 match = self.not_param_re.search(str(err))
                 if match == None:
@@ -593,6 +609,7 @@ class Sampler(object):
                 with self.rejected_params_lock:
                     self.rejected_params.append(p)
                 del sub_params[p]
+                result = None
         if store_params:
             self.final_params = sub_params
             self.final_params_sem.release()
