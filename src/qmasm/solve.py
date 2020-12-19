@@ -78,20 +78,11 @@ class EmbeddingCache(object):
 class Sampler(object):
     "Interface to Ocean samplers."
 
-    # Keep track of parameters rejected by the solver.
-    unexp_arg_re = re.compile(r"got an unexpected keyword argument '(\w+)'")
-    not_param_re = re.compile(r"(\w+) is not a parameter of this solver")
-    unk_param_re = re.compile(r"Unknown parameter (\w+)")
-
     def __init__(self, qmasm, profile=None, solver=None):
         "Acquire either a software sampler or a sampler representing a hardware solver."
         self.qmasm = qmasm
         self.profile = profile
         self.sampler, self.client_info, self.extra_solver_params = self.get_sampler(profile, solver)
-        self.rejected_params = []
-        self.rejected_params_lock = threading.Lock()
-        self.final_params = {}   # Final parameters associated with the first QMI
-        self.final_params_sem = threading.Semaphore(0)
 
     def get_sampler(self, profile, solver):
         "Return a dimod.Sampler object and associated solver information."
@@ -569,51 +560,11 @@ class Sampler(object):
         merged.info["timing"] = timing
         return merged
 
-    def _submit_and_block(self, sampler, bqm, store_params, **params):
+    def _submit_and_block(self, sampler, bqm, **params):
         "Submit a job and wait for it to complete"
         # This method is a workaround for a bug in dwave-system.  See
         # https://github.com/dwavesystems/dwave-system/issues/297#issuecomment-632384524
-        sub_params = copy.copy(params)
-        result = None
-        while result == None:
-            # I don't know of a way to query a solver for the parameters it
-            # accepts.  Hence, we resort to the grotesque hack of parsing the
-            # error string to determine what is and isn't acceptable.
-            try:
-                result = sampler.sample(bqm, **sub_params)
-                if store_params:
-                    result.resolve()
-            except SolverFailureError as err:
-                match = self.unk_param_re.search(str(err))
-                if match == None:
-                    raise err
-                p = match[1]
-                with self.rejected_params_lock:
-                    self.rejected_params.append(p)
-                del sub_params[p]
-                result = None
-            except TypeError as err:
-                match = self.unexp_arg_re.search(str(err))
-                if match == None:
-                    raise err
-                p = match[1]
-                with self.rejected_params_lock:
-                    self.rejected_params.append(p)
-                del sub_params[p]
-                result = None
-            except KeyError as err:
-                match = self.not_param_re.search(str(err))
-                if match == None:
-                    raise err
-                p = match[1]
-                with self.rejected_params_lock:
-                    self.rejected_params.append(p)
-                del sub_params[p]
-                result = None
-        if store_params:
-            self.final_params = sub_params
-            self.final_params_sem.release()
-        return result
+        return sampler.sample(bqm, **params)
 
     def _wrap_virtual_graph(self, sampler, bqm):
         "Return a VirtualGraphComposite and an associated BQM."
@@ -636,7 +587,7 @@ class Sampler(object):
         # Return a VirtualGraph and the new BQM.
         return VirtualGraphComposite(sampler=self.sampler, embedding=id_embed), bqm
 
-    def complete_sample_acquisition(self, verbosity, results, overall_start_time, physical):
+    def complete_sample_acquisition(self, verbosity, results, overall_start_time, physical, final_params):
         "Wait for all results to complete then return a Solutions object."
         nqmis = len(results)
         if verbosity == 1:
@@ -647,16 +598,15 @@ class Sampler(object):
         elif verbosity >= 2:
             # Output our final parameters and their values.
             sys.stderr.write("Parameters accepted by %s (first subproblem):\n\n" % self.client_info["solver_name"])
-            self.final_params_sem.acquire()
-            if len(self.final_params) == 0:
+            if len(final_params) == 0:
                 sys.stderr.write("    [none]\n")
             else:
-                max_param_name_len = max([len(k) for k in self.final_params])
-                max_param_value_len = max([len(repr(v)) for v in self.final_params.values()])
+                max_param_name_len = max([len(k) for k in final_params])
+                max_param_value_len = max([len(repr(v)) for v in final_params.values()])
                 sys.stderr.write("    %-*.*s  Value\n" %
                                  (max_param_name_len, max_param_name_len, "Parameter"))
                 sys.stderr.write("    %s  %s\n" % ("-"*max_param_name_len, "-"*max_param_value_len))
-                for k, v in sorted(self.final_params.items()):
+                for k, v in sorted(final_params.items()):
                     sys.stderr.write("    %-*.*s  %s\n" %
                                      (max_param_name_len, max_param_name_len, k, repr(v)))
             sys.stderr.write("\n")
@@ -748,7 +698,7 @@ class Sampler(object):
             # parameters (e.g., num_reads) with solver-specific parameters
             # (e.g., qpu_sampler), handling mutually exclusive parameters
             # (e.g., annealing_time and anneal_schedule), and subtracting off
-            # any parameters previously rejected by the solver.
+            # any parameters not recognized by the solver.
             solver_params = dict(chains=list(physical.embedding.values()),
                                  num_reads=samples_list[i],
                                  num_spin_reversal_transforms=spin_rev_list[i],
@@ -758,14 +708,13 @@ class Sampler(object):
                 solver_params["annealing_time"] = anneal_time
             else:
                 solver_params["anneal_schedule"] = anneal_sched
-            with self.rejected_params_lock:
-                for p in self.rejected_params:
-                    del solver_params[p]
+            accepted_params = set(sampler.solver.properties["parameters"])
+            solver_params = {k: v for k, v in solver_params.items() if k in accepted_params}
 
             # Submit the QMI to the solver in a background thread.
-            future = executor.submit(self._submit_and_block, sampler, bqm, i == 0, **solver_params)
+            future = executor.submit(self._submit_and_block, sampler, bqm, **solver_params)
             results[i] = SampleSet.from_future(future)
 
         # Wait for the QMIs to finish then return the results.
         executor.shutdown(wait=False)
-        return self.complete_sample_acquisition(verbosity, results, overall_start_time, physical)
+        return self.complete_sample_acquisition(verbosity, results, overall_start_time, physical, solver_params)
