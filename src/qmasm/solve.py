@@ -758,6 +758,12 @@ class Sampler(object):
                 solver_params["annealing_time"] = anneal_time
             else:
                 solver_params["anneal_schedule"] = anneal_sched
+            try:
+                # Some, but not all, solvers report the parameters they accept.
+                accepted_params = set(sampler.solver.properties["parameters"])
+                solver_params = {k: v for k, v in solver_params.items() if k in accepted_params}
+            except AttributeError:
+                pass
             with self.rejected_params_lock:
                 for p in self.rejected_params:
                     del solver_params[p]
