@@ -66,6 +66,8 @@ class ParseCommandLine(object):
                                help="map variables containing a number to the physical qubits represented by that number")
         cl_parser.add_argument("--schedule", metavar="T,S,...", type=str,
                                help="specify an annealing schedule as alternating lists of times (microseconds) and annealing fractions (0.0 to 1.0)")
+        cl_parser.add_argument("--visualize", action="store_true",
+                               help="run the D-Wave Problem Inspector on the result of the first submitted problem")
 
         # Parse the command line.
         cl_args = cl_parser.parse_args()

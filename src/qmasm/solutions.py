@@ -8,6 +8,7 @@ import math
 import numpy as np
 import re
 import sys
+from dwave import inspector
 from dwave.embedding import unembed_sampleset, chain_breaks, chain_break_frequency
 from scipy.stats import median_absolute_deviation
 
@@ -232,8 +233,9 @@ class Solution:
 class Solutions(object):
     "Represent all near-minimal states of a spin system."
 
-    def __init__(self, answer, problem, all_vars):
+    def __init__(self, raw_results, answer, problem, all_vars):
         # Store our arguments.
+        self.raw_results = raw_results
         self.answer = answer
         self.problem = problem
 
@@ -535,3 +537,7 @@ class Solutions(object):
                 raise Exception('Output style "%s" not recognized' % style)
             if show_asserts:
                 soln.output_asserts(verbosity)
+
+    def visualize(self):
+        "Run the D-Wave Problem Inspector on the first raw result."
+        inspector.show(self.raw_results[0])

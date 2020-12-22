@@ -701,7 +701,7 @@ class Sampler(object):
             os.dup2(stdout_fileno, sys.stdout.fileno())
 
         # Return a Solutions object for further processing.
-        return Solutions(answer, physical, verbosity >= 2)
+        return Solutions(results, answer, physical, verbosity >= 2)
 
     def acquire_samples(self, verbosity, composites, physical, anneal_sched, samples, anneal_time, spin_revs, postproc):
         "Acquire a number of samples from either a hardware or software sampler."

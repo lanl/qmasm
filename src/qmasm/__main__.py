@@ -177,6 +177,10 @@ class QMASM(ParseCommandLine, Utilities, OutputMixin):
         show_asserts = cl_args.verbose >= 2 or cl_args.show in ["best", "all"]
         filtered_solns.output_solutions(cl_args.values, cl_args.verbose, show_asserts)
 
+        # Run the D-Wave Problem Inspector if instructed to do so.
+        if cl_args.visualize:
+            solutions.visualize()
+
 def main():
     "Run QMASM."
     q = QMASM()
