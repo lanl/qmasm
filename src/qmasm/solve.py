@@ -20,7 +20,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dimod import ExactSolver, SampleSet
 from dwave.cloud import Client, hybrid
-from dwave.cloud.exceptions import SolverFailureError
+from dwave.cloud.exceptions import SolverFailureError, SolverNotFoundError
 from dwave.embedding import embed_bqm
 from dwave.system import DWaveSampler, EmbeddingComposite, VirtualGraphComposite, LeapHybridSampler
 from dwave_qbsolv import QBSolv
@@ -144,10 +144,16 @@ class Sampler(object):
                     solver = client.default_solver
                 else:
                     solver = {"name": solver}
-                if isinstance(client, hybrid.Client):
+                try:
+                    # Hybrid sampler
                     sampler = LeapHybridSampler(profile=profile, solver=solver)
-                else:
-                    sampler = DWaveSampler(profile=profile, solver=solver)
+                except SolverNotFoundError:
+                    try:
+                        # QPU
+                        sampler = DWaveSampler(profile=profile, solver=solver)
+                    except SolverNotFoundError as err:
+                        # Other (e.g., remote software sampler)
+                        self.qmasm.abend("Failed to construct a QPU or hybrid sampler (%s)" % str(err))
                 info = self._recursive_properties(sampler)
                 info["solver_name"] = sampler.solver.name
                 info["endpoint"] = client.endpoint
