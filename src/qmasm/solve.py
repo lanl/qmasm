@@ -210,9 +210,14 @@ class Sampler(object):
         # Successful base case: The given sampler reports its adjacency
         # structure.
         try:
+            # QPU and hybrid provide adjacency directly.
             return sampler.adjacency
         except AttributeError:
-            pass
+            try:
+                # Software samplers provide adjacency as pairs of qubits.
+                return self._pairs_to_dict(sampler.properties["couplers"])
+            except AttributeError:
+                pass
 
         # Failed base case: The given sampler has no children.
         try:
@@ -226,6 +231,21 @@ class Sampler(object):
             if adj != None:
                 return adj
         return None
+
+    def _pairs_to_dict(self, adj):
+        """Convert from vertex pairs to a dictionary from a vertex to its
+        neighbors.  Note that we treat all edges as bidirectional."""
+        adj_dict = {}
+        for u, v in adj:
+            try:
+                adj_dict[u].append(v)
+            except KeyError:
+                adj_dict[u] = [v]
+            try:
+                adj_dict[v].append(u)
+            except KeyError:
+                adj_dict[v] = [u]
+        return adj_dict
 
     def get_hardware_adjacency(self):
         "Return the hardware adjacency structure, if any."
@@ -259,20 +279,7 @@ class Sampler(object):
                 adj.add((verts[0], verts[1]))
         if verbosity >= 2:
             sys.stderr.write("%d unique edges found\n\n" % len(adj))
-
-        # Convert from vertex pairs to a dictionary from a vertex to its
-        # neighbors.  Note that we treat all edges as bidirectional.
-        adj_dict = {}
-        for u, v in adj:
-            try:
-                adj_dict[u].append(v)
-            except KeyError:
-                adj_dict[u] = [v]
-            try:
-                adj_dict[v].append(u)
-            except KeyError:
-                adj_dict[v] = [u]
-        return adj_dict
+        return self._pairs_to_dict(adj)
 
     def _find_embedding(self, edges, adj, max_qubits, **kwargs):
         "Wrap minorminer.find_embedding with a version that intercepts its output."
