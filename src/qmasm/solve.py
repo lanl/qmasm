@@ -216,7 +216,7 @@ class Sampler(object):
             try:
                 # Software samplers provide adjacency as pairs of qubits.
                 return self._pairs_to_dict(sampler.properties["couplers"])
-            except AttributeError:
+            except KeyError:
                 pass
 
         # Failed base case: The given sampler has no children.
