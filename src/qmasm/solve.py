@@ -19,7 +19,7 @@ import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from dimod import ExactSolver, SampleSet
-from dwave.cloud import Client, hybrid, qpu
+from dwave.cloud import Client, hybrid, qpu, sw
 from dwave.cloud.exceptions import SolverFailureError, SolverNotFoundError
 from dwave.embedding import embed_bqm
 from dwave.system import DWaveSampler, EmbeddingComposite, VirtualGraphComposite, LeapHybridSampler
@@ -142,16 +142,18 @@ class Sampler(object):
             with Client.from_config(profile=profile, client=sampler_type) as client:
                 if solver == None:
                     solver = client.default_solver
+                    solver_name = solver["name__eq"]
                 else:
+                    solver_name = solver
                     solver = {"name": solver}
                 if isinstance(client, hybrid.Client):
                     sampler = LeapHybridSampler(profile=profile, solver=solver)
-                elif isinstance(client, qpu.Client):
-                    sampler = DWaveSampler(profile=profile, solver=solver)
+                elif isinstance(client, sw.Client):
+                    sampler = client.get_solver()
                 else:
-                    self.qmasm.abend("Failed to construct a QPU or hybrid sampler")
+                    sampler = DWaveSampler(profile=profile, solver=solver)
                 info = self._recursive_properties(sampler)
-                info["solver_name"] = sampler.solver.name
+                info["solver_name"] = solver_name
                 info["endpoint"] = client.endpoint
                 if profile != None:
                     info["profile"] = profile
@@ -577,12 +579,18 @@ class Sampler(object):
         # https://github.com/dwavesystems/dwave-system/issues/297#issuecomment-632384524
         sub_params = copy.copy(params)
         result = None
+        if hasattr(sampler, "sample"):
+            take_samples = sampler.sample
+        elif hasattr(sampler, "sample_bqm"):
+            take_samples = sampler.sample_bqm
+        else:
+            raise Exception("Sampler doesn't support either sample or sample_bqm")
         while result == None:
-            # I don't know of a way to query a solver for the parameters it
-            # accepts.  Hence, we resort to the grotesque hack of parsing the
-            # error string to determine what is and isn't acceptable.
+            # Not all solvers can be queried for the parameters they accept.
+            # Hence, we resort to the grotesque hack of parsing the error
+            # string to determine what is and isn't acceptable.
             try:
-                result = sampler.sample(bqm, **sub_params)
+                result = take_samples(bqm, **sub_params)
                 if store_params:
                     result.resolve()
             except SolverFailureError as err:
@@ -612,6 +620,12 @@ class Sampler(object):
                     self.rejected_params.append(p)
                 del sub_params[p]
                 result = None
+            except:
+                # An unexpected error happened.  Throw an exception, which will
+                # be caught by complete_sample_acquisition and abort the
+                # program.
+                self.final_params_sem.release()
+                raise
         if store_params:
             self.final_params = sub_params
             self.final_params_sem.release()
@@ -638,7 +652,7 @@ class Sampler(object):
         # Return a VirtualGraph and the new BQM.
         return VirtualGraphComposite(sampler=self.sampler, embedding=id_embed), bqm
 
-    def complete_sample_acquisition(self, verbosity, results, overall_start_time, physical):
+    def complete_sample_acquisition(self, verbosity, futures, results, overall_start_time, physical):
         "Wait for all results to complete then return a Solutions object."
         nqmis = len(results)
         if verbosity == 1:
@@ -672,6 +686,11 @@ class Sampler(object):
         prev_ncomplete = 0
         while ncomplete < nqmis:
             ncomplete = sum([int(r.done()) for r in results])
+            for f in futures:
+                # Check for a failure in the job-submission thread.
+                ex = f.exception()
+                if ex != None:
+                    self.qmasm.abend("Job submission failed: %s" % str(ex))
             if verbosity >= 2 and ncomplete > prev_ncomplete:
                 end_time = time.time_ns()
                 sys.stderr.write("    %*d of %d (%3.0f%%) after %*.0f second(s)\n" %
@@ -743,6 +762,7 @@ class Sampler(object):
 
         # Submit all of our QMIs asynchronously.
         results = [None for i in range(nqmis)]
+        futures = [None for i in range(nqmis)]
         executor = ThreadPoolExecutor()
         overall_start_time = time.time_ns()
         for i in range(nqmis):
@@ -771,9 +791,9 @@ class Sampler(object):
                     del solver_params[p]
 
             # Submit the QMI to the solver in a background thread.
-            future = executor.submit(self._submit_and_block, sampler, bqm, i == 0, **solver_params)
-            results[i] = SampleSet.from_future(future)
+            futures[i] = executor.submit(self._submit_and_block, sampler, bqm, i == 0, **solver_params)
+            results[i] = SampleSet.from_future(futures[i])
 
         # Wait for the QMIs to finish then return the results.
         executor.shutdown(wait=False)
-        return self.complete_sample_acquisition(verbosity, results, overall_start_time, physical)
+        return self.complete_sample_acquisition(verbosity, futures, results, overall_start_time, physical)
