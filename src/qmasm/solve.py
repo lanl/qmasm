@@ -149,7 +149,7 @@ class Sampler(object):
                 if isinstance(client, hybrid.Client):
                     sampler = LeapHybridSampler(profile=profile, solver=solver)
                 elif isinstance(client, sw.Client):
-                    sampler = client.get_solver()
+                    self.qmasm.abend("QMASM does not currently support remote software solvers")
                 else:
                     sampler = DWaveSampler(profile=profile, solver=solver)
                 info = self._recursive_properties(sampler)
