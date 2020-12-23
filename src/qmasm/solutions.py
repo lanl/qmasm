@@ -540,4 +540,7 @@ class Solutions(object):
 
     def visualize(self):
         "Run the D-Wave Problem Inspector on the first raw result."
-        inspector.show(self.raw_results[0])
+        try:
+            inspector.show(self.raw_results[0])
+        except:
+            self.problem.qmasm.abend('Failed to run the D-Wave Problem Inspector')

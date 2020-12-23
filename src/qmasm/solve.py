@@ -145,14 +145,13 @@ class Sampler(object):
                 else:
                     solver = {"name": solver}
                 try:
-                    # Hybrid sampler
-                    sampler = LeapHybridSampler(profile=profile, solver=solver)
+                    # QPU
+                    sampler = DWaveSampler(profile=profile, solver=solver)
                 except SolverNotFoundError:
                     try:
-                        # QPU
-                        sampler = DWaveSampler(profile=profile, solver=solver)
+                        # Hybrid sampler
+                        sampler = LeapHybridSampler(profile=profile, solver=solver)
                     except SolverNotFoundError as err:
-                        # Other (e.g., remote software sampler)
                         self.qmasm.abend("Failed to construct a QPU or hybrid sampler (%s)" % str(err))
                 info = self._recursive_properties(sampler)
                 info["solver_name"] = sampler.solver.name
