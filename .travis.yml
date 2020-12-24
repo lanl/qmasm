@@ -16,6 +16,7 @@ script:
   - cd examples
   - test "$(qmasm --format=qmasm --solver=neal feature-test.qmasm | md5sum | awk '{print $1}')" = 08399934cd8092743d5a69f4ec637701
   - test "$(qmasm --solver=tabu 1of5.qmasm | md5sum | awk '{print $1}')" = 38d9318cd4f4d34d1aafadcfca145362
+  - test "$(qmasm -O2 -v -v --solver=greedy 1of5.qmasm 2>&1 | md5sum | awk '{print $1}')" = c6c65c0237dd708e2c748cc1ad09c4c8
   - test "$(qmasm --solver=neal --format=ocean --pin="x10 := true" circsat.qmasm | md5sum | awk '{print $1}')" = ac41b2e24401324f610ae0d7a74eb424
   - test "$(qmasm --solver=exact --run 1of5.qmasm | md5sum | awk '{print $1}')" = 5296b7ddbf24c9a2f7785acb782ea2c8
   - test "$(qmasm --solver=exact --run -v 1of5.qmasm 2>&1 | wc -l)" -eq 117

@@ -24,6 +24,7 @@ from dwave.cloud.exceptions import SolverFailureError, SolverNotFoundError
 from dwave.embedding import embed_bqm
 from dwave.system import DWaveSampler, EmbeddingComposite, VirtualGraphComposite, LeapHybridSampler
 from dwave_qbsolv import QBSolv
+from greedy import SteepestDescentSolver
 from hybrid.reference.kerberos import KerberosSampler
 from neal import SimulatedAnnealingSampler
 from qmasm.solutions import Solutions
@@ -105,6 +106,8 @@ class Sampler(object):
             return SimulatedAnnealingSampler(), info, {}
         elif solver == "tabu":
             return TabuSampler(), info, {}
+        elif solver == "greedy":
+            return SteepestDescentSolver(), info, {}
         elif solver == "kerberos" or (solver != None and solver[:9] == "kerberos,"):
             base_sampler = KerberosSampler()
             try:
