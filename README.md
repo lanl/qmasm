@@ -14,11 +14,16 @@ N.B. This tool used to be called "QASM" but was renamed to avoid confusion with 
 Installation
 ------------
 
-QMASM is written in Python and uses [Setuptools](https://pythonhosted.org/an_example_pypi_project/setuptools.html) for installation.  Use
+QMASM is written in Python.  The latest release can be downloaded and installed from [PyPI](https://pypi.org/project/qmasm/) via
+```bash
+pip install qmasm
+```
+
+Alternatively, QMASM can be installed manually from GitHub using the standard [Setuptools](https://setuptools.readthedocs.io/) installation mechanisms.  For example, use
 ```bash
 python setup.py install
 ```
-to install in the default location and
+to install QMASM in the default location and
 ```bash
 python setup.py install --prefix=/my/install/directory
 ```
